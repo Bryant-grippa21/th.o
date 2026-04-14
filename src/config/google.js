@@ -1,5 +1,5 @@
 const { OAuth2Client } = require('google-auth-library');
 
-const client = new OAuth2Client('748491841488-u4vboqoa5cqi43klpa5686n5fdo1qnj6.apps.googleusercontent.com');
+const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 module.exports = client;

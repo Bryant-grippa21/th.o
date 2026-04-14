@@ -1,9 +1,9 @@
 const bcrypt = require('bcrypt');
 const client = require('../config/google');
-
 const { generateToken } = require('../utils/jwt');
 const { hashPassword } = require('../utils/hash');
 
+// ✅ Actualizado
 const {
   registerGoogleUser,
   findUserByEmail,
@@ -13,7 +13,7 @@ const {
   increaseLoginAttempts,
   resetLoginAttempts,
   toggleUserActive
-} = require('../services/auth.service');
+} = require('../services/auth.customer.service');
 
 // 🟢 REGISTER
 const registerLocal = async (req, res) => {
@@ -38,6 +38,7 @@ const registerLocal = async (req, res) => {
     res.json({ message: 'Usuario registrado correctamente' });
 
   } catch (error) {
+    console.error('❌ ERROR REGISTER:', error);   // ← agrega esto
     res.status(500).json({ error: error.message });
   }
 };
@@ -65,12 +66,12 @@ const loginLocal = async (req, res) => {
 
     // ❌ PASSWORD INCORRECTA
     if (!isMatch) {
-      await increaseLoginAttempts(user.id_user_n);
+      await increaseLoginAttempts(user.id_customer);        // ✅ era id_user_n
 
       const updatedUser = await findUserByEmail(email);
 
       if (updatedUser.attempts >= 3) {
-        await toggleUserActive(user.id_user_n, false);
+        await toggleUserActive(user.id_customer, false);    // ✅ era id_user_n
 
         return res.status(403).json({
           error: 'Usuario bloqueado por múltiples intentos fallidos'
@@ -84,7 +85,7 @@ const loginLocal = async (req, res) => {
     }
 
     // ✅ LOGIN CORRECTO
-    await resetLoginAttempts(user.id_user_n);
+    await resetLoginAttempts(user.id_customer);             // ✅ era id_user_n
 
     const token = generateToken(user);
 
@@ -105,7 +106,7 @@ const loginGoogle = async (req, res) => {
 
     const ticket = await client.verifyIdToken({
       idToken: credential,
-      audience: '748491841488-u4vboqoa5cqi43klpa5686n5fdo1qnj6.apps.googleusercontent.com'
+      audience: process.env.GOOGLE_CLIENT_ID   // ✅ era Client ID hardcodeado
     });
 
     const payload = ticket.getPayload();
