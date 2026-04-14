@@ -6,10 +6,10 @@ DROP DATABASE IF EXISTS tuherramientaonline;
 CREATE DATABASE tuherramientaonline;
 USE tuherramientaonline;
 
-CREATE TABLE User_N (
+CREATE TABLE Customer (
 
     -- 🔑 datos personales
-    id_user_n INT AUTO_INCREMENT PRIMARY KEY,
+    id_customer INT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(50) NOT NULL,
     email VARCHAR(100) NOT NULL UNIQUE,
     DOB DATE NOT NULL,
@@ -43,7 +43,7 @@ CREATE TABLE User_N (
 
 CREATE TABLE Cashback (
     id_cashback INT AUTO_INCREMENT PRIMARY KEY,
-    id_user_n_fk INT NOT NULL,
+    id_customer_fk INT NOT NULL,
     value DECIMAL(10,2) NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
@@ -79,13 +79,13 @@ CREATE TABLE Role (
 );
 
 -- =========================================
--- 🏢 USUARIOS JURÍDICOS
+-- 🏢 EMPRESAS
 -- =========================================
 
-CREATE TABLE User_J (
+CREATE TABLE Company (
 
     -- 🔑 identificación
-    id_user_j INT AUTO_INCREMENT PRIMARY KEY,
+    id_company INT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
     rif VARCHAR(20) NOT NULL UNIQUE,
 
@@ -119,11 +119,11 @@ CREATE TABLE Credit_Limit (
 
     id_credit_limit INT AUTO_INCREMENT PRIMARY KEY,
 
-    id_detallista_fk INT NOT NULL,
-    id_mayorista_fk INT NOT NULL,
+    id_retailer_fk INT NOT NULL,
+    id_wholesaler_fk INT NOT NULL,
 
-    credit DECIMAL(10,2) NOT NULL,              -- monto total aprobado
-    remaining_amount DECIMAL(10,2) NOT NULL,    -- deuda actual
+    credit DECIMAL(10,2) NOT NULL,
+    remaining_amount DECIMAL(10,2) NOT NULL,
 
     start_date DATE NOT NULL,
     due_date DATE NOT NULL,
@@ -158,25 +158,25 @@ CREATE TABLE Credit_History (
 -- 🔗 FOREIGN KEYS
 -- =========================================
 
-ALTER TABLE User_J
-ADD CONSTRAINT fk_user_j_role
+ALTER TABLE Company
+ADD CONSTRAINT fk_company_role
 FOREIGN KEY (id_role_fk) REFERENCES Role(id_role);
 
 ALTER TABLE Credit_Limit
-ADD CONSTRAINT fk_credit_limit_detallista
-FOREIGN KEY (id_detallista_fk) REFERENCES User_J(id_user_j);
+ADD CONSTRAINT fk_credit_limit_retailer
+FOREIGN KEY (id_retailer_fk) REFERENCES Company(id_company);
 
 ALTER TABLE Credit_Limit
-ADD CONSTRAINT fk_credit_limit_mayorista
-FOREIGN KEY (id_mayorista_fk) REFERENCES User_J(id_user_j);
+ADD CONSTRAINT fk_credit_limit_wholesaler
+FOREIGN KEY (id_wholesaler_fk) REFERENCES Company(id_company);
 
 ALTER TABLE Credit_History
 ADD CONSTRAINT fk_credit_history_credit_limit
 FOREIGN KEY (id_credit_limit_fk) REFERENCES Credit_Limit(id_credit_limit);
 
 ALTER TABLE Cashback
-ADD CONSTRAINT fk_cashback_user_n
-FOREIGN KEY (id_user_n_fk) REFERENCES User_N(id_user_n);
+ADD CONSTRAINT fk_cashback_customer
+FOREIGN KEY (id_customer_fk) REFERENCES Customer(id_customer);
 
 ALTER TABLE Cashback_History
 ADD CONSTRAINT fk_cashback_history_cashback
@@ -190,7 +190,7 @@ INSERT INTO Role (name) VALUES
 ('MAYORISTA'),
 ('DETALLISTA');
 
-INSERT INTO User_J (
+INSERT INTO Company (
     name,
     rif,
     email,
@@ -202,7 +202,7 @@ INSERT INTO User_J (
     'Admin',
     'J-00000000-0',
     'admin@example.com',
-    '$2b$10$daXc069JWmMgW42CmSuUOuZDdxrdTWoy2n44o0eRq6fxMBV3ooXxW', -- 12345
+    '$2b$10$daXc069JWmMgW42CmSuUOuZDdxrdTWoy2n44o0eRq6fxMBV3ooXxW',
     '000-000-0000',
     'admin@example.com',
     1

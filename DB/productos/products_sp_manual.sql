@@ -54,7 +54,7 @@ DELIMITER //
 CREATE PROCEDURE sp_create_product_full(
     IN p_name VARCHAR(150),
     IN p_id_subcategory INT,
-    IN p_id_user INT,
+    IN p_id_company INT,                    -- ✅ p_id_user → p_id_company
     IN p_brand VARCHAR(100),
 
     IN p_sku VARCHAR(50),
@@ -82,25 +82,23 @@ BEGIN
 
     START TRANSACTION;
 
-    -- VALIDACIONES
-    IF NOT EXISTS (SELECT 1 FROM User_J WHERE id_user_j = p_id_user) THEN
-        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Usuario no existe';
+    -- ✅ User_J → Company
+    IF NOT EXISTS (SELECT 1 FROM Company WHERE id_company = p_id_company) THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Empresa no existe';
     END IF;
 
     IF NOT EXISTS (SELECT 1 FROM Subcategory WHERE id_subcategory = p_id_subcategory) THEN
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Subcategoría no existe';
     END IF;
 
-    -- PRODUCTO
-    INSERT INTO Product (name, id_subcategory_fk, id_user_j_fk, brand)
-    VALUES (p_name, p_id_subcategory, p_id_user, p_brand);
+    -- ✅ id_user_j_fk → id_company_fk
+    INSERT INTO Product (name, id_subcategory_fk, id_company_fk, brand)
+    VALUES (p_name, p_id_subcategory, p_id_company, p_brand);
 
     SET v_product_id = LAST_INSERT_ID();
 
-    -- SKU AUTO
     SET p_sku = IFNULL(p_sku, CONCAT('SKU-', v_product_id));
 
-    -- VARIANTE
     INSERT INTO Product_Variant (
         id_product_fk, sku, description, price, cost, attributes
     )
@@ -110,11 +108,9 @@ BEGIN
 
     SET v_variant_id = LAST_INSERT_ID();
 
-    -- STOCK
     INSERT INTO Stock (id_variant_fk, quantity, min_stock)
     VALUES (v_variant_id, p_quantity, p_min_stock);
 
-    -- IMAGEN
     IF p_image_url IS NOT NULL THEN
         INSERT INTO Product_Image (id_variant_fk, image_url, is_main)
         VALUES (v_variant_id, p_image_url, TRUE);
@@ -199,7 +195,8 @@ BEGIN
     END IF;
 
     UPDATE Product
-    SET is_active = p_is_active
+    SET is_active = p_is_active,
+        updated_at = CURRENT_TIMESTAMP
     WHERE id_product = p_id_product;
 
 END //
@@ -214,8 +211,16 @@ CREATE PROCEDURE sp_toggle_variant (
 )
 BEGIN
 
+    IF NOT EXISTS (
+        SELECT 1 FROM Product_Variant WHERE id_variant = p_id_variant
+    ) THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Variante no existe';
+    END IF;
+
     UPDATE Product_Variant
-    SET is_active = p_is_active
+    SET is_active = p_is_active,
+        updated_at = CURRENT_TIMESTAMP
     WHERE id_variant = p_id_variant;
 
 END //
@@ -228,7 +233,7 @@ CREATE PROCEDURE sp_create_product_auto (
     IN p_categoria VARCHAR(100),
     IN p_subcategoria VARCHAR(100),
     IN p_producto VARCHAR(150),
-    IN p_id_user INT
+    IN p_id_company INT                     -- ✅ p_id_user → p_id_company
 )
 BEGIN
 
@@ -237,11 +242,28 @@ BEGIN
     DECLARE v_product_id INT;
     DECLARE v_variant_id INT;
 
-    -- categoría
+    DECLARE EXIT HANDLER FOR SQLEXCEPTION
+    BEGIN
+        ROLLBACK;
+        RESIGNAL;
+    END;
+
+    START TRANSACTION;
+
+    -- ✅ User_J → Company
+    IF NOT EXISTS (SELECT 1 FROM Company WHERE id_company = p_id_company) THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Empresa no existe';
+    END IF;
+
     SELECT id_category INTO v_category_id
     FROM Category WHERE name = p_categoria LIMIT 1;
 
-    -- subcategoría
+    IF v_category_id IS NULL THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Categoría no existe';
+    END IF;
+
     SELECT id_subcategory INTO v_subcategory_id
     FROM Subcategory 
     WHERE name = p_subcategoria 
@@ -253,21 +275,20 @@ BEGIN
         SET MESSAGE_TEXT = 'Subcategoría no existe';
     END IF;
 
-    -- producto
+    -- ✅ id_user_j_fk → id_company_fk
     INSERT INTO Product (
         name,
         id_subcategory_fk,
-        id_user_j_fk
+        id_company_fk
     )
     VALUES (
         p_producto,
         v_subcategory_id,
-        p_id_user
+        p_id_company
     );
 
     SET v_product_id = LAST_INSERT_ID();
 
-    -- variante básica
     INSERT INTO Product_Variant (
         id_product_fk,
         sku,
@@ -283,7 +304,6 @@ BEGIN
 
     SET v_variant_id = LAST_INSERT_ID();
 
-    -- stock
     INSERT INTO Stock (
         id_variant_fk,
         quantity
@@ -292,6 +312,8 @@ BEGIN
         v_variant_id,
         0
     );
+
+    COMMIT;
 
 END //
 
@@ -387,9 +409,13 @@ DELIMITER //
 
 CREATE PROCEDURE sp_update_stock (
     IN p_id_variant INT,
-    IN p_quantity INT
+    IN p_quantity INT,
+    IN p_movement_type ENUM('PURCHASE','SALE','ADJUSTMENT','RETURN'),
+    IN p_notes VARCHAR(255)
 )
 BEGIN
+
+    DECLARE v_previous_quantity INT;
 
     IF NOT EXISTS (
         SELECT 1 FROM Stock WHERE id_variant_fk = p_id_variant
@@ -398,9 +424,30 @@ BEGIN
         SET MESSAGE_TEXT = 'Stock no existe';
     END IF;
 
+    SELECT quantity INTO v_previous_quantity
+    FROM Stock WHERE id_variant_fk = p_id_variant;
+
     UPDATE Stock
-    SET quantity = p_quantity
+    SET quantity = p_quantity,
+        updated_at = CURRENT_TIMESTAMP
     WHERE id_variant_fk = p_id_variant;
+
+    INSERT INTO Stock_History (
+        id_stock_fk,
+        quantity_change,
+        previous_quantity,
+        new_quantity,
+        movement_type,
+        notes
+    )
+    SELECT
+        id_stock,
+        p_quantity - v_previous_quantity,
+        v_previous_quantity,
+        p_quantity,
+        p_movement_type,
+        p_notes
+    FROM Stock WHERE id_variant_fk = p_id_variant;
 
 END //
 
@@ -410,13 +457,50 @@ DELIMITER //
 
 CREATE PROCEDURE sp_add_stock (
     IN p_id_variant INT,
-    IN p_amount INT
+    IN p_amount INT,
+    IN p_movement_type ENUM('PURCHASE','SALE','ADJUSTMENT','RETURN'),
+    IN p_notes VARCHAR(255)
 )
 BEGIN
 
+    DECLARE v_stock_id INT;
+    DECLARE v_previous_quantity INT;
+
+    START TRANSACTION;
+
+    SELECT id_stock, quantity INTO v_stock_id, v_previous_quantity
+    FROM Stock
+    WHERE id_variant_fk = p_id_variant
+    FOR UPDATE;
+
+    IF v_stock_id IS NULL THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Stock no existe';
+    END IF;
+
     UPDATE Stock
-    SET quantity = quantity + p_amount
+    SET quantity = quantity + p_amount,
+        updated_at = CURRENT_TIMESTAMP
     WHERE id_variant_fk = p_id_variant;
+
+    INSERT INTO Stock_History (
+        id_stock_fk,
+        quantity_change,
+        previous_quantity,
+        new_quantity,
+        movement_type,
+        notes
+    )
+    VALUES (
+        v_stock_id,
+        p_amount,
+        v_previous_quantity,
+        v_previous_quantity + p_amount,
+        p_movement_type,
+        p_notes
+    );
+
+    COMMIT;
 
 END //
 
@@ -426,15 +510,18 @@ DELIMITER //
 
 CREATE PROCEDURE sp_remove_stock (
     IN p_id_variant INT,
-    IN p_amount INT
+    IN p_amount INT,
+    IN p_movement_type ENUM('PURCHASE','SALE','ADJUSTMENT','RETURN'),
+    IN p_notes VARCHAR(255)
 )
 BEGIN
 
+    DECLARE v_stock_id INT;
     DECLARE v_stock INT;
 
     START TRANSACTION;
 
-    SELECT quantity INTO v_stock
+    SELECT id_stock, quantity INTO v_stock_id, v_stock
     FROM Stock
     WHERE id_variant_fk = p_id_variant
     FOR UPDATE;
@@ -450,8 +537,26 @@ BEGIN
     END IF;
 
     UPDATE Stock
-    SET quantity = quantity - p_amount
+    SET quantity = quantity - p_amount,
+        updated_at = CURRENT_TIMESTAMP
     WHERE id_variant_fk = p_id_variant;
+
+    INSERT INTO Stock_History (
+        id_stock_fk,
+        quantity_change,
+        previous_quantity,
+        new_quantity,
+        movement_type,
+        notes
+    )
+    VALUES (
+        v_stock_id,
+        -p_amount,
+        v_stock,
+        v_stock - p_amount,
+        p_movement_type,
+        p_notes
+    );
 
     COMMIT;
 

@@ -28,7 +28,7 @@ CREATE TABLE Product (
     name VARCHAR(150) NOT NULL,
 
     id_subcategory_fk INT NOT NULL,
-    id_user_j_fk INT NOT NULL,
+    id_company_fk INT NOT NULL,             -- ✅ User_J → Company
 
     brand VARCHAR(100),
 
@@ -37,10 +37,10 @@ CREATE TABLE Product (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 
-    UNIQUE(name, id_user_j_fk),
+    UNIQUE(name, id_company_fk),            -- ✅ User_J → Company
 
     FOREIGN KEY (id_subcategory_fk) REFERENCES Subcategory(id_subcategory),
-    FOREIGN KEY (id_user_j_fk) REFERENCES User_J(id_user_j)
+    FOREIGN KEY (id_company_fk) REFERENCES Company(id_company)  -- ✅ User_J → Company
 );
 
 CREATE TABLE Product_Variant (
@@ -70,12 +70,39 @@ CREATE TABLE Stock (
 
     id_variant_fk INT NOT NULL,
 
-    quantity INT NOT NULL DEFAULT 0,
-    min_stock INT DEFAULT 0,
+    quantity INT NOT NULL DEFAULT 0 CHECK (quantity >= 0),      -- ✅ FIX
+    min_stock INT DEFAULT 0 CHECK (min_stock >= 0),             -- ✅ FIX
 
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,             -- ✅ FIX agregado
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 
     FOREIGN KEY (id_variant_fk) REFERENCES Product_Variant(id_variant)
+);
+
+-- ✅ FIX: Tabla de historial de stock agregada
+CREATE TABLE Stock_History (
+    id_stock_history INT AUTO_INCREMENT PRIMARY KEY,
+
+    id_stock_fk INT NOT NULL,
+
+    -- 📦 movimiento
+    quantity_change INT NOT NULL,           -- positivo = entrada, negativo = salida
+    previous_quantity INT NOT NULL,
+    new_quantity INT NOT NULL,
+
+    movement_type ENUM(
+        'PURCHASE',     -- compra/reposición
+        'SALE',         -- venta
+        'ADJUSTMENT',   -- ajuste manual
+        'RETURN'        -- devolución
+    ) NOT NULL,
+
+    notes VARCHAR(255),
+
+    -- 🕒 auditoría
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    FOREIGN KEY (id_stock_fk) REFERENCES Stock(id_stock)
 );
 
 CREATE TABLE Product_Image (
@@ -85,19 +112,20 @@ CREATE TABLE Product_Image (
 
     image_url VARCHAR(255) NOT NULL,
     is_main BOOLEAN DEFAULT FALSE,
+    sort_order INT DEFAULT 0,                                   -- ✅ FIX agregado
 
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
     FOREIGN KEY (id_variant_fk) REFERENCES Product_Variant(id_variant)
 );
 
-CREATE INDEX idx_product_subcategory ON Product(id_subcategory_fk);
-CREATE INDEX idx_product_user ON Product(id_user_j_fk);
+-- ✅ FIX: Índice para historial de stock
+CREATE INDEX idx_stock_history_stock ON Stock_History(id_stock_fk);
+CREATE INDEX idx_stock_history_type ON Stock_History(movement_type);
+CREATE INDEX idx_stock_history_created ON Stock_History(created_at);
 
-CREATE INDEX idx_variant_product ON Product_Variant(id_product_fk);
-CREATE INDEX idx_variant_sku ON Product_Variant(sku);
-
-CREATE INDEX idx_stock_variant ON Stock(id_variant_fk);
+-- ✅ FIX: Índice para ordenar imágenes
+CREATE INDEX idx_image_variant_order ON Product_Image(id_variant_fk, sort_order);
 
 -- búsquedas reales ecommerce
 CREATE INDEX idx_product_active ON Product(is_active);
