@@ -1,15 +1,14 @@
 # 🔧 TUHERRAMIENTA.ONLINE
 
-Plataforma e-commerce/marketplace orientada a la venta de herramientas, con soporte para clientes finales (B2C) y empresas detallistas/mayoristas (B2B). Incluye sistema de cashback, crédito empresarial, catálogo de productos con variantes y control de stock.
+Plataforma e-commerce/marketplace orientada a la venta de herramientas, con soporte para clientes finales (B2C) y empresas detallistas/mayoristas (B2B). Incluye autenticación separada para `Customer` y `Company`, gestión de perfiles, carga de imágenes de perfil y base para cashback, crédito empresarial, catálogo con variantes y control de stock.
 
 ---
 
 ## 📌 Estado del Proyecto
 
-> ⚠️ **En refactorización activa.**
-> El backend fue construido inicialmente con una base de datos de prueba (`user_n`).
-> Actualmente se está migrando a la arquitectura definitiva (`Customer`, `Company`).
-> El frontend es responsabilidad de otro departamento y está desacoplado del backend.
+> ⚠️ **En refactorización activa, pero con auth funcional.**
+> El backend ya fue migrado desde la estructura inicial de prueba hacia `Customer` y `Company`.
+> El frontend sigue desacoplado y será integrado después.
 
 ---
 
@@ -17,311 +16,267 @@ Plataforma e-commerce/marketplace orientada a la venta de herramientas, con sopo
 
 | Capa | Tecnología |
 |---|---|
-| **Runtime** | Node.js |
-| **Framework** | Express.js v5 |
-| **Base de datos** | MySQL (mysql2/promise) |
-| **Autenticación** | JWT (jsonwebtoken) + bcrypt |
-| **OAuth** | Google Identity Services (google-auth-library) |
-| **Dev server** | Nodemon |
-| **Variables de entorno** | dotenv *(configurado, pendiente de activar)* |
+| Runtime | Node.js |
+| Framework | Express.js |
+| Base de datos | MySQL + mysql2/promise |
+| Auth | JWT + bcrypt |
+| OAuth | Google Identity Services |
+| Uploads | multer |
+| Variables de entorno | dotenv |
+| Dev | nodemon |
 
 ---
 
 ## 📁 Estructura del Proyecto
 
-```
+```text
 TUHERRAMIENTA.ONLINE/
+├── .env
+├── .env.example
+├── .gitignore
 ├── package.json
-├── package-lock.json
-├── .env                          → Variables de entorno (NO subir al repo)
-├── .env.example                  → Plantilla de variables (pendiente de crear)
-│
-├── src/                          → BACKEND
-│   ├── app.js                    → Entry point, servidor Express (puerto 3000)
-│   ├── config/
-│   │   ├── db.js                 → Pool de conexiones MySQL2
-│   │   └── google.js             → Cliente OAuth2 de Google
-│   ├── controllers/
-│   │   └── auth.controller.js    → Lógica de registro, login y perfil
-│   ├── middlewares/
-│   │   └── auth.middleware.js    → Verificación de token JWT
-│   ├── routes/
-│   │   └── auth.routes.js        → Definición de rutas de autenticación
-│   ├── services/
-│   │   └── auth.service.js       → Queries a DB y llamadas a Stored Procedures
-│   └── utils/
-│       ├── jwt.js                → Generación de tokens JWT
-│       └── hash.js               → Hash de contraseñas con bcrypt
-│
-├── public/                       → FRONTEND (otro departamento)
+├── README.md
+├── public/
 │   ├── index.html
+│   ├── assets/
+│   ├── utils/
+│   │   └── auth.js
+│   ├── css/
+│   │   └── styles.css
+│   ├── js/
+│   │   ├── auth/ -- por renombrar
+│   │   │   ├── google.js
+│   │   │   ├── login.js
+│   │   │   └── register.js
+│   │   └── user_n/ -- por renombrar
+│   │       ├── dashboard.js
+│   │       └── profile.js
 │   ├── auth/
 │   │   ├── login.html
 │   │   └── register.html
 │   ├── modules/
 │   │   └── user_n/
-│   │       ├── dashboard.html
-│   │       └── profile.html
-│   └── assets/
-│       ├── css/styles.css
-│       └── js/
-│           ├── index.js
-│           ├── utils/auth.js
-│           ├── auth/{login,register,google}.js
-│           └── user_n/{dashboard,profile}.js
-│
+│   │       ├── dashboard.html -- por renombrar
+│   │       └── profile.html -- por renombrar
+│   └── uploads/
+│       └── profiles/
+│           ├── customers/
+│           └── companies/
+│  
+├── src/
+│   ├── app.js
+│   ├── config/
+│   │   ├── db.js
+│   │   └── google.js
+│   ├── controllers/
+│   │   ├── auth.customer.controller.js
+│   │   └── auth.company.controller.js
+│   ├── middlewares/
+│   │   ├── auth.middleware.js
+│   │   └── upload.middleware.js
+│   ├── routes/
+│   │   ├── auth.customer.routes.js
+│   │   └── auth.company.routes.js
+│   ├── services/
+│   │   ├── auth.customer.service.js
+│   │   └── auth.company.service.js
+│   └── utils/
+│       ├── hash.js
+│       └── jwt.js
 └── DB/
     ├── usuarios/
-    │   ├── users_tables.sql      → Tablas de usuarios, empresas, cashback, crédito
-    │   └── users_SP.sql          → Stored Procedures de usuarios
+    │   ├── users_tables.sql
+    │   └── users_SP.sql
     └── productos/
-        ├── products_tables.sql   → Tablas de productos, variantes, stock
-        └── products_sp_manual.sql→ Stored Procedures de productos
+        ├── products_tables.sql
+        └── products_sp_manual.sql
 ```
 
 ---
 
-## 🗄️ Arquitectura de Base de Datos
+## ✅ Funcionalidades implementadas
 
-### Módulo de Usuarios
+### Customer
+- Registro local
+- Login local
+- Login con Google
+- `/me`
+- `GET /profile`
+- `PUT /profile`
+- `PUT /profile/image`
 
-```
-Customer ──────────── Cashback ──── Cashback_History
-    │
-    └── (auth: local o google)
+### Company
+- Registro local
+- Login local
+- `/me`
+- `GET /profile`
+- `PUT /profile`
+- `PUT /profile/image`
 
-Company ────────────── Role
-    │
-    ├── Credit_Limit ── Credit_History
-    └── Product ──────── Product_Variant ── Stock ── Stock_History
-                                     └── Product_Image
-```
-
-| Tabla | Descripción |
-|---|---|
-| `Customer` | Usuario final. Soporta auth local y Google |
-| `Cashback` | Saldo de cashback acumulado por cliente |
-| `Cashback_History` | Historial de movimientos de cashback |
-| `Company` | Empresa vendedora (detallista o mayorista) |
-| `Role` | Roles del sistema (ADMIN, DETALLISTA, MAYORISTA) |
-| `Credit_Limit` | Línea de crédito asignada a empresas B2B |
-| `Credit_History` | Historial de movimientos de crédito empresarial |
-
-### Módulo de Productos
-
-| Tabla | Descripción |
-|---|---|
-| `Category` | Categoría principal del producto |
-| `Subcategory` | Subcategoría vinculada a una categoría |
-| `Product` | Producto base vinculado a una `Company` |
-| `Product_Variant` | Variante del producto (atributos en JSON) |
-| `Stock` | Stock actual por variante |
-| `Stock_History` | Trazabilidad de movimientos de stock |
-| `Product_Image` | Imágenes asociadas a una variante |
+### Seguridad
+- JWT
+- bcrypt
+- bloqueo por intentos fallidos
+- variables sensibles en `.env`
 
 ---
 
-## 🔐 Sistema de Autenticación
+## 🔐 Endpoints disponibles
 
-### Flujo Local (Register)
+### Customer → `/api/auth`
 
-```
-Cliente → POST /api/auth/register
-        → hashPassword (bcrypt, 10 rounds)
-        → sp_register_customer_local(name, email, hash, DOB, phone, address)
-        → 201 Created
-```
+| Método | Ruta | Descripción |
+|---|---|---|
+| POST | `/register` | Registro local |
+| POST | `/login` | Login local |
+| POST | `/google` | Login/registro con Google |
+| GET | `/me` | Sesión actual |
+| GET | `/profile` | Obtener perfil |
+| PUT | `/profile` | Actualizar perfil |
+| PUT | `/profile/image` | Subir imagen de perfil |
 
-### Flujo Local (Login)
+### Company → `/api/company-auth`
 
-```
-Cliente → POST /api/auth/login
-        → findUserByEmail()
-        → Verificar is_active
-        → Verificar auth_provider === 'local'
-        → bcrypt.compare(password, hash)
-        → Si falla: increaseLoginAttempts() → bloqueo tras N intentos
-        → Si ok: resetLoginAttempts() → generateToken() → JWT 2h
-```
-
-### Flujo Google OAuth2
-
-```
-Cliente → Google Identity Services → ID Token
-        → POST /api/auth/google { credential }
-        → Verificar token con OAuth2Client
-        → Si usuario existe: login → JWT
-        → Si no existe: sp_register_customer_google() → JWT
-```
-
-### Payload del JWT
-
-```json
-{
-  "id": "id_customer",
-  "email": "usuario@email.com",
-  "name": "Nombre",
-  "DOB": "1990-01-01",
-  "cell_phone": "...",
-  "mail_address": "...",
-  "img_profile": "...",
-  "iat": 000000,
-  "exp": 000000
-}
-```
+| Método | Ruta | Descripción |
+|---|---|---|
+| POST | `/register` | Registro empresa |
+| POST | `/login` | Login empresa |
+| GET | `/me` | Sesión actual empresa |
+| GET | `/profile` | Obtener perfil empresa |
+| PUT | `/profile` | Actualizar perfil empresa |
+| PUT | `/profile/image` | Subir imagen de perfil empresa |
 
 ---
 
-## 🛣️ Endpoints Disponibles
+## 🖼️ Gestión de imágenes
 
-### Auth (`/api/auth`)
+Las imágenes se guardan en disco y el backend almacena solo el nombre del archivo en la base de datos.
 
-| Método | Ruta | Auth | Descripción |
-|---|---|---|---|
-| `POST` | `/register` | ❌ | Registro local con email y contraseña |
-| `POST` | `/login` | ❌ | Login local |
-| `POST` | `/google` | ❌ | Login / registro con Google |
-| `GET` | `/me` | ✅ JWT | Retorna datos del usuario autenticado |
-| `GET` | `/profile` | ✅ JWT | Obtiene perfil completo del usuario |
-| `PUT` | `/profile` | ✅ JWT | Actualiza datos del perfil |
+### Rutas de almacenamiento
+- `public/uploads/profiles/customers/`
+- `public/uploads/profiles/companies/`
 
-> Las rutas protegidas requieren header: `Authorization: Bearer <token>`
+### Acceso público
+- `/uploads/profiles/customers/<archivo>`
+- `/uploads/profiles/companies/<archivo>`
 
----
-
-## 🧩 Stored Procedures Principales
-
-### Usuarios
-
-| SP | Descripción |
-|---|---|
-| `sp_register_customer_local` | Registra cliente con auth local |
-| `sp_register_customer_google` | Registra/actualiza cliente con Google |
-| `sp_update_customer` | Actualiza datos del perfil |
-| `sp_update_cashback` | Actualiza saldo de cashback |
-
-### Productos
-
-| SP | Descripción |
-|---|---|
-| `sp_admin_create_category` | Crea una categoría (solo admin) |
-| `sp_admin_create_subcategory` | Crea una subcategoría |
-| `sp_create_product_full` | Crea producto con variante e imagen (transacción) |
-| `sp_update_product` | Actualiza datos del producto |
-| `sp_update_variant` | Actualiza atributos JSON de variante |
-| `sp_toggle_product` | Activa/desactiva un producto |
-| `sp_toggle_variant` | Activa/desactiva una variante |
+> Por ahora, las imágenes anteriores **no se eliminan** automáticamente.
 
 ---
 
-## ⚙️ Instalación y Configuración
+## ⚙️ Instalación
 
-### 1. Clonar el repositorio
-
+### 1. Clonar
 ```bash
 git clone https://github.com/Bryant-grippa21/th.o.git
 cd th.o
 ```
 
 ### 2. Instalar dependencias
-
 ```bash
 npm install
 ```
 
-### 3. Configurar variables de entorno
-
-Crear un archivo `.env` en la raíz del proyecto:
-
+### 3. Crear `.env`
 ```env
 PORT=3000
 DB_HOST=localhost
 DB_USER=root
-DB_PASSWORD=
+DB_PASSWORD=password
 DB_NAME=tuherramientaonline
 JWT_SECRET=tu_clave_secreta_aqui
 GOOGLE_CLIENT_ID=tu_google_client_id_aqui
 ```
 
-### 4. Crear la base de datos
-
-Ejecutar los scripts en este orden:
-
+### 4. Inicializar base de datos
 ```bash
-# 1. Tablas de usuarios
 mysql -u root -p < DB/usuarios/users_tables.sql
-
-# 2. Stored Procedures de usuarios
 mysql -u root -p < DB/usuarios/users_SP.sql
-
-# 3. Tablas de productos
 mysql -u root -p tuherramientaonline < DB/productos/products_tables.sql
-
-# 4. Stored Procedures de productos
 mysql -u root -p tuherramientaonline < DB/productos/products_sp_manual.sql
 ```
 
-### 5. Iniciar el servidor
-
+### 5. Levantar servidor
 ```bash
-# Desarrollo (con nodemon)
 npx nodemon src/app.js
-
-# Producción
-node src/app.js
 ```
 
 ---
 
-## 🗺️ Roadmap
+## 🧩 Base de datos
 
-### ✅ Completado
-- [x] Registro local de Customer (bcrypt + SP)
-- [x] Login local con bloqueo por intentos fallidos
-- [x] Autenticación Google OAuth2
-- [x] Middleware JWT de verificación
-- [x] Endpoint `/me` para sesión activa
-- [x] Arquitectura de DB: Customer, Company, Cashback, Crédito, Productos, Stock
+### Tablas principales
+- `Customer`
+- `Company`
+- `Role`
+- `Cashback`
+- `Cashback_History`
+- `Credit_Limit`
+- `Credit_History`
+- `Category`
+- `Subcategory`
+- `Product`
+- `Product_Variant`
+- `Stock`
+- `Stock_History`
+- `Product_Image`
 
-### 🔄 En Progreso (Refactorización)
-- [ ] Migrar backend de `user_n` → `Customer`
-- [ ] Actualizar `auth.service.js` con nuevos nombres de tablas y SPs
-- [ ] Activar `dotenv` en `app.js`
-- [ ] Mover credenciales a variables de entorno
-- [ ] Implementar `loginGoogle` en controller
-- [ ] Implementar `getProfile` y `updateProfile` en controller
-
-### 📋 Pendiente
-- [ ] Auth y rutas para `Company` (registro empresa, login)
-- [ ] Módulo de productos (CRUD con variantes y stock)
-- [ ] Sistema de cashback
-- [ ] Sistema de crédito B2B
-- [ ] Roles y permisos (ADMIN, DETALLISTA, MAYORISTA)
-- [ ] CORS configurado para producción
-- [ ] Cron job para `sp_check_credit_status`
-- [ ] Definir tabla `Transaction` (referenciada en `Cashback_History`)
-- [ ] Crear `.env.example`
-- [ ] Separar rutas de Customer y Company
+### SPs principales
+- `sp_register_customer_local`
+- `sp_register_customer_google`
+- `sp_update_customer`
+- `sp_register_company`
+- `sp_update_company`
+- `sp_update_login_failed`
+- `sp_reset_login_failed`
+- `sp_toggle_customer_status`
+- `sp_update_login_failed_company`
+- `sp_reset_login_failed_company`
+- `sp_toggle_company_status`
 
 ---
 
-## ⚠️ Notas de Seguridad
+## 🗺️ Siguiente a realizar
 
-> Los siguientes puntos son deuda técnica conocida y están en proceso de corrección:
-
-- `JWT_SECRET` actualmente hardcodeada como `'secret_key'` → mover a `.env`
-- `GOOGLE_CLIENT_ID` expuesto en archivos de configuración → mover a `.env`
-- Credenciales de DB en texto plano en `db.js` → mover a `.env`
-- `dotenv` instalado pero pendiente de inicializar en `app.js`
+- CRUD de productos
+- variantes e inventario
+- gestión de categorías y subcategorías
+- gestión de productos e imágenes
+- carrito de compras del lado del cliente
+- proceso de compra
+- historial de compras
+- gestión de ventas para empresas
+- gestión de cashback y créditos
+- cashback para customers.
+- crédito B2B para companies.
+- panel de administración para gestión de usuarios, productos, categorías, cashback y créditos.
+- panel de empresa para gestión de productos, ventas y cashback.
+- panel de cliente para gestión de perfil, compras, cashback y records.
+- integración frontend
+- estrategia de eliminación/versionado de imágenes
+- validaciones más estrictas para uploads
+- CORS para producción
+- tests automáticos
 
 ---
 
 ## 👤 Autor
 
-**Bryant Grippa**
-- GitHub: [@Bryant-grippa21](https://github.com/Bryant-grippa21)
-- Rama activa: `bryant_main`
-- Repositorio: `th.o`
+**Bryant Grippa**  
+GitHub: [@Bryant-grippa21](https://github.com/Bryant-grippa21)
+
+---
+
+## 🔄 Refactorización futura prevista
+
+Una vez completada la mayor parte del backend, se realizará una mini refactorización para:
+
+- renombrar carpetas legacy del frontend (`user_n`, `auth`)
+- alinear nombres de vistas, scripts y módulos con `Customer` y `Company`
+- reorganizar módulos de productos, categorías, compras y paneles
+- separar mejor frontend público, panel cliente, panel empresa y panel admin
+- revisar consistencia de nombres entre DB, backend y frontend
+- evaluar centralización de respuestas, validaciones y manejo de errores
 
 ---
 

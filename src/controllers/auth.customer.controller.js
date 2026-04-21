@@ -1,9 +1,10 @@
 const bcrypt = require('bcrypt');
+const fs = require('fs');
+const path = require('path');
 const client = require('../config/google');
 const { generateToken } = require('../utils/jwt');
 const { hashPassword } = require('../utils/hash');
 
-// ✅ Actualizado
 const {
   registerGoogleUser,
   findUserByEmail,
@@ -12,7 +13,8 @@ const {
   updateUser,
   increaseLoginAttempts,
   resetLoginAttempts,
-  toggleUserActive
+  toggleUserActive,
+  updateCustomerImage
 } = require('../services/auth.customer.service');
 
 // 🟢 REGISTER
@@ -142,10 +144,23 @@ const loginGoogle = async (req, res) => {
 // 👤 PROFILE GET
 const getProfile = async (req, res) => {
   try {
-    const user = await findUserById(req.user.id);
-    res.json(user);
+    const userId = req.user.id;
+
+    const user = await findUserById(userId);
+
+    if (!user) {
+      return res.status(404).json({ error: 'Usuario no encontrado' });
+    }
+
+    const { password_hash, ...safeUser } = user;
+
+    return res.status(200).json({
+      message: 'Perfil obtenido correctamente',
+      user: safeUser
+    });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error('❌ ERROR GET PROFILE:', error);
+    return res.status(500).json({ error: error.message });
   }
 };
 
@@ -154,34 +169,89 @@ const updateProfile = async (req, res) => {
   try {
     const userId = req.user.id;
 
+    const currentUser = await findUserById(userId);
+    if (!currentUser) {
+      return res.status(404).json({ error: 'Usuario no encontrado' });
+    }
+
     const {
+      name,
+      email,
+      password,
       DOB,
       cell_phone,
       mail_address,
-      password
+      img_profile
     } = req.body;
 
-    let password_hash = null;
+    if (email && email !== currentUser.email) {
+      const existingUser = await findUserByEmail(email);
 
-    if (password) {
-      password_hash = await bcrypt.hash(password, 10);
+      if (existingUser && existingUser.id_customer !== userId) {
+        return res.status(400).json({ error: 'El correo ya está en uso' });
+      }
+    }
+
+    let password_hash = currentUser.password_hash;
+
+    if (password && password.trim() !== '') {
+      password_hash = await hashPassword(password);
     }
 
     await updateUser({
       id: userId,
-      name: null,
-      email: null,
+      name: name ?? currentUser.name,
+      email: email ?? currentUser.email,
       password_hash,
-      DOB,
-      cell_phone,
-      mail_address,
-      img_profile: null
+      DOB: DOB ?? currentUser.DOB,
+      cell_phone: cell_phone ?? currentUser.cell_phone,
+      mail_address: mail_address ?? currentUser.mail_address,
+      img_profile: img_profile ?? currentUser.img_profile
     });
 
-    res.json({ message: 'Perfil actualizado' });
+    const updatedUser = await findUserById(userId);
+    const { password_hash: _, ...safeUser } = updatedUser;
 
+    return res.status(200).json({
+      message: 'Perfil actualizado correctamente',
+      user: safeUser
+    });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error('❌ ERROR UPDATE PROFILE:', error);
+    return res.status(500).json({ error: error.message });
+  }
+};
+
+// 📷 UPDATE CUSTOMER PROFILE IMAGE
+const updateCustomerProfileImage = async (req, res) => {
+  try {
+    if (req.user.entity && req.user.entity !== 'customer') {
+      return res.status(403).json({ error: 'Token no válido para customer' });
+    }
+
+    const customerId = req.user.id;
+    const currentUser = await findUserById(customerId);
+
+    if (!currentUser) {
+      return res.status(404).json({ error: 'Usuario no encontrado' });
+    }
+
+    if (!req.file) {
+      return res.status(400).json({ error: 'Imagen requerida' });
+    }
+
+    await updateCustomerImage(customerId, req.file.filename);
+
+    const updatedUser = await findUserById(customerId);
+    const { password_hash, ...safeUser } = updatedUser;
+
+    return res.status(200).json({
+      message: 'Imagen de perfil actualizada correctamente',
+      user: safeUser
+    });
+  } catch (error) {
+    console.error('❌ ERROR UPDATE CUSTOMER IMAGE:', error);
+    return res.status(500).json({ error: error.message });
   }
 };
 
@@ -190,5 +260,6 @@ module.exports = {
   loginLocal,
   loginGoogle,
   getProfile,
-  updateProfile
+  updateProfile,
+  updateCustomerProfileImage
 };

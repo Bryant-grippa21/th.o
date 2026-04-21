@@ -42,11 +42,13 @@ const registerGoogleUser = async (data) => {
 // 🔄 ACTUALIZAR PERFIL
 const updateUser = async (data) => {
   const { id, name, email, password_hash, DOB, cell_phone, mail_address, img_profile } = data;
-  const [rows] = await pool.query(
+
+  await pool.query(
     'CALL sp_update_customer(?, ?, ?, ?, ?, ?, ?, ?)',
     [id, name, email, password_hash, DOB, cell_phone, mail_address, img_profile]
   );
-  return rows[0][0];
+
+  return true;
 };
 
 // ❌ AUMENTAR INTENTOS FALLIDOS
@@ -73,6 +75,16 @@ const toggleUserActive = async (userId, isActive) => {
   );
 };
 
+// 🖼️ ACTUALIZAR IMAGEN DE PERFIL
+const updateCustomerImage = async (customerId, imgProfile) => {
+  await pool.query(
+    'UPDATE Customer SET img_profile = ? WHERE id_customer = ?',
+    [imgProfile, customerId]
+  );
+
+  return true;
+};
+
 module.exports = {
   registerLocalUser,
   findUserByEmail,
@@ -81,5 +93,6 @@ module.exports = {
   updateUser,
   increaseLoginAttempts,
   resetLoginAttempts,
-  toggleUserActive
+  toggleUserActive,
+  updateCustomerImage
 };

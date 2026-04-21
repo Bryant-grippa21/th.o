@@ -270,8 +270,7 @@ CREATE PROCEDURE sp_register_company (
     IN p_password_hash VARCHAR(255),
     IN p_cell_phone VARCHAR(20),
     IN p_mail_address VARCHAR(255),
-    IN p_id_role_fk INT,
-    OUT p_id_company INT
+    IN p_id_role_fk INT
 )
 BEGIN
 
@@ -292,7 +291,6 @@ BEGIN
         p_cell_phone, p_mail_address, p_id_role_fk
     );
 
-    SET p_id_company = LAST_INSERT_ID();
 
 END //
 
