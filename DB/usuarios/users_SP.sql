@@ -422,15 +422,6 @@ BEGIN
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Mayorista no existe';
     END IF;
 
-    IF EXISTS (
-        SELECT 1 FROM Credit_Limit
-        WHERE id_retailer_fk = p_retailer
-        AND status = 'ACTIVE'
-    ) THEN
-        SIGNAL SQLSTATE '45000'
-        SET MESSAGE_TEXT = 'Ya tiene un crédito activo';
-    END IF;
-
     INSERT INTO Credit_Limit (
         id_retailer_fk, id_wholesaler_fk,
         credit, remaining_amount,
@@ -525,7 +516,8 @@ BEGIN
         AND remaining_amount > 0;
 
         UPDATE Company
-        SET is_active = FALSE,
+        SET can_buy = FALSE,
+            can_sell = FALSE,
             updated_at = CURRENT_TIMESTAMP
         WHERE id_company IN (
             SELECT id_retailer_fk

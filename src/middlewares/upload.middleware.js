@@ -1,6 +1,6 @@
 const multer = require('multer');
-const path = require('path');
-const fs = require('fs');
+const path = require('node:path');
+const fs = require('node:fs');
 
 const ensureDir = (dirPath) => {
   if (!fs.existsSync(dirPath)) {
@@ -10,9 +10,11 @@ const ensureDir = (dirPath) => {
 
 const customerDir = path.join(__dirname, '../../public/uploads/profiles/customers');
 const companyDir = path.join(__dirname, '../../public/uploads/profiles/companies');
+const productDir = path.join(__dirname, '../../public/uploads/products');
 
 ensureDir(customerDir);
 ensureDir(companyDir);
+ensureDir(productDir);
 
 const createStorage = (folder, prefix) =>
   multer.diskStorage({
@@ -37,7 +39,13 @@ const uploadCompanyImage = multer({
   limits: { fileSize: 5 * 1024 * 1024 }
 });
 
+const uploadProductImage = multer({
+  storage: createStorage(productDir, 'product'),
+  limits: { fileSize: 5 * 1024 * 1024 }
+});
+
 module.exports = {
   uploadCustomerImage,
-  uploadCompanyImage
+  uploadCompanyImage,
+  uploadProductImage
 };

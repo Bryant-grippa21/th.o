@@ -12,10 +12,9 @@ CREATE TABLE Customer (
     id_customer INT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(50) NOT NULL,
     email VARCHAR(100) NOT NULL UNIQUE,
-    DOB DATE NOT NULL,
 
     -- 🔐 autenticación
-    auth_provider ENUM('local', 'google') DEFAULT 'local',
+    auth_provider ENUM('local', 'google','both') DEFAULT 'local',
     provider_id VARCHAR(100) DEFAULT NULL,
     password_hash VARCHAR(255) DEFAULT NULL,
     is_verified BOOLEAN DEFAULT FALSE,
@@ -104,6 +103,8 @@ CREATE TABLE Company (
     -- 🔒 seguridad
     attempts INT DEFAULT 0,
     is_active BOOLEAN DEFAULT TRUE,
+    can_buy BOOLEAN DEFAULT TRUE,
+    can_sell BOOLEAN DEFAULT TRUE,
 
     -- 🕒 auditoría
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -112,7 +113,7 @@ CREATE TABLE Company (
 
 -- =========================================
 -- 💳 LÍMITE DE CRÉDITO
--- (1 MAYORISTA → 1 DETALLISTA ACTIVO)
+-- (un detallista puede tener múltiples créditos)
 -- =========================================
 
 CREATE TABLE Credit_Limit (

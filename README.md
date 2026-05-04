@@ -70,16 +70,19 @@ TUHERRAMIENTA.ONLINE/
 │   │   └── google.js
 │   ├── controllers/
 │   │   ├── auth.customer.controller.js
-│   │   └── auth.company.controller.js
+│   │   ├── auth.company.controller.js
+│   │   └── products.controller.js
 │   ├── middlewares/
 │   │   ├── auth.middleware.js
 │   │   └── upload.middleware.js
 │   ├── routes/
 │   │   ├── auth.customer.routes.js
-│   │   └── auth.company.routes.js
+│   │   ├── auth.company.routes.js
+│   │   └── products.routes.js
 │   ├── services/
 │   │   ├── auth.customer.service.js
-│   │   └── auth.company.service.js
+│   │   ├── auth.company.service.js
+│   │   └── products.service.js
 │   └── utils/
 │       ├── hash.js
 │       └── jwt.js
@@ -90,6 +93,7 @@ TUHERRAMIENTA.ONLINE/
     └── productos/
         ├── products_tables.sql
         └── products_sp_manual.sql
+        └── products_sp_seed.sql
 ```
 
 ---
@@ -112,6 +116,17 @@ TUHERRAMIENTA.ONLINE/
 - `GET /profile`
 - `PUT /profile`
 - `PUT /profile/image`
+
+### Productos
+- `GET /categories`
+- `GET /categories/:categoryId/subcategories`
+- `POST /categories`
+- `POST /subcategories`
+- `POST /api/products`
+- `POST /api/products/:productId/variants`
+- `PUT /api/products/:productId`
+- `PUT /api/products/variants/:variantId`
+- `PUT /api/products/variants/:variantId/stock`
 
 ### Seguridad
 - JWT
@@ -146,6 +161,20 @@ TUHERRAMIENTA.ONLINE/
 | PUT | `/profile` | Actualizar perfil empresa |
 | PUT | `/profile/image` | Subir imagen de perfil empresa |
 
+### Productos → `/api/products`
+
+| Método | Ruta | Descripción |
+|---|---|---|
+| GET | `/categories` | Listar categorías |
+| GET | `/categories/:categoryId/subcategories` | Listar subcategorías por categoría |
+| POST | `/categories` | Crear categoría manualmente |
+| POST | `/subcategories` | Crear subcategoría manualmente |
+| POST | `/` | Crear producto completo manualmente |
+| POST | `/:productId/variants` | Agregar variante a un producto |
+| PUT | `/:productId` | Actualizar producto |
+| PUT | `/variants/:variantId` | Actualizar variante |
+| PUT | `/variants/:variantId/stock` | Sincronizar stock |
+
 ---
 
 ## 🖼️ Gestión de imágenes
@@ -155,10 +184,12 @@ Las imágenes se guardan en disco y el backend almacena solo el nombre del archi
 ### Rutas de almacenamiento
 - `public/uploads/profiles/customers/`
 - `public/uploads/profiles/companies/`
+- `public/uploads/products/`
 
 ### Acceso público
 - `/uploads/profiles/customers/<archivo>`
 - `/uploads/profiles/companies/<archivo>`
+- `/uploads/products/<archivo>`
 
 > Por ahora, las imágenes anteriores **no se eliminan** automáticamente.
 
@@ -194,6 +225,7 @@ mysql -u root -p < DB/usuarios/users_tables.sql
 mysql -u root -p < DB/usuarios/users_SP.sql
 mysql -u root -p tuherramientaonline < DB/productos/products_tables.sql
 mysql -u root -p tuherramientaonline < DB/productos/products_sp_manual.sql
+mysql -u root -p tuherramientaonline < DB/productos/products_sp_seed.sql
 ```
 
 ### 5. Levantar servidor
@@ -227,6 +259,16 @@ npx nodemon src/app.js
 - `sp_update_customer`
 - `sp_register_company`
 - `sp_update_company`
+- `sp_admin_create_category`
+- `sp_admin_create_subcategory`
+- `sp_create_product_full`
+- `sp_add_variant`
+- `sp_update_product`
+- `sp_update_variant`
+- `sp_update_stock`
+- `sp_seed_demo_categories`
+- `sp_seed_demo_products`
+- `sp_seed_demo_catalog_for_admin`
 - `sp_update_login_failed`
 - `sp_reset_login_failed`
 - `sp_toggle_customer_status`
@@ -236,16 +278,29 @@ npx nodemon src/app.js
 
 ---
 
+## 🧪 Datos de prueba para productos
+
+Se agregó el archivo `DB/productos/products_sp_seed.sql` para poblar categorías, subcategorías, productos, variantes y stock de ejemplo.
+
+### Procedimientos disponibles
+- `CALL sp_seed_demo_categories();`
+- `CALL sp_seed_demo_products(1);` usa el `id_company` que indiques.
+- `CALL sp_seed_demo_catalog_for_admin();` usa la empresa `Admin` creada por defecto con `id_company = 1`.
+
+### Uso recomendado
+1. Inicializar tablas y SPs de usuarios/productos.
+2. Ejecutar `CALL sp_seed_demo_catalog_for_admin();`.
+3. Probar listado de categorías, creación manual, stock y luego carrito/checkout.
+
+---
+
 ## 🗺️ Siguiente a realizar
 
-- CRUD de productos
-- variantes e inventario
-- gestión de categorías y subcategorías
-- gestión de productos e imágenes
+- validación del módulo manual de productos con datos demo
 - carrito de compras del lado del cliente
-- proceso de compra
-- historial de compras
-- gestión de ventas para empresas
+- checkout unificado para customer y company
+- historial de compras / órdenes
+- gestión de ventas y pagos para empresas detallistas
 - gestión de cashback y créditos
 - cashback para customers.
 - crédito B2B para companies.
@@ -280,4 +335,4 @@ Una vez completada la mayor parte del backend, se realizará una mini refactoriz
 
 ---
 
-*Última actualización: Abril 2026*
+*Última actualización: Mayo 2026*

@@ -16,7 +16,6 @@ window.onload = async () => {
 
   const user = await res.json();
 
-  document.getElementById('dob').value = user.DOB || '';
   document.getElementById('phone').value = user.cell_phone || '';
   document.getElementById('address').value = user.mail_address || '';
 };
@@ -30,7 +29,6 @@ function update() {
       Authorization: 'Bearer ' + token
     },
     body: JSON.stringify({
-      DOB: safe(document.getElementById('dob').value),
       cell_phone: safe(document.getElementById('phone').value),
       mail_address: safe(document.getElementById('address').value),
       password: safe(document.getElementById('password').value)

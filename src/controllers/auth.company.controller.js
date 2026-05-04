@@ -1,7 +1,5 @@
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
-const fs = require('fs');
-const path = require('path');
 const { hashPassword } = require('../utils/hash');
 
 const {
@@ -23,6 +21,8 @@ const buildCompanyToken = (company) => {
       email: company.email,
       company_name: company.name ?? null,
       id_role: company.id_role_fk ?? null,
+      can_buy: company.can_buy,
+      can_sell: company.can_sell,
       entity: 'company'
     },
     process.env.JWT_SECRET,
@@ -210,7 +210,8 @@ const updateCompanyProfile = async (req, res) => {
     });
 
     const updatedCompany = await findCompanyById(companyId);
-    const { password_hash: _, ...safeCompany } = updatedCompany;
+    const safeCompany = { ...updatedCompany };
+    delete safeCompany.password_hash;
 
     return res.status(200).json({
       message: 'Perfil de empresa actualizado correctamente',

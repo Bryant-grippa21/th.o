@@ -53,7 +53,6 @@ CREATE TABLE Product_Variant (
     description VARCHAR(255),
 
     price DECIMAL(10,2) NOT NULL,
-    cost DECIMAL(10,2),
 
     attributes JSON,
 

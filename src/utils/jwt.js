@@ -6,7 +6,7 @@ const generateToken = (user) => {
       id: user.id_customer,
       email: user.email,
       name: user.name,
-      DOB: user.DOB,
+      auth_provider: user.auth_provider,
       cell_phone: user.cell_phone,
       mail_address: user.mail_address,
       img_profile: user.img_profile,

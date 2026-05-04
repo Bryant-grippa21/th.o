@@ -1,6 +1,4 @@
 const bcrypt = require('bcrypt');
-const fs = require('fs');
-const path = require('path');
 const client = require('../config/google');
 const { generateToken } = require('../utils/jwt');
 const { hashPassword } = require('../utils/hash');
@@ -11,6 +9,8 @@ const {
   findUserById,
   registerLocalUser,
   updateUser,
+  enableLocalAuthForCustomer,
+  linkGoogleAuthForCustomer,
   increaseLoginAttempts,
   resetLoginAttempts,
   toggleUserActive,
@@ -20,10 +20,26 @@ const {
 // 🟢 REGISTER
 const registerLocal = async (req, res) => {
   try {
-    const { name, email, password, DOB, cell_phone, mail_address } = req.body;
+    const { name, email, password, cell_phone, mail_address } = req.body;
 
-    if (!name || !email || !password || !DOB) {
+    if (!name || !email || !password) {
       return res.status(400).json({ error: 'Datos incompletos' });
+    }
+
+    const existingUser = await findUserByEmail(email);
+
+    if (existingUser) {
+      if (existingUser.auth_provider === 'google') {
+        const password_hash = await hashPassword(password);
+
+        await enableLocalAuthForCustomer(existingUser.id_customer, password_hash);
+
+        return res.status(200).json({
+          message: 'Usuario actualizado a login local y Google correctamente'
+        });
+      }
+
+      return res.status(400).json({ error: 'El correo ya está registrado' });
     }
 
     const password_hash = await hashPassword(password);
@@ -32,7 +48,6 @@ const registerLocal = async (req, res) => {
       name,
       email,
       password_hash,
-      DOB,
       cell_phone,
       mail_address
     });
@@ -60,7 +75,7 @@ const loginLocal = async (req, res) => {
       return res.status(403).json({ error: 'Usuario bloqueado' });
     }
 
-    if (user.auth_provider !== 'local') {
+    if (!['local', 'both'].includes(user.auth_provider)) {
       return res.status(400).json({ error: 'Este usuario usa login con Google' });
     }
 
@@ -121,11 +136,13 @@ const loginGoogle = async (req, res) => {
         name,
         email,
         provider_id: sub,
-        DOB: '2000-01-01',
         cell_phone: '',
         mail_address: ''
       });
 
+      user = await findUserByEmail(email);
+    } else if (user.auth_provider === 'local') {
+      await linkGoogleAuthForCustomer(user.id_customer, sub);
       user = await findUserByEmail(email);
     }
 
@@ -178,7 +195,6 @@ const updateProfile = async (req, res) => {
       name,
       email,
       password,
-      DOB,
       cell_phone,
       mail_address,
       img_profile
@@ -203,14 +219,14 @@ const updateProfile = async (req, res) => {
       name: name ?? currentUser.name,
       email: email ?? currentUser.email,
       password_hash,
-      DOB: DOB ?? currentUser.DOB,
       cell_phone: cell_phone ?? currentUser.cell_phone,
       mail_address: mail_address ?? currentUser.mail_address,
       img_profile: img_profile ?? currentUser.img_profile
     });
 
     const updatedUser = await findUserById(userId);
-    const { password_hash: _, ...safeUser } = updatedUser;
+    const safeUser = { ...updatedUser };
+    delete safeUser.password_hash;
 
     return res.status(200).json({
       message: 'Perfil actualizado correctamente',
@@ -243,7 +259,8 @@ const updateCustomerProfileImage = async (req, res) => {
     await updateCustomerImage(customerId, req.file.filename);
 
     const updatedUser = await findUserById(customerId);
-    const { password_hash, ...safeUser } = updatedUser;
+    const safeUser = { ...updatedUser };
+    delete safeUser.password_hash;
 
     return res.status(200).json({
       message: 'Imagen de perfil actualizada correctamente',

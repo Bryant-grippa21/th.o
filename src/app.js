@@ -1,4 +1,4 @@
-const path = require('path');
+const path = require('node:path');
 require('dotenv').config({ path: path.resolve(__dirname, '../.env') });
 
 const express = require('express');
@@ -8,9 +8,11 @@ app.use(express.json());
 
 const authCustomerRoutes = require('./routes/auth.customer.routes');
 const authCompanyRoutes = require('./routes/auth.company.routes');
+const productRoutes = require('./routes/products.routes');
 
 app.use('/api/auth', authCustomerRoutes);
 app.use('/api/company-auth', authCompanyRoutes);
+app.use('/api/products', productRoutes);
 
 app.use(express.static(path.join(__dirname, '../public')));
 app.use('/uploads', express.static(path.join(__dirname, '../public/uploads')));

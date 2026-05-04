@@ -133,7 +133,6 @@ DB/
 |---|---|---|
 | `sku` | VARCHAR(50) | UNIQUE global |
 | `attributes` | JSON | Talla, color, etc. |
-| `cost` | DECIMAL(10,2) | Costo interno |
 | `price` | DECIMAL(10,2) | Precio venta |
 
 #### Columnas clave — `Stock`:
@@ -166,7 +165,7 @@ DB/
 | `sp_create_product_full` | `p_id_company, p_id_subcategory, ...` | Producto completo en transacción |
 | `sp_create_product_auto` | `p_categoria, p_subcategoria, p_id_company` | Producto básico por nombres |
 | `sp_update_product` | `p_id_product, p_name, p_brand` | Update nombre/marca |
-| `sp_update_variant` | `p_id_variant, p_price, p_cost, p_attributes` | Update precio/costo/atributos |
+| `sp_update_variant` | `p_id_variant, p_price, p_attributes` | Update precio/atributos |
 | `sp_add_variant` | `p_id_product, p_sku, ...` | Nueva variante a producto existente |
 | `sp_toggle_product` | `p_id_product, p_is_active` | Activar / desactivar producto |
 | `sp_toggle_variant` | `p_id_variant, p_is_active` | Activar / desactivar variante |

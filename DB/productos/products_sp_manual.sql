@@ -60,7 +60,6 @@ CREATE PROCEDURE sp_create_product_full(
     IN p_sku VARCHAR(50),
     IN p_description VARCHAR(255),
     IN p_price DECIMAL(10,2),
-    IN p_cost DECIMAL(10,2),
     IN p_attributes JSON,
 
     IN p_quantity INT,
@@ -100,10 +99,10 @@ BEGIN
     SET p_sku = IFNULL(p_sku, CONCAT('SKU-', v_product_id));
 
     INSERT INTO Product_Variant (
-        id_product_fk, sku, description, price, cost, attributes
+        id_product_fk, sku, description, price, attributes
     )
     VALUES (
-        v_product_id, p_sku, p_description, p_price, p_cost, p_attributes
+        v_product_id, p_sku, p_description, p_price, p_attributes
     );
 
     SET v_variant_id = LAST_INSERT_ID();
@@ -155,7 +154,6 @@ DELIMITER //
 CREATE PROCEDURE sp_update_variant (
     IN p_id_variant INT,
     IN p_price DECIMAL(10,2),
-    IN p_cost DECIMAL(10,2),
     IN p_attributes JSON
 )
 BEGIN
@@ -170,7 +168,6 @@ BEGIN
     UPDATE Product_Variant
     SET
         price = COALESCE(p_price, price),
-        cost = COALESCE(p_cost, cost),
         attributes = COALESCE(p_attributes, attributes),
         updated_at = CURRENT_TIMESTAMP
     WHERE id_variant = p_id_variant;
@@ -327,7 +324,6 @@ CREATE PROCEDURE sp_add_variant (
     IN p_sku VARCHAR(50),
     IN p_description VARCHAR(255),
     IN p_price DECIMAL(10,2),
-    IN p_cost DECIMAL(10,2),
     IN p_attributes JSON,
 
     IN p_quantity INT,
@@ -361,7 +357,6 @@ BEGIN
         sku,
         description,
         price,
-        cost,
         attributes
     )
     VALUES (
@@ -369,7 +364,6 @@ BEGIN
         p_sku,
         p_description,
         p_price,
-        p_cost,
         p_attributes
     );
 
@@ -571,17 +565,16 @@ CREATE PROCEDURE sp_internal_create_variant (
     IN p_sku VARCHAR(50),
     IN p_description VARCHAR(255),
     IN p_price DECIMAL(10,2),
-    IN p_cost DECIMAL(10,2),
     IN p_attributes JSON,
     OUT p_variant_id INT
 )
 BEGIN
 
     INSERT INTO Product_Variant (
-        id_product_fk, sku, description, price, cost, attributes
+        id_product_fk, sku, description, price, attributes
     )
     VALUES (
-        p_id_product, p_sku, p_description, p_price, p_cost, p_attributes
+        p_id_product, p_sku, p_description, p_price, p_attributes
     );
 
     SET p_variant_id = LAST_INSERT_ID();
