@@ -3,7 +3,7 @@ const safe = (v) => v || null;
 const token = localStorage.getItem('token');
 
 if (!token) {
-  window.location.href = '/auth/login.html';
+  location.href = '/auth/login.html';
 }
 
 // 🔥 Cargar datos actuales
@@ -14,7 +14,13 @@ window.onload = async () => {
     }
   });
 
-  const user = await res.json();
+  const data = await res.json();
+
+  if (!res.ok) {
+    throw new Error(data.error || 'No se pudo cargar el perfil');
+  }
+
+  const user = data.user;
 
   document.getElementById('phone').value = user.cell_phone || '';
   document.getElementById('address').value = user.mail_address || '';

@@ -5,6 +5,8 @@ const { uploadProductImage } = require('../middlewares/upload.middleware');
 const {
   getCategories,
   getSubcategoriesByCategory,
+  getPublicCatalog,
+  getPublicProduct,
   createCategoryManual,
   createSubcategoryManual,
   createProductManual,
@@ -16,6 +18,8 @@ const {
 
 const router = express.Router();
 
+router.get('/catalog', getPublicCatalog);
+router.get('/catalog/:productId', getPublicProduct);
 router.get('/categories', getCategories);
 router.get('/categories/:categoryId/subcategories', getSubcategoriesByCategory);
 

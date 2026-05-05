@@ -1,4 +1,37 @@
+const { randomInt } = require('node:crypto');
 const pool = require('../config/db');
+
+const SKU_DIGITS = 7;
+const SKU_MIN = 10 ** (SKU_DIGITS - 1);
+const SKU_MAX_EXCLUSIVE = 10 ** SKU_DIGITS;
+const FORBIDDEN_SKU = '9'.repeat(SKU_DIGITS);
+const SKU_GENERATION_ATTEMPTS = 25;
+
+const generateRandomSkuCandidate = () => {
+  let candidate = String(randomInt(SKU_MIN, SKU_MAX_EXCLUSIVE));
+
+  while (candidate === FORBIDDEN_SKU) {
+    candidate = String(randomInt(SKU_MIN, SKU_MAX_EXCLUSIVE));
+  }
+
+  return candidate;
+};
+
+const ensureUniqueSku = async () => {
+  for (let attempt = 0; attempt < SKU_GENERATION_ATTEMPTS; attempt += 1) {
+    const candidate = generateRandomSkuCandidate();
+    const [rows] = await pool.query(
+      'SELECT 1 FROM Product_Variant WHERE sku = ? LIMIT 1',
+      [candidate]
+    );
+
+    if (rows.length === 0) {
+      return candidate;
+    }
+  }
+
+  throw new Error('No se pudo generar un SKU único automáticamente');
+};
 
 const listCategories = async () => {
   const [rows] = await pool.query(
@@ -15,6 +48,84 @@ const listSubcategoriesByCategory = async (categoryId) => {
   );
 
   return rows;
+};
+
+const listPublicCatalog = async (limit = 12) => {
+  const safeLimit = Number.isInteger(limit) && limit > 0 ? limit : 12;
+
+  const [rows] = await pool.query(
+    `SELECT
+       p.id_product,
+       p.name,
+       p.brand,
+       MIN(pv.id_variant) AS id_variant,
+       MIN(pv.sku) AS sku,
+       MIN(pv.price) AS price,
+       MIN(pi.image_url) AS image_url
+     FROM Product p
+     INNER JOIN Product_Variant pv ON pv.id_product_fk = p.id_product
+     INNER JOIN Stock s ON s.id_variant_fk = pv.id_variant
+     LEFT JOIN Product_Image pi ON pi.id_variant_fk = pv.id_variant AND pi.is_main = TRUE
+     WHERE p.is_active = TRUE
+       AND pv.is_active = TRUE
+       AND s.quantity > 0
+     GROUP BY p.id_product, p.name, p.brand
+     ORDER BY p.created_at DESC
+     LIMIT ?`,
+    [safeLimit]
+  );
+
+  return rows;
+};
+
+const getPublicProductDetail = async (productId) => {
+  const [productRows] = await pool.query(
+    `SELECT
+       p.id_product,
+       p.name,
+       p.brand,
+       p.id_subcategory_fk,
+       sc.name AS subcategory_name,
+       c.name AS category_name,
+       p.created_at,
+       p.updated_at
+     FROM Product p
+     INNER JOIN Subcategory sc ON sc.id_subcategory = p.id_subcategory_fk
+     INNER JOIN Category c ON c.id_category = sc.id_category_fk
+     WHERE p.id_product = ?
+       AND p.is_active = TRUE
+     LIMIT 1`,
+    [productId]
+  );
+
+  if (productRows.length === 0) {
+    return null;
+  }
+
+  const [variantRows] = await pool.query(
+    `SELECT
+       pv.id_variant,
+       pv.sku,
+       pv.description,
+       pv.price,
+       pv.attributes,
+       pv.is_active,
+       s.quantity,
+       s.min_stock,
+       pi.image_url
+     FROM Product_Variant pv
+     INNER JOIN Stock s ON s.id_variant_fk = pv.id_variant
+     LEFT JOIN Product_Image pi ON pi.id_variant_fk = pv.id_variant AND pi.is_main = TRUE
+     WHERE pv.id_product_fk = ?
+       AND pv.is_active = TRUE
+     ORDER BY pv.id_variant ASC`,
+    [productId]
+  );
+
+  return {
+    ...productRows[0],
+    variants: variantRows
+  };
 };
 
 const createCategory = async (name) => {
@@ -45,7 +156,6 @@ const createProductFull = async (productData) => {
     id_subcategory,
     id_company,
     brand,
-    sku,
     description,
     price,
     attributes,
@@ -54,9 +164,11 @@ const createProductFull = async (productData) => {
     image_url
   } = productData;
 
+  const resolvedSku = await ensureUniqueSku();
+
   await pool.query(
     'CALL sp_create_product_full(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-    [name, id_subcategory, id_company, brand, sku, description, price, attributes, quantity, min_stock, image_url]
+    [name, id_subcategory, id_company, brand, resolvedSku, description, price, attributes, quantity, min_stock, image_url]
   );
 
   const [rows] = await pool.query(
@@ -90,7 +202,6 @@ const createProductFull = async (productData) => {
 const addVariant = async (variantData) => {
   const {
     id_product,
-    sku,
     description,
     price,
     attributes,
@@ -99,9 +210,11 @@ const addVariant = async (variantData) => {
     image_url
   } = variantData;
 
+  const resolvedSku = await ensureUniqueSku();
+
   await pool.query(
     'CALL sp_add_variant(?, ?, ?, ?, ?, ?, ?, ?)',
-    [id_product, sku, description, price, attributes, quantity, min_stock, image_url]
+    [id_product, resolvedSku, description, price, attributes, quantity, min_stock, image_url]
   );
 
   const [rows] = await pool.query(
@@ -120,7 +233,7 @@ const addVariant = async (variantData) => {
      LEFT JOIN Product_Image pi ON pi.id_variant_fk = pv.id_variant AND pi.is_main = TRUE
      WHERE pv.sku = ?
      LIMIT 1`,
-    [sku]
+    [resolvedSku]
   );
 
   return rows[0] ?? null;
@@ -162,6 +275,8 @@ const syncStock = async (variantId, quantity, notes) => {
 module.exports = {
   listCategories,
   listSubcategoriesByCategory,
+  listPublicCatalog,
+  getPublicProductDetail,
   createCategory,
   createSubcategory,
   createProductFull,

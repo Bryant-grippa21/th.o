@@ -107,7 +107,6 @@ Body:
 	"name": "Brocha profesional 8mm",
 	"id_subcategory": 1,
 	"brand": "GenTools",
-	"sku": "THO-000001",
 	"description": "Brocha para acabados finos y pintura base de agua",
 	"price": 4.50,
 	"attributes": {
@@ -118,6 +117,14 @@ Body:
 	"min_stock": 5
 }
 ```
+
+Nota:
+
+- `sku` no se envía manualmente
+- el backend genera el SKU automáticamente
+- el SKU automático usa `7` dígitos numéricos
+- no empieza en `0`
+- no puede tomar el valor de todos nueves
 
 ### 3.2 Crear producto completo con imagen
 
@@ -132,13 +139,32 @@ Body `form-data`:
 - `name` → `Brocha profesional 8mm`
 - `id_subcategory` → `1`
 - `brand` → `GenTools`
-- `sku` → `THO-000001`
 - `description` → `Brocha para acabados finos y pintura base de agua`
 - `price` → `4.50`
 - `attributes` → `{"medida":"8mm","tipo":"acabado"}`
 - `quantity` → `15`
 - `min_stock` → `5`
 - `image` → tipo `File`
+
+Importante:
+
+- no envíes un JSON completo en un solo campo de texto
+- cada propiedad debe ir como una fila separada en `form-data`
+- la imagen debe usar exactamente la key `image`
+- no dejes filas vacías en `form-data`
+- no fuerces manualmente el header `Content-Type`; Postman debe generar el `multipart/form-data` con su `boundary`
+
+Ejemplo correcto en Postman:
+
+- key `name` tipo `Text`
+- key `id_subcategory` tipo `Text`
+- key `brand` tipo `Text`
+- key `description` tipo `Text`
+- key `price` tipo `Text`
+- key `attributes` tipo `Text`
+- key `quantity` tipo `Text`
+- key `min_stock` tipo `Text`
+- key `image` tipo `File`
 
 ### 3.3 Crear variante adicional
 
@@ -152,7 +178,6 @@ Body:
 
 ```json
 {
-	"sku": "THO-000002",
 	"description": "Brocha profesional 12mm",
 	"price": 5.25,
 	"attributes": {
@@ -234,13 +259,12 @@ Debe fallar si faltan:
 
 - `name`
 - `id_subcategory`
-- `sku`
 - `price`
 - `quantity`
 
 ### 4.3 Crear variante con SKU duplicado
 
-Debe fallar con error de `SKU ya existe`.
+No aplica en pruebas manuales normales porque el SKU ya no se envía desde el cliente.
 
 ### 4.4 Sincronizar stock con variantId inválido
 
@@ -249,6 +273,18 @@ Debe responder `400`.
 ### 4.5 Crear subcategoría con category_id inexistente
 
 Debe fallar con error de categoría no existente.
+
+### 4.6 Error `MulterError: Field name missing`
+
+Ese error normalmente significa que el `form-data` está mal construido en Postman.
+
+Revisar:
+
+- hay una fila con key vacía
+- la imagen no se llamó `image`
+- se envió un bloque JSON completo en vez de campos separados
+- se dejó un `File` sin nombre de campo
+- se fijó manualmente `Content-Type` y el `boundary` quedó incorrecto
 
 ---
 

@@ -7,10 +7,9 @@ function register() {
       'Content-Type': 'application/json'
     },
     body: JSON.stringify({
-      name: document.getElementById('name').value,
-      email: document.getElementById('email').value,
+      name: document.getElementById('name').value.trim(),
+      email: document.getElementById('email').value.trim(),
       password: document.getElementById('password').value,
-      DOB: document.getElementById('dob').value,
       cell_phone: safe(document.getElementById('phone').value),
       mail_address: safe(document.getElementById('address').value)
     })
@@ -24,7 +23,7 @@ function register() {
   })
   .then(data => {
     alert(data.message);
-    window.location.href = '/auth/login.html';
+    location.href = '/auth/login.html';
   })
   .catch(err => alert(err.message));
 }

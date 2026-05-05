@@ -68,7 +68,16 @@ const registerGoogleUser = async (data) => {
 
 // 🔄 ACTUALIZAR PERFIL
 const updateUser = async (data) => {
-  const { id, name, email, password_hash, cell_phone, mail_address, img_profile } = data;
+  const {
+    id,
+    name,
+    email,
+    password_hash,
+    cell_phone,
+    mail_address,
+    img_profile,
+    enable_local_auth = false
+  } = data;
 
   await pool.query(
     `UPDATE Customer
@@ -76,12 +85,16 @@ const updateUser = async (data) => {
        name = COALESCE(?, name),
        email = COALESCE(?, email),
        password_hash = COALESCE(?, password_hash),
+       auth_provider = CASE
+         WHEN ? = TRUE AND auth_provider = 'google' THEN 'both'
+         ELSE auth_provider
+       END,
        cell_phone = COALESCE(?, cell_phone),
        mail_address = COALESCE(?, mail_address),
        img_profile = COALESCE(?, img_profile),
        updated_at = CURRENT_TIMESTAMP
      WHERE id_customer = ?`,
-    [name, email, password_hash, cell_phone, mail_address, img_profile, id]
+    [name, email, password_hash, enable_local_auth, cell_phone, mail_address, img_profile, id]
   );
 
   return true;

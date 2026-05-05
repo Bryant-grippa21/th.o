@@ -1,6 +1,8 @@
 const {
   listCategories,
   listSubcategoriesByCategory,
+  listPublicCatalog,
+  getPublicProductDetail,
   createCategory,
   createSubcategory,
   createProductFull,
@@ -56,6 +58,39 @@ const getSubcategoriesByCategory = async (req, res) => {
     return res.status(200).json({ subcategories });
   } catch (error) {
     console.error('❌ ERROR GET SUBCATEGORIES:', error);
+    return res.status(500).json({ error: error.message });
+  }
+};
+
+const getPublicCatalog = async (req, res) => {
+  try {
+    const limit = req.query.limit ? Number(req.query.limit) : 12;
+    const products = await listPublicCatalog(limit);
+
+    return res.status(200).json({ products });
+  } catch (error) {
+    console.error('❌ ERROR GET PUBLIC CATALOG:', error);
+    return res.status(500).json({ error: error.message });
+  }
+};
+
+const getPublicProduct = async (req, res) => {
+  try {
+    const productId = Number(req.params.productId);
+
+    if (!Number.isInteger(productId) || productId <= 0) {
+      return res.status(400).json({ error: 'productId inválido' });
+    }
+
+    const product = await getPublicProductDetail(productId);
+
+    if (!product) {
+      return res.status(404).json({ error: 'Producto no encontrado' });
+    }
+
+    return res.status(200).json({ product });
+  } catch (error) {
+    console.error('❌ ERROR GET PUBLIC PRODUCT:', error);
     return res.status(500).json({ error: error.message });
   }
 };
@@ -119,7 +154,6 @@ const createProductManual = async (req, res) => {
       id_subcategory,
       id_company,
       brand,
-      sku,
       description,
       price,
       attributes,
@@ -127,9 +161,9 @@ const createProductManual = async (req, res) => {
       min_stock
     } = req.body;
 
-    if (!name || !id_subcategory || !sku || price == null || quantity == null) {
+    if (!name || !id_subcategory || price == null || quantity == null) {
       return res.status(400).json({
-        error: 'name, id_subcategory, sku, price y quantity son requeridos'
+        error: 'name, id_subcategory, price y quantity son requeridos'
       });
     }
 
@@ -140,7 +174,6 @@ const createProductManual = async (req, res) => {
       id_subcategory: Number(id_subcategory),
       id_company: ownerCompanyId,
       brand: brand ?? null,
-      sku: sku.trim(),
       description: description ?? null,
       price: Number(price),
       attributes: parsedAttributes,
@@ -167,7 +200,6 @@ const addVariantManual = async (req, res) => {
 
     const productId = Number(req.params.productId);
     const {
-      sku,
       description,
       price,
       attributes,
@@ -179,14 +211,13 @@ const addVariantManual = async (req, res) => {
       return res.status(400).json({ error: 'productId inválido' });
     }
 
-    if (!sku || price == null || quantity == null) {
-      return res.status(400).json({ error: 'sku, price y quantity son requeridos' });
+    if (price == null || quantity == null) {
+      return res.status(400).json({ error: 'price y quantity son requeridos' });
     }
 
     const parsedAttributes = typeof attributes === 'string' ? attributes : JSON.stringify(attributes ?? {});
     const variant = await addVariant({
       id_product: productId,
-      sku: sku.trim(),
       description: description ?? null,
       price: Number(price),
       attributes: parsedAttributes,
@@ -299,6 +330,8 @@ const syncVariantStock = async (req, res) => {
 module.exports = {
   getCategories,
   getSubcategoriesByCategory,
+  getPublicCatalog,
+  getPublicProduct,
   createCategoryManual,
   createSubcategoryManual,
   createProductManual,

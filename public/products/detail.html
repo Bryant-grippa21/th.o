@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="es" xml:lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Detalle de producto</title>
+</head>
+<body>
+
+<h1>Detalle de producto</h1>
+<a href="/index.html">Volver al inicio</a>
+
+<div id="product-detail">
+  <p>Cargando producto...</p>
+</div>
+
+<script>
+  const params = new URLSearchParams(location.search);
+  const productId = params.get('productId');
+  const detailContainer = document.getElementById('product-detail');
+
+  if (productId) {
+    fetch(`http://localhost:3000/api/products/catalog/${productId}`)
+      .then(async (res) => {
+        const data = await res.json();
+
+        if (!res.ok) {
+          throw new Error(data.error || 'No se pudo cargar el producto');
+        }
+
+        return data;
+      })
+      .then(({ product }) => {
+        detailContainer.innerHTML = `
+          <p><b>Nombre:</b> ${product.name}</p>
+          <p><b>Marca:</b> ${product.brand || 'Sin marca'}</p>
+          <p><b>Categoría:</b> ${product.category_name}</p>
+          <p><b>Subcategoría:</b> ${product.subcategory_name}</p>
+          <p><b>Variantes activas:</b> ${product.variants.length}</p>
+          <p>Vista de detalle completa pendiente de implementación.</p>
+        `;
+      })
+      .catch((error) => {
+        detailContainer.innerHTML = `<p>${error.message}</p>`;
+      });
+  } else {
+    detailContainer.innerHTML = '<p>Producto no especificado.</p>';
+  }
+</script>
+
+</body>
+</html>

@@ -38,19 +38,20 @@ TUHERRAMIENTA.ONLINE/
 ├── README.md
 ├── public/
 │   ├── index.html
+│   ├── readme.md
 │   ├── assets/
-│   ├── utils/
-│   │   └── auth.js
-│   ├── css/
-│   │   └── styles.css
-│   ├── js/
-│   │   ├── auth/ -- por renombrar
-│   │   │   ├── google.js
-│   │   │   ├── login.js
-│   │   │   └── register.js
-│   │   └── user_n/ -- por renombrar
-│   │       ├── dashboard.js
-│   │       └── profile.js
+│   │   ├── css/
+│   │   │   └── styles.css
+│   │   └── js/
+│   │       ├── auth/ -- por renombrar
+│   │       │   ├── google.js
+│   │       │   ├── login.js
+│   │       │   └── register.js
+│   │       ├── user_n/ -- por renombrar
+│   │       │   ├── dashboard.js
+│   │       │   └── profile.js
+│   │       └── utils/
+│   │           └── auth.js
 │   ├── auth/
 │   │   ├── login.html
 │   │   └── register.html
@@ -58,6 +59,8 @@ TUHERRAMIENTA.ONLINE/
 │   │   └── user_n/
 │   │       ├── dashboard.html -- por renombrar
 │   │       └── profile.html -- por renombrar
+│   ├── products/
+│   │   └── detail.html
 │   └── uploads/
 │       └── profiles/
 │           ├── customers/
@@ -104,6 +107,7 @@ TUHERRAMIENTA.ONLINE/
 - Registro local
 - Login local
 - Login con Google
+- Transición automática a `both` cuando combina login local y Google
 - `/me`
 - `GET /profile`
 - `PUT /profile`
@@ -118,6 +122,8 @@ TUHERRAMIENTA.ONLINE/
 - `PUT /profile/image`
 
 ### Productos
+- `GET /catalog`
+- `GET /catalog/:productId`
 - `GET /categories`
 - `GET /categories/:categoryId/subcategories`
 - `POST /categories`
@@ -127,6 +133,7 @@ TUHERRAMIENTA.ONLINE/
 - `PUT /api/products/:productId`
 - `PUT /api/products/variants/:variantId`
 - `PUT /api/products/variants/:variantId/stock`
+- SKU autogenerado por backend para productos y variantes
 
 ### Seguridad
 - JWT
@@ -165,6 +172,8 @@ TUHERRAMIENTA.ONLINE/
 
 | Método | Ruta | Descripción |
 |---|---|---|
+| GET | `/catalog` | Listado público simple para homepage |
+| GET | `/catalog/:productId` | Detalle público básico de producto |
 | GET | `/categories` | Listar categorías |
 | GET | `/categories/:categoryId/subcategories` | Listar subcategorías por categoría |
 | POST | `/categories` | Crear categoría manualmente |
@@ -180,6 +189,10 @@ TUHERRAMIENTA.ONLINE/
 ## 🖼️ Gestión de imágenes
 
 Las imágenes se guardan en disco y el backend almacena solo el nombre del archivo en la base de datos.
+
+En el módulo de productos, el `sku` no se envía manualmente: el backend genera automáticamente un código numérico único de `7` dígitos, sin cero inicial y distinto de `9999999`.
+
+El homepage público ya puede consumir un catálogo básico desde backend y enlazar a una vista placeholder de detalle por producto.
 
 ### Rutas de almacenamiento
 - `public/uploads/profiles/customers/`
@@ -290,7 +303,26 @@ Se agregó el archivo `DB/productos/products_sp_seed.sql` para poblar categoría
 ### Uso recomendado
 1. Inicializar tablas y SPs de usuarios/productos.
 2. Ejecutar `CALL sp_seed_demo_catalog_for_admin();`.
-3. Probar listado de categorías, creación manual, stock y luego carrito/checkout.
+3. Probar `GET /api/products/catalog` y el `index.html` público.
+4. Probar listado de categorías, creación manual, stock y luego carrito/checkout.
+
+---
+
+## 🌐 Frontend público temporal
+
+La carpeta `public/` sigue siendo un prototipo HTML/JS simple para validar contratos del backend mientras el frontend React definitivo avanza por separado.
+
+Hoy ese prototipo ya permite:
+
+- login local customer
+- login con Google
+- registro local customer
+- lectura de sesión con `/api/auth/me`
+- edición básica de perfil
+- listado público de productos en homepage
+- enlace a una vista placeholder de detalle de producto
+
+La guía específica del prototipo está en `public/readme.md`.
 
 ---
 

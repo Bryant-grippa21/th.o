@@ -141,7 +141,7 @@ const loginGoogle = async (req, res) => {
       });
 
       user = await findUserByEmail(email);
-    } else if (user.auth_provider === 'local') {
+    } else if (['local', 'both'].includes(user.auth_provider)) {
       await linkGoogleAuthForCustomer(user.id_customer, sub);
       user = await findUserByEmail(email);
     }
@@ -209,9 +209,11 @@ const updateProfile = async (req, res) => {
     }
 
     let password_hash = currentUser.password_hash;
+    let enableLocalAuth = false;
 
     if (password && password.trim() !== '') {
       password_hash = await hashPassword(password);
+      enableLocalAuth = currentUser.auth_provider === 'google';
     }
 
     await updateUser({
@@ -219,6 +221,7 @@ const updateProfile = async (req, res) => {
       name: name ?? currentUser.name,
       email: email ?? currentUser.email,
       password_hash,
+      enable_local_auth: enableLocalAuth,
       cell_phone: cell_phone ?? currentUser.cell_phone,
       mail_address: mail_address ?? currentUser.mail_address,
       img_profile: img_profile ?? currentUser.img_profile
