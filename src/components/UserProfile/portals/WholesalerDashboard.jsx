@@ -8,6 +8,9 @@ import {
   CheckCircle,
   Clock,
   DollarSign,
+  ChevronUp,
+  ChevronDown,
+  Download,
   FileText,
   Filter,
   Gauge,
@@ -17,6 +20,8 @@ import {
   LogOut,
   Package,
   PackageOpen,
+  Plus,
+  Upload,
   SlidersHorizontal,
   Receipt,
   Search,
@@ -148,9 +153,34 @@ export default function WholesalerDashboard({ userData = {}, onBack, onLogout })
   const [activeTab, setActiveTab] = useState("overview");
   const [activeSalesTab, setActiveSalesTab] = useState("volume");
   const [timeRange, setTimeRange] = useState("month");
+  const [periodStart, setPeriodStart] = useState("2026-05-01");
+  const [periodEnd, setPeriodEnd] = useState("2026-05-31");
+  const [calendarMonth, setCalendarMonth] = useState("2026-05");
+  const [isPeriodCalendarOpen, setIsPeriodCalendarOpen] = useState(false);
+  const [salesSort, setSalesSort] = useState("desc");
+  const [salesMetric, setSalesMetric] = useState("volume");
+  const [clientSort, setClientSort] = useState("amountDesc");
+  const [clientSellerFilter, setClientSellerFilter] = useState("all");
+  const [performanceSort, setPerformanceSort] = useState("amountDesc");
+  const [performanceSellerFilter, setPerformanceSellerFilter] = useState("all");
+  const [invoiceSellerFilter, setInvoiceSellerFilter] = useState("all");
+  const [selectedState, setSelectedState] = useState("all");
+  const [selectedCity, setSelectedCity] = useState("all");
+  const [selectedUrbanization, setSelectedUrbanization] = useState("all");
+  const [invoiceDueSort, setInvoiceDueSort] = useState("soonest");
+  const [invoiceGroupByClient, setInvoiceGroupByClient] = useState(false);
+  const [cashflowSellerFilter, setCashflowSellerFilter] = useState("all");
+  const [activeDisciplineView, setActiveDisciplineView] = useState("own");
+  const [activeOrdersView, setActiveOrdersView] = useState("accept");
+  const [activeInventoryTab, setActiveInventoryTab] = useState("inventory");
+  const [openLegendSections, setOpenLegendSections] = useState({});
+  const [openFilterSections, setOpenFilterSections] = useState({
+    salesVolume: true,
+    clientAnalysis: true,
+    performance: true,
+  });
   const [salesProductFilter, setSalesProductFilter] = useState("all");
   const [salesCategoryFilter, setSalesCategoryFilter] = useState("all");
-  const [salesRegionFilter, setSalesRegionFilter] = useState("all");
   const [invoiceSearchTerm, setInvoiceSearchTerm] = useState("");
   const [invoiceStatusFilter, setInvoiceStatusFilter] = useState("all");
   const [selectedClientName, setSelectedClientName] = useState("all");
@@ -160,30 +190,75 @@ export default function WholesalerDashboard({ userData = {}, onBack, onLogout })
   const [receivedOrders, setReceivedOrders] = useState([
     {
       id: 1,
+      orderNumber: "PED-2026-001",
       productName: "Taladro percutor industrial",
       buyer: "Ferretería El Constructor",
       buyerType: "Detallista",
+      zone: "Centro",
+      seller: "María Gómez",
       quantity: 10,
       offeredPrice: 8500,
       status: "pending",
       date: "2026-05-03",
       message: "Necesito 10 unidades para reposición semanal.",
+      items: [
+        { sku: "THO-TAL-001", name: "Taladro percutor industrial", unitPrice: 8500, quantity: 10 },
+        { sku: "THO-BRO-010", name: "Set de brocas", unitPrice: 280, quantity: 12 },
+      ],
     },
     {
       id: 2,
+      orderNumber: "PED-2026-002",
       productName: "Juego de llaves combinadas",
       buyer: "Pinturas del Centro",
       buyerType: "Detallista",
+      zone: "Norte",
+      seller: "Carlos Díaz",
       quantity: 18,
       offeredPrice: 1250,
       status: "pending",
       date: "2026-05-04",
       message: "Compra recurrente para sucursal Caracas.",
+      items: [
+        { sku: "THO-LLA-002", name: "Juego de llaves combinadas", unitPrice: 1250, quantity: 18 },
+        { sku: "THO-GUA-003", name: "Guantes anticorte", unitPrice: 220, quantity: 20 },
+      ],
     },
   ]);
   const [orderHistory, setOrderHistory] = useState([
     { id: 101, productName: "Casco de seguridad premium", buyer: "Ferretería Central", quantity: 20, totalAmount: 10000, status: "completed", date: "2026-04-29" },
     { id: 102, productName: "Cinta métrica láser", buyer: "Materiales El Ávila", quantity: 15, totalAmount: 8900, status: "completed", date: "2026-04-27" },
+  ]);
+
+
+  const [dispatchOrders, setDispatchOrders] = useState([
+    {
+      id: 301,
+      orderNumber: "PED-2026-010",
+      buyer: "Materiales El Ávila",
+      zone: "Centro",
+      seller: "María Gómez",
+      status: "to_dispatch",
+      date: "2026-05-05",
+      items: [
+        { sku: "THO-CAS-003", name: "Casco de seguridad premium", unitPrice: 500, quantity: 20 },
+        { sku: "THO-GUA-003", name: "Guantes anticorte", unitPrice: 220, quantity: 40 },
+      ],
+    },
+    {
+      id: 302,
+      orderNumber: "PED-2026-011",
+      buyer: "Ferretería Central",
+      zone: "Sur",
+      seller: "Luis Pérez",
+      status: "dispatched",
+      date: "2026-04-27",
+      dispatchedAt: "2026-04-28",
+      paymentDueAt: "2026-05-28",
+      items: [
+        { sku: "THO-CIN-005", name: "Cinta métrica láser", unitPrice: 593, quantity: 15 },
+      ],
+    },
   ]);
 
   const productsData = [
@@ -213,6 +288,8 @@ export default function WholesalerDashboard({ userData = {}, onBack, onLogout })
       frequency: "Semanal",
       type: "Recurrente",
       region: "Valencia",
+      zone: "Centro",
+      seller: "María Gómez",
       thoGenerated: true,
     },
     {
@@ -233,6 +310,8 @@ export default function WholesalerDashboard({ userData = {}, onBack, onLogout })
       frequency: "Quincenal",
       type: "Reactivado",
       region: "Caracas",
+      zone: "Norte",
+      seller: "Carlos Díaz",
       thoGenerated: false,
     },
     {
@@ -253,6 +332,8 @@ export default function WholesalerDashboard({ userData = {}, onBack, onLogout })
       frequency: "Mensual",
       type: "Recurrente",
       region: "Maracaibo",
+      zone: "Oeste",
+      seller: "Luis Pérez",
       thoGenerated: true,
     },
     {
@@ -273,6 +354,8 @@ export default function WholesalerDashboard({ userData = {}, onBack, onLogout })
       frequency: "Mensual",
       type: "Nuevo",
       region: "Barquisimeto",
+      zone: "Sur",
+      seller: "Luis Pérez",
       thoGenerated: false,
     },
     {
@@ -293,24 +376,27 @@ export default function WholesalerDashboard({ userData = {}, onBack, onLogout })
       frequency: "Quincenal",
       type: "Nuevo",
       region: "Caracas",
+      zone: "Norte",
+      seller: "Carlos Díaz",
       thoGenerated: true,
     },
   ];
 
   const invoices = [
-    { id: 101, client: "Ferretería El Constructor", invoiceNumber: "FAC-2026-001", amount: 15600, dueDate: "2026-05-15", status: "pending", coveredByTHO: false, coverageHours: 0 },
-    { id: 201, client: "Pinturas del Centro", invoiceNumber: "FAC-2026-006", amount: 12500, dueDate: "2026-05-20", status: "pending", coveredByTHO: false, coverageHours: 0 },
-    { id: 301, client: "FerreNova Retail", invoiceNumber: "FAC-2026-010", amount: 8450, dueDate: "2026-04-05", status: "overdue", coveredByTHO: true, coverageHours: 18 },
-    { id: 501, client: "Materiales El Ávila", invoiceNumber: "FAC-2026-016", amount: 8900, dueDate: "2026-06-25", status: "pending", coveredByTHO: false, coverageHours: 0 },
-    { id: 601, client: "Ferretería Central", invoiceNumber: "FAC-2026-020", amount: 12500, dueDate: "2026-04-29", status: "covered", coveredByTHO: true, coverageHours: 22 },
+    { id: 101, client: "Ferretería El Constructor", invoiceNumber: "FAC-2026-001", orderNumber: "PED-2026-001", amount: 15600, dueDate: "2026-05-15", status: "pending", coveredByTHO: false, coverageHours: 0, zone: "Centro", seller: "María Gómez" },
+    { id: 102, client: "Ferretería El Constructor", invoiceNumber: "FAC-2026-002", orderNumber: "PED-2026-003", amount: 4500, dueDate: "2026-05-22", status: "pending", coveredByTHO: false, coverageHours: 0, zone: "Centro", seller: "María Gómez" },
+    { id: 201, client: "Pinturas del Centro", invoiceNumber: "FAC-2026-006", orderNumber: "PED-2026-002", amount: 12500, dueDate: "2026-05-20", status: "pending", coveredByTHO: false, coverageHours: 0, zone: "Norte", seller: "Carlos Díaz" },
+    { id: 301, client: "FerreNova Retail", invoiceNumber: "FAC-2026-010", orderNumber: "PED-2026-007", amount: 8450, dueDate: "2026-04-05", status: "overdue", coveredByTHO: true, coverageHours: 18, zone: "Oeste", seller: "Luis Pérez" },
+    { id: 501, client: "Materiales El Ávila", invoiceNumber: "FAC-2026-016", orderNumber: "PED-2026-012", amount: 8900, dueDate: "2026-06-25", status: "pending", coveredByTHO: false, coverageHours: 0, zone: "Centro", seller: "María Gómez" },
+    { id: 601, client: "Ferretería Central", invoiceNumber: "FAC-2026-020", orderNumber: "PED-2026-011", amount: 12500, dueDate: "2026-04-29", status: "covered", coveredByTHO: true, coverageHours: 22, zone: "Sur", seller: "Luis Pérez" },
   ];
 
   const collectionFlow = [
-    { date: "2026-05-04", expected: 12500, real: 34500 },
-    { date: "2026-05-05", expected: 8900, real: 7200 },
-    { date: "2026-05-06", expected: 15600, real: 0 },
-    { date: "2026-05-07", expected: 7200, real: 0 },
-    { date: "2026-05-08", expected: 23400, real: 0 },
+    { date: "2026-05-04", expected: 12500, real: 34500, invoiceNumber: "FAC-2026-020", orderNumber: "PED-2026-011", client: "Ferretería Central", zone: "Sur", seller: "Luis Pérez" },
+    { date: "2026-05-05", expected: 8900, real: 7200, invoiceNumber: "FAC-2026-016", orderNumber: "PED-2026-012", client: "Materiales El Ávila", zone: "Centro", seller: "María Gómez" },
+    { date: "2026-05-06", expected: 15600, real: 0, invoiceNumber: "FAC-2026-001", orderNumber: "PED-2026-001", client: "Ferretería El Constructor", zone: "Centro", seller: "María Gómez" },
+    { date: "2026-05-07", expected: 7200, real: 0, invoiceNumber: "FAC-2026-002", orderNumber: "PED-2026-003", client: "Ferretería El Constructor", zone: "Centro", seller: "María Gómez" },
+    { date: "2026-05-08", expected: 23400, real: 0, invoiceNumber: "FAC-2026-006", orderNumber: "PED-2026-002", client: "Pinturas del Centro", zone: "Norte", seller: "Carlos Díaz" },
   ];
 
   const discipline = {
@@ -319,10 +405,14 @@ export default function WholesalerDashboard({ userData = {}, onBack, onLogout })
     avgOverdueDays: 11.8,
     disciplinedPercent: 82,
     sanctionedPercent: 18,
-    clients: [
-      { name: "FerreNova Retail", status: "Bloqueado", overdueDays: 12, recoveryPayment: 34, action: "Puede reincorporarse" },
-      { name: "Pinturas del Centro", status: "Observación", overdueDays: 5, recoveryPayment: 18, action: "Monitorear" },
-      { name: "Materiales El Ávila", status: "Disciplinado", overdueDays: 0, recoveryPayment: 0, action: "Mantener" },
+    ownDelinquents: [
+      { name: "FerreNova Retail", status: "Bloqueado", overdueDays: 12, zone: "Oeste", seller: "Luis Pérez", action: "Bloqueado por mora con este mayorista" },
+      { name: "Pinturas del Centro", status: "Observación", overdueDays: 5, zone: "Norte", seller: "Carlos Díaz", action: "Monitorear próxima factura" },
+    ],
+    platformDelinquents: [
+      { name: "Suministros La 33", status: "Sancionado", overdueDays: 18, zone: "Centro", seller: "Otro mayorista", action: "Moroso con otro mayorista" },
+      { name: "FerreBarinas", status: "Bloqueado", overdueDays: 21, zone: "Sur", seller: "Otro mayorista", action: "Bloqueo de plataforma" },
+      { name: "Materiales Plus", status: "Sancionado", overdueDays: 9, zone: "Este", seller: "Otro mayorista", action: "Evaluar antes de vender" },
     ],
   };
 
@@ -334,33 +424,596 @@ export default function WholesalerDashboard({ userData = {}, onBack, onLogout })
 
   const salesRegions = ["Centro", "Norte", "Sur", "Este", "Oeste"];
 
+  const locationData = [
+    {
+      state: "Carabobo",
+      zone: "Centro",
+      cities: [
+        { name: "Valencia", zone: "Centro", urbanizations: ["El Viñedo", "Prebo", "La Trigaleña"] },
+        { name: "San Diego", zone: "Centro", urbanizations: ["Los Jarales", "Monteserino", "La Esmeralda"] },
+      ],
+    },
+    {
+      state: "Distrito Capital",
+      zone: "Norte",
+      cities: [
+        { name: "Caracas", zone: "Norte", urbanizations: ["Chacao", "La Urbina", "Catia"] },
+        { name: "Baruta", zone: "Norte", urbanizations: ["Las Mercedes", "Prados del Este", "Santa Fe"] },
+      ],
+    },
+    {
+      state: "Lara",
+      zone: "Sur",
+      cities: [
+        { name: "Barquisimeto", zone: "Sur", urbanizations: ["Centro", "Cabudare", "La Mora"] },
+        { name: "Quíbor", zone: "Sur", urbanizations: ["Casco Central", "El Molino", "La Ceiba"] },
+      ],
+    },
+    {
+      state: "Zulia",
+      zone: "Oeste",
+      cities: [
+        { name: "Maracaibo", zone: "Oeste", urbanizations: ["Cecilio Acosta", "La Limpia", "Bella Vista"] },
+        { name: "San Francisco", zone: "Oeste", urbanizations: ["Sierra Maestra", "El Bajo", "San Felipe"] },
+      ],
+    },
+    {
+      state: "Anzoátegui",
+      zone: "Este",
+      cities: [
+        { name: "Barcelona", zone: "Este", urbanizations: ["Nueva Barcelona", "Lechería", "El Moriche"] },
+        { name: "Puerto La Cruz", zone: "Este", urbanizations: ["Guanire", "Pozuelos", "El Paraíso"] },
+      ],
+    },
+  ];
+
+  const sellers = [
+    { name: "María Gómez", zone: "Centro", amount: 64300, orders: 41, assistedPercent: 92 },
+    { name: "Carlos Díaz", zone: "Norte", amount: 51400, orders: 35, assistedPercent: 88 },
+    { name: "Luis Pérez", zone: "Sur", amount: 37800, orders: 27, assistedPercent: 74 },
+    { name: "Ana Rivas", zone: "Este", amount: 32900, orders: 24, assistedPercent: 81 },
+    { name: "Pedro Castillo", zone: "Oeste", amount: 29400, orders: 19, assistedPercent: 76 },
+    { name: "TH.O automático", zone: "Todas", amount: 92300, orders: 62, assistedPercent: 0 },
+  ];
+
+  const selectedStateData = locationData.find((item) => item.state === selectedState);
+  const availableCities = selectedStateData?.cities || [];
+  const selectedCityData = availableCities.find((city) => city.name === selectedCity);
+  const availableUrbanizations = selectedCityData?.urbanizations || [];
+
+  const selectedLocationZone =
+    selectedUrbanization !== "all" && selectedCityData
+      ? selectedCityData.zone
+      : selectedCity !== "all" && selectedCityData
+      ? selectedCityData.zone
+      : selectedState !== "all" && selectedStateData
+      ? selectedStateData.zone
+      : "all";
+
+  const filteredSellersByLocation = sellers.filter(
+    (seller) =>
+      seller.name === "TH.O automático" ||
+      selectedLocationZone === "all" ||
+      seller.zone === selectedLocationZone
+  );
+
+  const getLocationLabel = (fallbackZone = "") => {
+    if (selectedUrbanization !== "all") return selectedUrbanization;
+    if (selectedCity !== "all") return selectedCity;
+    if (selectedState !== "all") return selectedState;
+    return fallbackZone || "Todas";
+  };
+
+  const buildExcelTable = (sheetName, rows) => {
+    const headers = rows?.length ? Object.keys(rows[0]) : ["Sin datos"];
+    const escapeCell = (value) =>
+      String(value ?? "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;");
+
+    const tableRows = rows?.length
+      ? rows
+          .map(
+            (row) =>
+              `<tr>${headers.map((header) => `<td>${escapeCell(row[header])}</td>`).join("")}</tr>`
+          )
+          .join("")
+      : `<tr><td>No hay datos para exportar.</td></tr>`;
+
+    return `
+      <table>
+        <thead>
+          <tr><th colspan="${headers.length}" class="sheet-title">${escapeCell(sheetName)}</th></tr>
+          <tr>${headers.map((header) => `<th>${escapeCell(header)}</th>`).join("")}</tr>
+        </thead>
+        <tbody>${tableRows}</tbody>
+      </table>
+    `;
+  };
+
+  const downloadExcelWorkbook = (reportName, sheets) => {
+    const workbook = `
+      <html xmlns:o="urn:schemas-microsoft-com:office:office"
+            xmlns:x="urn:schemas-microsoft-com:office:excel"
+            xmlns="http://www.w3.org/TR/REC-html40">
+        <head>
+          <meta charset="UTF-8" />
+          <style>
+            table {
+              border-collapse: collapse;
+              font-family: Arial, sans-serif;
+              font-size: 12pt;
+              text-align: left;
+              margin-bottom: 28px;
+              width: 100%;
+            }
+            .sheet-title {
+              background: #091A2D;
+              color: #FFFFFF;
+              font-weight: bold;
+              border: 1px solid #D6D0C4;
+              padding: 8px;
+            }
+            th {
+              background: #FEDC00;
+              color: #091A2D;
+              font-weight: bold;
+              border: 1px solid #D6D0C4;
+              padding: 8px;
+            }
+            td {
+              border: 1px solid #D6D0C4;
+              padding: 8px;
+            }
+          </style>
+        </head>
+        <body>
+          ${sheets.map((sheet) => buildExcelTable(sheet.name, sheet.rows)).join("<br/>")}
+        </body>
+      </html>
+    `;
+
+    const blob = new Blob([workbook], {
+      type: "application/vnd.ms-excel;charset=utf-8;",
+    });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `${reportName}.xls`;
+    link.click();
+    URL.revokeObjectURL(link.href);
+  };
+
+  const exportToExcel = (reportName, rows) => {
+    if (!rows?.length) {
+      alert("No hay datos para exportar.");
+      return;
+    }
+
+    const headers = Object.keys(rows[0]);
+    const escapeCell = (value) =>
+      String(value ?? "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;");
+
+    const tableRows = rows
+      .map(
+        (row) =>
+          `<tr>${headers.map((header) => `<td>${escapeCell(row[header])}</td>`).join("")}</tr>`
+      )
+      .join("");
+
+    const workbook = `
+      <html xmlns:o="urn:schemas-microsoft-com:office:office"
+            xmlns:x="urn:schemas-microsoft-com:office:excel"
+            xmlns="http://www.w3.org/TR/REC-html40">
+        <head>
+          <meta charset="UTF-8" />
+          <style>
+            table { border-collapse: collapse; font-family: Arial, sans-serif; font-size: 12pt;
+              text-align: left; }
+            th { background: #FEDC00; color: #091A2D; font-weight: bold; border: 1px solid #D6D0C4; padding: 8px; }
+            td { border: 1px solid #D6D0C4; padding: 8px; }
+          </style>
+        </head>
+        <body>
+          <table>
+            <thead>
+              <tr>${headers.map((header) => `<th>${escapeCell(header)}</th>`).join("")}</tr>
+            </thead>
+            <tbody>${tableRows}</tbody>
+          </table>
+        </body>
+      </html>
+    `;
+
+    const blob = new Blob([workbook], {
+      type: "application/vnd.ms-excel;charset=utf-8;",
+    });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `${reportName}.xls`;
+    link.click();
+    URL.revokeObjectURL(link.href);
+  };
+
+  function LegendBox({ items, title = "Cómo se calcula", id = "general" }) {
+    const isOpen = openLegendSections[id] || false;
+
+    return (
+      <div className="rounded-xl border bg-blue-50/70" style={{ borderColor: "#BFDBFE" }}>
+        <button
+          type="button"
+          onClick={() =>
+            setOpenLegendSections((prev) => ({
+              ...prev,
+              [id]: !prev[id],
+            }))
+          }
+          className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-xs font-black text-blue-800"
+        >
+          <span>{title}</span>
+          {isOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+        </button>
+
+        {isOpen && (
+          <div className="px-3 pb-3 text-xs text-blue-800">
+            <ul className="list-disc space-y-1 pl-4">
+              {items.map((item) => <li key={item}>{item}</li>)}
+            </ul>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  const toInputDate = (date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  };
+
+  const getMonthLabel = () => {
+    const [year, month] = calendarMonth.split("-").map(Number);
+    return new Date(year, month - 1, 1).toLocaleDateString("es-ES", {
+      month: "long",
+      year: "numeric",
+    });
+  };
+
+  const moveCalendarMonth = (direction) => {
+    const [year, month] = calendarMonth.split("-").map(Number);
+    const date = new Date(year, month - 1 + direction, 1);
+    setCalendarMonth(`${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`);
+  };
+
+  const getCalendarDays = () => {
+    const [year, month] = calendarMonth.split("-").map(Number);
+    const firstDay = new Date(year, month - 1, 1);
+    const lastDay = new Date(year, month, 0);
+    const days = [];
+
+    for (let index = 0; index < firstDay.getDay(); index += 1) {
+      days.push(null);
+    }
+
+    for (let day = 1; day <= lastDay.getDate(); day += 1) {
+      days.push(new Date(year, month - 1, day));
+    }
+
+    return days;
+  };
+
+  const isDateInRange = (dateString) => {
+    if (!periodStart || !periodEnd) return false;
+
+    const current = new Date(`${dateString}T00:00:00`);
+    const start = new Date(`${periodStart}T00:00:00`);
+    const end = new Date(`${periodEnd}T00:00:00`);
+    const from = start <= end ? start : end;
+    const to = start <= end ? end : start;
+
+    return current >= from && current <= to;
+  };
+
+  const handleCalendarDayClick = (date) => {
+    const value = toInputDate(date);
+
+    if (!periodStart || periodEnd) {
+      setPeriodStart(value);
+      setPeriodEnd("");
+      return;
+    }
+
+    if (value === periodStart) {
+      setPeriodEnd("");
+      return;
+    }
+
+    setPeriodEnd(value);
+  };
+
+  const resetPeriodSelection = () => {
+    setPeriodStart("");
+    setPeriodEnd("");
+  };
+
+  const resetSalesVolumeFilters = () => {
+    setPeriodStart("2026-05-01");
+    setPeriodEnd("2026-05-31");
+    setSalesSort("desc");
+    setSalesMetric("volume");
+    setSalesProductFilter("all");
+    setSalesCategoryFilter("all");
+    setSelectedState("all");
+    setSelectedCity("all");
+    setSelectedUrbanization("all");
+  };
+
+  const resetClientFilters = () => {
+    setPeriodStart("2026-05-01");
+    setPeriodEnd("2026-05-31");
+    setClientSellerFilter("all");
+    setClientSort("amountDesc");
+    setSelectedState("all");
+    setSelectedCity("all");
+    setSelectedUrbanization("all");
+  };
+
+  const resetPerformanceFilters = () => {
+    setPeriodStart("2026-05-01");
+    setPeriodEnd("2026-05-31");
+    setPerformanceSellerFilter("all");
+    setPerformanceSort("amountDesc");
+    setSelectedState("all");
+    setSelectedCity("all");
+    setSelectedUrbanization("all");
+  };
+
+  function LocationFilters({ compact = false }) {
+    return (
+      <>
+        <select
+          value={selectedState}
+          onChange={(event) => {
+            setSelectedState(event.target.value);
+            setSelectedCity("all");
+            setSelectedUrbanization("all");
+            setClientSellerFilter("all");
+            setPerformanceSellerFilter("all");
+            setInvoiceSellerFilter("all");
+            setCashflowSellerFilter("all");
+          }}
+          className="w-full rounded-xl border px-3 py-2 text-sm"
+          style={{ borderColor: PALETTE.pastelGray }}
+        >
+          <option value="all">Estado</option>
+          {locationData.map((location) => (
+            <option key={location.state} value={location.state}>
+              {location.state}
+            </option>
+          ))}
+        </select>
+
+        <select
+          value={selectedCity}
+          onChange={(event) => {
+            setSelectedCity(event.target.value);
+            setSelectedUrbanization("all");
+            setClientSellerFilter("all");
+            setPerformanceSellerFilter("all");
+            setInvoiceSellerFilter("all");
+            setCashflowSellerFilter("all");
+          }}
+          className="w-full rounded-xl border px-3 py-2 text-sm"
+          style={{ borderColor: PALETTE.pastelGray }}
+          disabled={selectedState === "all"}
+        >
+          <option value="all">Ciudad</option>
+          {availableCities.map((city) => (
+            <option key={city.name} value={city.name}>
+              {city.name}
+            </option>
+          ))}
+        </select>
+
+        <select
+          value={selectedUrbanization}
+          onChange={(event) => {
+            setSelectedUrbanization(event.target.value);
+            setClientSellerFilter("all");
+            setPerformanceSellerFilter("all");
+            setInvoiceSellerFilter("all");
+            setCashflowSellerFilter("all");
+          }}
+          className="w-full rounded-xl border px-3 py-2 text-sm"
+          style={{ borderColor: PALETTE.pastelGray }}
+          disabled={selectedCity === "all"}
+        >
+          <option value="all">Urbanización</option>
+          {availableUrbanizations.map((urbanization) => (
+            <option key={urbanization} value={urbanization}>
+              {urbanization}
+            </option>
+          ))}
+        </select>
+      </>
+    );
+  }
+
+  function CollapsibleFilterSection({ id, title, icon, children }) {
+    const isOpen = openFilterSections[id] ?? true;
+
+    return (
+      <SectionCard
+        title={title}
+        icon={icon}
+        action={
+          <button
+            type="button"
+            onClick={() =>
+              setOpenFilterSections((prev) => ({
+                ...prev,
+                [id]: !isOpen,
+              }))
+            }
+            className="inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-black transition hover:bg-gray-50"
+            style={{ borderColor: PALETTE.pastelGray, color: PALETTE.maastrichtBlue }}
+          >
+            {isOpen ? "Ocultar filtros" : "Mostrar filtros"}
+            {isOpen ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+          </button>
+        }
+      >
+        {isOpen && children}
+      </SectionCard>
+    );
+  }
+
+  function PeriodFilter() {
+    return (
+      <div className="relative">
+        <button
+          type="button"
+          onClick={() => setIsPeriodCalendarOpen((value) => !value)}
+          className="flex w-full items-center justify-between rounded-xl border bg-white px-3 py-2 text-left text-sm"
+          style={{ borderColor: PALETTE.pastelGray, color: PALETTE.maastrichtBlue }}
+        >
+          <span>{selectedRangeDate || "Seleccionar período"}</span>
+          <Calendar className="h-4 w-4 text-gray-500" />
+        </button>
+
+        {isPeriodCalendarOpen && (
+          <div className="absolute left-0 top-12 z-40 w-[320px] rounded-xl border bg-white p-3 shadow-2xl" style={{ borderColor: PALETTE.pastelGray }}>
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <button type="button" onClick={() => moveCalendarMonth(-1)} className="rounded-lg px-3 py-1.5 text-sm font-bold hover:bg-gray-100" style={{ color: PALETTE.maastrichtBlue }}>‹</button>
+              <p className="text-sm font-black capitalize" style={{ color: PALETTE.maastrichtBlue }}>{getMonthLabel()}</p>
+              <button type="button" onClick={() => moveCalendarMonth(1)} className="rounded-lg px-3 py-1.5 text-sm font-bold hover:bg-gray-100" style={{ color: PALETTE.maastrichtBlue }}>›</button>
+            </div>
+
+            <div className="grid grid-cols-7 gap-1 text-center text-[11px] font-bold text-gray-500">
+              {["Do", "Lu", "Ma", "Mi", "Ju", "Vi", "Sa"].map((day) => <span key={day}>{day}</span>)}
+            </div>
+
+            <div className="mt-2 grid grid-cols-7 gap-1">
+              {getCalendarDays().map((date, index) => {
+                if (!date) return <div key={`empty-${index}`} className="h-8" />;
+
+                const dateString = toInputDate(date);
+                const isStart = dateString === periodStart;
+                const isEnd = dateString === periodEnd;
+                const isInRange = isDateInRange(dateString);
+
+                return (
+                  <button
+                    key={dateString}
+                    type="button"
+                    onClick={() => handleCalendarDayClick(date)}
+                    className="h-8 rounded-lg text-xs font-bold transition-all"
+                    style={{
+                      backgroundColor: isStart || isEnd ? PALETTE.sizzlingSunrise : isInRange ? "#FFF7C2" : PALETTE.white,
+                      color: PALETTE.maastrichtBlue,
+                      border: isStart || isEnd ? `1px solid ${PALETTE.sizzlingSunrise}` : `1px solid ${PALETTE.pastelGray}`,
+                    }}
+                  >
+                    {date.getDate()}
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="mt-3 rounded-lg bg-gray-50 px-3 py-2 text-xs text-gray-500">
+              Primer clic: fecha inicial. Segundo clic: fecha final. Para un solo día, selecciona solo una fecha.
+            </div>
+
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={resetPeriodSelection}
+                className="rounded-xl border px-4 py-2 text-sm font-black transition hover:bg-gray-50"
+                style={{ borderColor: PALETTE.pastelGray, color: PALETTE.maastrichtBlue }}
+              >
+                Refrescar fecha
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setIsPeriodCalendarOpen(false)}
+                className="rounded-xl px-4 py-2 text-sm font-black transition hover:opacity-90"
+                style={{ backgroundColor: PALETTE.sizzlingSunrise, color: PALETTE.maastrichtBlue }}
+              >
+                Confirmar fecha
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+
+  function MiniExcel({ columns, rows, maxHeight = "318px", emptyMessage = "No hay datos para mostrar." }) {
+    return (
+      <div className="overflow-hidden rounded-xl border" style={{ borderColor: PALETTE.softBorder }}>
+        <div className="overflow-auto" style={{ maxHeight }}>
+          <table className="min-w-full text-sm">
+            <thead className="sticky top-0 z-10 bg-gray-50">
+              <tr>{columns.map((column) => <th key={column.key} className="whitespace-nowrap px-3 py-2 text-left text-xs font-black uppercase tracking-wide text-gray-500">{column.label}</th>)}</tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100 bg-white">
+              {rows.length === 0 ? (
+                <tr><td colSpan={columns.length} className="px-3 py-6 text-center text-sm text-gray-500">{emptyMessage}</td></tr>
+              ) : rows.map((row, index) => (
+                <tr key={row.id || row.key || index} className="hover:bg-yellow-50/40">
+                  {columns.map((column) => <td key={column.key} className="whitespace-nowrap px-3 py-2 text-gray-700">{column.render ? column.render(row) : row[column.key]}</td>)}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
+  }
+
+  const formatDateShort = (dateString) => {
+    if (!dateString) return "Sin fecha";
+    const [year, month, day] = dateString.split("-").map(Number);
+    return new Date(year, month - 1, day).toLocaleDateString("es-ES", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    });
+  };
+
+  const getRangeDays = () => {
+    if (!periodStart && !periodEnd) return 0;
+    const startValue = periodStart || periodEnd;
+    const endValue = periodEnd || periodStart;
+    const start = new Date(`${startValue}T00:00:00`);
+    const end = new Date(`${endValue}T00:00:00`);
+    return Math.abs(Math.round((end - start) / (1000 * 60 * 60 * 24))) + 1;
+  };
+
   const selectedRangeLabel =
-    timeRange === "day" ? "Día" : timeRange === "week" ? "Semana" : "Mes";
+    getRangeDays() >= 28 ? "Mes" : getRangeDays() >= 7 ? "Semana" : getRangeDays() > 1 ? "Rango" : "Día";
 
   const selectedRangeDate =
-    timeRange === "day"
-      ? "04/05/2026"
-      : timeRange === "week"
-      ? "Semana del 04/05/2026 al 10/05/2026"
-      : "Mayo 2026";
+    periodStart === periodEnd || !periodEnd
+      ? formatDateShort(periodStart)
+      : `${formatDateShort(periodStart)} - ${formatDateShort(periodEnd)}`;
 
   const salesVolumeRows = productsData.flatMap((product) => {
     const dayFactor = product.sellerOrigin === "TH.O" ? 0.08 : 0.05;
     const weekFactor = product.sellerOrigin === "TH.O" ? 0.34 : 0.28;
 
-    const baseAmount =
-      timeRange === "day"
-        ? Math.round(product.revenue * dayFactor)
-        : timeRange === "week"
-        ? Math.round(product.revenue * weekFactor)
-        : product.revenue;
+    const periodFactor = Math.min(Math.max(getRangeDays(), 1) / 31, 1);
 
-    const baseUnits =
-      timeRange === "day"
-        ? Math.round(product.unitsSold * dayFactor)
-        : timeRange === "week"
-        ? Math.round(product.unitsSold * weekFactor)
-        : product.unitsSold;
+    const baseAmount = Math.round(product.revenue * periodFactor);
+    const baseUnits = Math.round(product.unitsSold * periodFactor);
 
     const regionWeights = [0.32, 0.24, 0.18, 0.14, 0.12];
 
@@ -375,13 +1028,13 @@ export default function WholesalerDashboard({ userData = {}, onBack, onLogout })
   const filteredSalesVolumeBaseRows = salesVolumeRows.filter((row) => {
     const matchesProduct = salesProductFilter === "all" || row.name === salesProductFilter;
     const matchesCategory = salesCategoryFilter === "all" || row.category === salesCategoryFilter;
-    const matchesRegion = salesRegionFilter === "all" || row.region === salesRegionFilter;
+    const matchesRegion = selectedLocationZone === "all" || row.region === selectedLocationZone;
 
     return matchesProduct && matchesCategory && matchesRegion;
   });
 
   const filteredSalesVolumeRows =
-    salesRegionFilter === "all"
+    selectedLocationZone === "all"
       ? productsData
           .filter((product) => {
             const matchesProduct = salesProductFilter === "all" || product.name === salesProductFilter;
@@ -463,19 +1116,152 @@ export default function WholesalerDashboard({ userData = {}, onBack, onLogout })
       return 0;
     });
 
+
+  const sortedSalesRows = [...filteredSalesVolumeRows].sort((a, b) => {
+    const keyA = salesMetric === "profitability" ? a.margin || 0 : a.salesAmount || 0;
+    const keyB = salesMetric === "profitability" ? b.margin || 0 : b.salesAmount || 0;
+    return salesSort === "desc" ? keyB - keyA : keyA - keyB;
+  });
+
+  const periodSalesMultiplier = Math.min(Math.max(getRangeDays(), 1) / 31, 1);
+
+  const locationOriginPercentMap = {
+    Centro: 62,
+    Norte: 54,
+    Sur: 48,
+    Este: 57,
+    Oeste: 43,
+  };
+
+  const thoOriginPercentBase =
+    selectedLocationZone === "all"
+      ? summary.thoSalesPercent
+      : locationOriginPercentMap[selectedLocationZone] || summary.thoSalesPercent;
+
+  const salesSellerRows = sellers
+    .filter(
+      (seller) =>
+        seller.name !== "TH.O automático" &&
+        (selectedLocationZone === "all" || seller.zone === selectedLocationZone)
+    )
+    .map((seller) => {
+      const amount = Math.round(seller.amount * periodSalesMultiplier);
+
+      return {
+        ...seller,
+        amount,
+        orders: Math.max(1, Math.round(seller.orders * periodSalesMultiplier)),
+        zone: getLocationLabel(seller.zone),
+      };
+    });
+
+  const sellerOriginAmount = salesSellerRows.reduce((sum, seller) => sum + seller.amount, 0);
+  const thoOriginAmount = Math.round(
+    salesVolumeTotal * (thoOriginPercentBase / 100) * (selectedLocationZone === "all" ? 1 : 0.95)
+  );
+  const originTotalAmount = Math.max(thoOriginAmount + sellerOriginAmount, 1);
+  const thoOriginPercent = Math.round((thoOriginAmount / originTotalAmount) * 100);
+  const sellerOriginPercent = 100 - thoOriginPercent;
+
+  const salesSellerTotal = Math.max(...salesSellerRows.map((seller) => seller.amount), 1);
+
+  const filteredClientRows = clients
+    .filter((client) => selectedLocationZone === "all" || client.zone === selectedLocationZone)
+    .filter((client) => clientSellerFilter === "all" || client.seller === clientSellerFilter)
+    .sort((a, b) => {
+      if (clientSort === "amountDesc") return b.totalAmount - a.totalAmount;
+      if (clientSort === "amountAsc") return a.totalAmount - b.totalAmount;
+      if (clientSort === "ordersDesc") return b.totalPurchases - a.totalPurchases;
+      if (clientSort === "ordersAsc") return a.totalPurchases - b.totalPurchases;
+      return 0;
+    });
+
+  const avgOrdersInPeriod = filteredClientRows.length
+    ? filteredClientRows.reduce((sum, client) => sum + client.totalPurchases, 0) / filteredClientRows.length
+    : 0;
+
+  const clientPeriodMultiplier = Math.min(Math.max(getRangeDays(), 1) / 31, 1);
+
+  const adjustedClientRows = filteredClientRows.map((client) => ({
+    ...client,
+    periodAmount: Math.round(client.totalAmount * clientPeriodMultiplier),
+    periodPurchases: Math.max(1, Math.round(client.totalPurchases * clientPeriodMultiplier)),
+  }));
+
+  const filteredSellers = sellers
+    .filter((seller) => selectedLocationZone === "all" || seller.zone === selectedLocationZone || seller.zone === "Todas")
+    .filter((seller) => performanceSellerFilter === "all" || seller.name === performanceSellerFilter)
+    .sort((a, b) => {
+      if (performanceSort === "amountDesc") return b.amount - a.amount;
+      if (performanceSort === "amountAsc") return a.amount - b.amount;
+      if (performanceSort === "ordersDesc") return b.orders - a.orders;
+      if (performanceSort === "ordersAsc") return a.orders - b.orders;
+      return 0;
+    });
+
+  const filteredInvoiceRows = invoices
+    .filter((invoice) => selectedLocationZone === "all" || invoice.zone === selectedLocationZone)
+    .filter((invoice) => invoiceSellerFilter === "all" || invoice.seller === invoiceSellerFilter)
+    .filter((invoice) => {
+      const matchesSearch = !invoiceSearchTerm || invoice.client.toLowerCase().includes(invoiceSearchTerm.toLowerCase()) || invoice.invoiceNumber.toLowerCase().includes(invoiceSearchTerm.toLowerCase());
+      const matchesStatus = invoiceStatusFilter === "all" || invoice.status === invoiceStatusFilter || (invoiceStatusFilter === "risk" && ["overdue", "covered"].includes(invoice.status));
+      const matchesClient = selectedClientName === "all" || invoice.client === selectedClientName;
+      return matchesSearch && matchesStatus && matchesClient;
+    })
+    .sort((a, b) => {
+      const diff = new Date(`${a.dueDate}T00:00:00`) - new Date(`${b.dueDate}T00:00:00`);
+      return invoiceDueSort === "soonest" ? diff : -diff;
+    });
+
+  const groupedInvoiceRows = invoiceGroupByClient
+    ? Object.values(filteredInvoiceRows.reduce((acc, invoice) => {
+        if (!acc[invoice.client]) {
+          acc[invoice.client] = { id: invoice.client, client: invoice.client, invoiceNumber: `${invoice.client} (0)`, orderNumber: "Agrupado", amount: 0, dueDate: invoice.dueDate, status: "Agrupado", zone: invoice.zone, seller: invoice.seller, invoiceCount: 0 };
+        }
+        acc[invoice.client].amount += invoice.amount;
+        acc[invoice.client].invoiceCount += 1;
+        acc[invoice.client].invoiceNumber = `${invoice.client} (${acc[invoice.client].invoiceCount} facturas)`;
+        if (new Date(`${invoice.dueDate}T00:00:00`) < new Date(`${acc[invoice.client].dueDate}T00:00:00`)) acc[invoice.client].dueDate = invoice.dueDate;
+        return acc;
+      }, {}))
+    : filteredInvoiceRows;
+
+  const filteredCollectionFlow = collectionFlow
+    .filter((item) => selectedLocationZone === "all" || item.zone === selectedLocationZone)
+    .filter((item) => cashflowSellerFilter === "all" || item.seller === cashflowSellerFilter)
+    .filter((item) => item.date >= periodStart && item.date <= periodEnd);
+
+  const inventoryOnlyProducts = filteredInventoryProducts.map((product) => {
+    const avgDailySales = Math.max(product.unitsSold / 30, 1);
+    return { ...product, avgDailySales, stockDaysLeft: Math.round(product.stock / avgDailySales) };
+  });
+
+  const acceptOrders = receivedOrders.filter((order) => order.status === "pending");
+  const toDispatchOrders = dispatchOrders.filter((order) => order.status === "to_dispatch");
+  const dispatchedOrders = dispatchOrders.filter((order) => order.status === "dispatched");
+
+  const markOrderAsDispatched = (orderId) => {
+    const today = new Date().toISOString().split("T")[0];
+    const due = new Date();
+    due.setDate(due.getDate() + 30);
+    setDispatchOrders((prev) => prev.map((order) => order.id === orderId ? { ...order, status: "dispatched", dispatchedAt: today, paymentDueAt: due.toISOString().split("T")[0] } : order));
+  };
+
   const handleOrderAction = (orderId, action) => {
     const order = receivedOrders.find((item) => item.id === orderId);
     if (!order) return;
 
     if (action === "accept") {
-      setOrderHistory((prev) => [
+      setDispatchOrders((prev) => [
         {
           id: Date.now(),
+          orderNumber: order.orderNumber || `PED-${Date.now()}`,
           productName: order.productName,
           buyer: order.buyer,
-          quantity: order.quantity,
-          totalAmount: order.offeredPrice * order.quantity,
-          status: "completed",
+          zone: order.zone,
+          seller: order.seller,
+          items: order.items || [{ name: order.productName, unitPrice: order.offeredPrice, quantity: order.quantity }],
+          status: "to_dispatch",
           date: new Date().toISOString().split("T")[0],
         },
         ...prev,
@@ -490,7 +1276,7 @@ export default function WholesalerDashboard({ userData = {}, onBack, onLogout })
     { id: "sales", label: "Ventas", icon: BarChart3 },
     { id: "invoices", label: "Facturación y riesgo", icon: FileText },
     { id: "cashflow", label: "Cobranza / flujo", icon: Wallet },
-    { id: "products", label: "Productos", icon: Package },
+    { id: "products", label: "Inventario y stock", icon: Package },
     { id: "discipline", label: "Disciplina del canal", icon: Shield },
     { id: "orders", label: "Pedidos", icon: ShoppingBag, badge: receivedOrders.filter((order) => order.status === "pending").length },
   ];
@@ -615,45 +1401,26 @@ export default function WholesalerDashboard({ userData = {}, onBack, onLogout })
                 Analiza el crecimiento comercial desde tres vistas: volumen, clientes y performance.
               </p>
 
-              <div className="grid gap-3 md:grid-cols-3">
+              <div className="flex flex-wrap gap-2">
                 {[
-                  {
-                    id: "volume",
-                    title: "Volumen de ventas",
-                    description: "Día, semana, mes, producto, categoría, región, vendedor y origen",
-                    icon: BarChart3,
-                  },
-                  {
-                    id: "clients",
-                    title: "Análisis de clientes",
-                    description: "Top clientes, nuevos vs recurrentes, reactivados, frecuencia y ticket promedio",
-                    icon: Users,
-                  },
-                  {
-                    id: "performance",
-                    title: "Performance comercial",
-                    description: "Vendedores, % generado por TH.O, conversión y evolución histórica",
-                    icon: TrendingUp,
-                  },
+                  { id: "volume", title: "Volumen de ventas", icon: BarChart3 },
+                  { id: "clients", title: "Análisis de clientes", icon: Users },
+                  { id: "performance", title: "Performance comercial", icon: TrendingUp },
                 ].map((tab) => {
                   const Icon = tab.icon;
                   return (
                     <button
                       key={tab.id}
                       onClick={() => setActiveSalesTab(tab.id)}
-                      className="rounded-2xl border p-4 text-left transition-all hover:-translate-y-0.5 hover:shadow-md"
+                      className="inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-black transition-all hover:-translate-y-0.5 hover:shadow-sm"
                       style={{
                         borderColor: activeSalesTab === tab.id ? PALETTE.sizzlingSunrise : PALETTE.softBorder,
-                        backgroundColor: activeSalesTab === tab.id ? "#FFFBEB" : PALETTE.white,
+                        backgroundColor: activeSalesTab === tab.id ? PALETTE.sizzlingSunrise : PALETTE.white,
+                        color: PALETTE.maastrichtBlue,
                       }}
                     >
-                      <div className="mb-3 flex items-center gap-2">
-                        <div className="rounded-xl p-2" style={{ backgroundColor: `${PALETTE.sizzlingSunrise}22`, color: PALETTE.maastrichtBlue }}>
-                          <Icon className="h-4 w-4" />
-                        </div>
-                        <p className="font-black" style={{ color: PALETTE.maastrichtBlue }}>{tab.title}</p>
-                      </div>
-                      <p className="text-xs leading-5 text-gray-500">{tab.description}</p>
+                      <Icon className="h-4 w-4" />
+                      {tab.title}
                     </button>
                   );
                 })}
@@ -662,56 +1429,79 @@ export default function WholesalerDashboard({ userData = {}, onBack, onLogout })
 
             {activeSalesTab === "volume" && (
               <div className="space-y-5">
-                <SectionCard
+                <CollapsibleFilterSection
+                  id="salesVolume"
                   title="Volumen de ventas"
                   icon={<BarChart3 className="h-4 w-4" style={{ color: PALETTE.sizzlingSunrise }} />}
                 >
-                  <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                  <div className="mb-2 flex flex-wrap items-start justify-between gap-3">
                     <div>
-                      <p className="text-sm text-gray-500">
-                        Lista de productos con ventas por período, producto, categoría y región.
+                      <p className="text-xs text-gray-500">
+                        Lista de productos con ventas por período, categoría y ubicación.
                       </p>
-                      <p className="mt-1 text-xs text-gray-500">
+                      <p className="mt-0.5 text-xs text-gray-500">
                         Período seleccionado: <strong>{selectedRangeLabel}</strong> · {selectedRangeDate}
                       </p>
                     </div>
 
-                    <div className="flex flex-wrap gap-2">
-                      {["day", "week", "month"].map((range) => (
-                        <button
-                          key={range}
-                          onClick={() => setTimeRange(range)}
-                          className="rounded-full px-4 py-2 text-sm font-bold"
-                          style={{
-                            backgroundColor: timeRange === range ? PALETTE.sizzlingSunrise : PALETTE.page,
-                            color: PALETTE.maastrichtBlue,
-                          }}
-                        >
-                          {range === "day" ? "Día" : range === "week" ? "Semana" : "Mes"}
-                        </button>
-                      ))}
+                    <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={resetSalesVolumeFilters}
+                      className="inline-flex items-center justify-center rounded-xl border px-4 py-2 text-sm font-bold transition hover:bg-gray-50"
+                      style={{ borderColor: PALETTE.pastelGray, color: PALETTE.maastrichtBlue }}
+                    >
+                      Limpiar filtros
+                    </button>
+
+                    <button
+                      onClick={() => exportToExcel("ventas_producto", sortedSalesRows.map((row) => ({
+                        Producto: row.name,
+                        Categoría: row.category,
+                        Ubicación: getLocationLabel(row.region),
+                        Origen: row.sellerOrigin,
+                        Unidades: row.salesUnits,
+                        Ventas: formatUSD(row.salesAmount),
+                        "% Venta total": `${salesVolumeTotal > 0 ? ((row.salesAmount / salesVolumeTotal) * 100).toFixed(1) : "0.0"}%`,
+                        Utilidad: formatUSD(row.margin || 0),
+                      })))}
+                      className="inline-flex items-center justify-center rounded-xl bg-yellow-400 px-5 py-2 text-sm font-bold"
+                      style={{ color: PALETTE.maastrichtBlue }}
+                    >
+                      <Download className="mr-1 h-4 w-4" /> Excel
+                    </button>
                     </div>
                   </div>
 
-                  <div className="grid gap-3 md:grid-cols-3">
+                  <div className="grid gap-2 md:grid-cols-3">
+                    <div className="w-full">
+                      <PeriodFilter />
+                    </div>
+
                     <select
-                      value={salesProductFilter}
-                      onChange={(event) => setSalesProductFilter(event.target.value)}
-                      className="rounded-xl border px-3 py-2 text-sm"
+                      value={salesSort}
+                      onChange={(event) => setSalesSort(event.target.value)}
+                      className="w-full rounded-xl border px-3 py-2 text-sm"
                       style={{ borderColor: PALETTE.pastelGray }}
                     >
-                      <option value="all">Todos los productos</option>
-                      {productsData.map((product) => (
-                        <option key={product.id} value={product.name}>
-                          {product.name}
-                        </option>
-                      ))}
+                      <option value="desc">Mayor a menor</option>
+                      <option value="asc">Menor a mayor</option>
+                    </select>
+
+                    <select
+                      value={salesMetric}
+                      onChange={(event) => setSalesMetric(event.target.value)}
+                      className="w-full rounded-xl border px-3 py-2 text-sm"
+                      style={{ borderColor: PALETTE.pastelGray }}
+                    >
+                      <option value="volume">Volumen</option>
+                      <option value="profitability">Rentabilidad</option>
                     </select>
 
                     <select
                       value={salesCategoryFilter}
                       onChange={(event) => setSalesCategoryFilter(event.target.value)}
-                      className="rounded-xl border px-3 py-2 text-sm"
+                      className="w-full rounded-xl border px-3 py-2 text-sm"
                       style={{ borderColor: PALETTE.pastelGray }}
                     >
                       <option value="all">Todas las categorías</option>
@@ -722,25 +1512,17 @@ export default function WholesalerDashboard({ userData = {}, onBack, onLogout })
                       ))}
                     </select>
 
-                    <select
-                      value={salesRegionFilter}
-                      onChange={(event) => setSalesRegionFilter(event.target.value)}
-                      className="rounded-xl border px-3 py-2 text-sm"
-                      style={{ borderColor: PALETTE.pastelGray }}
-                    >
-                      <option value="all">Todas las regiones</option>
-                      {salesRegions.map((region) => (
-                        <option key={region} value={region}>
-                          Región {region}
-                        </option>
-                      ))}
-                    </select>
+                    <LocationFilters />
                   </div>
-                </SectionCard>
+                  <div className="mt-3">
+                    <LegendBox id="ventas-volumen" items={["Ventas = unidades vendidas por precio estimado.", "Utilidad = ventas menos costo. Si no hay costo, queda en 0.", "Los filtros de ubicación afectan totales y filas para que cuadren los montos."]} />
+                  </div>
 
-                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                </CollapsibleFilterSection>
+
+                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
                   <KPICard
-                    title={timeRange === "day" ? "Ventas del día" : timeRange === "week" ? "Ventas de la semana" : "Ventas del mes"}
+                    title={`Ventas del ${selectedRangeLabel.toLowerCase()}`}
                     value={formatUSD(salesVolumeTotal)}
                     subtitle={`${new Set(filteredSalesVolumeRows.map((row) => row.name)).size} productos filtrados`}
                     icon={<DollarSign className="h-5 w-5" />}
@@ -753,90 +1535,90 @@ export default function WholesalerDashboard({ userData = {}, onBack, onLogout })
                     color={PALETTE.crystalBlue}
                   />
                   <KPICard
-                    title="Categorías activas"
-                    value={new Set(filteredSalesVolumeRows.map((product) => product.category)).size}
-                    icon={<BarChart3 className="h-5 w-5" />}
+                    title="Utilidad generada"
+                    value={formatUSD(sortedSalesRows.reduce((sum, product) => sum + (product.margin || 0), 0))}
+                    subtitle="Ventas - costo registrado"
+                    icon={<TrendingUp className="h-5 w-5" />}
                     color={PALETTE.success}
                   />
                   <KPICard
-                    title="Regiones activas"
+                    title="Ubicaciones activas"
                     value={new Set(filteredSalesVolumeRows.map((product) => product.region)).size}
                     icon={<Store className="h-5 w-5" />}
                     color={PALETTE.warning}
                   />
                 </div>
 
-                <div className="grid gap-5 xl:grid-cols-[1.4fr_0.9fr]">
+                <div className="space-y-5">
                   <SectionCard
-                    title={timeRange === "day" ? "Ventas por producto del día" : timeRange === "week" ? "Ventas por producto de la semana" : "Ventas por producto del mes"}
+                    title={`Ventas por producto del ${selectedRangeLabel.toLowerCase()}`}
                     icon={<Package className="h-4 w-4" style={{ color: PALETTE.success }} />}
                   >
-                    <div className="space-y-4">
-                      {filteredSalesVolumeRows.map((product) => {
-                        const amount = product.salesAmount;
-                        const units = product.salesUnits;
-                        const maxAmount = Math.max(...filteredSalesVolumeRows.map((item) => item.salesAmount), 1);
-
-                        return (
-                          <div key={`${product.id}-${product.region}`} className="rounded-xl border p-4" style={{ borderColor: PALETTE.softBorder }}>
-                            <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
-                              <div>
-                                <p className="font-black" style={{ color: PALETTE.maastrichtBlue }}>{product.name}</p>
-                                <p className="text-xs text-gray-500">
-                                  {product.category} · {product.region === "Todas las regiones" ? "Todas las regiones" : `Región ${product.region}`} · Origen {product.sellerOrigin}
-                                </p>
-                              </div>
-                              <div className="text-right">
-                                <p className="font-black">{formatUSD(amount)}</p>
-                                <p className="text-xs text-gray-500">{units.toLocaleString()} unidades</p>
-                              </div>
-                            </div>
-                            <ProgressBar
-                              value={amount}
-                              max={maxAmount}
-                              color={product.sellerOrigin === "TH.O" ? PALETTE.sizzlingSunrise : PALETTE.crystalBlue}
-                            />
-                          </div>
-                        );
-                      })}
-
-                      {filteredSalesVolumeRows.length === 0 && (
-                        <div className="rounded-xl bg-gray-50 p-6 text-center text-sm text-gray-500">
-                          No hay productos que coincidan con los filtros seleccionados.
-                        </div>
-                      )}
-                    </div>
+                    <MiniExcel
+                      maxHeight="318px"
+                      columns={[
+                        { key: "name", label: "Producto" },
+                        { key: "category", label: "Categoría" },
+                        { key: "region", label: "Ubicación", render: (row) => getLocationLabel(row.region) },
+                        { key: "sellerOrigin", label: "Origen" },
+                        { key: "salesUnits", label: "Unidades" },
+                        { key: "salesAmount", label: "Ventas", render: (row) => formatUSD(row.salesAmount) },
+                        {
+                          key: "salesShare",
+                          label: "% venta total",
+                          render: (row) =>
+                            `${salesVolumeTotal > 0 ? ((row.salesAmount / salesVolumeTotal) * 100).toFixed(1) : "0.0"}%`,
+                        },
+                        { key: "margin", label: "Utilidad", render: (row) => formatUSD(row.margin || 0) },
+                      ]}
+                      rows={sortedSalesRows}
+                    />
                   </SectionCard>
 
-                  <div className="space-y-5">
+                  <div className="grid gap-5 xl:grid-cols-2">
                     <SectionCard title="Ventas por origen" icon={<Store className="h-4 w-4" style={{ color: PALETTE.crystalBlue }} />}>
-                      <div className="space-y-4">
-                        <ProgressBar label="Generadas por TH.O" value={summary.thoSalesPercent} max={100} color={PALETTE.sizzlingSunrise} />
-                        <ProgressBar label="Generadas por vendedor" value={100 - summary.thoSalesPercent} max={100} color={PALETTE.crystalBlue} />
-                      </div>
+                      <MiniExcel
+                        maxHeight="318px"
+                        columns={[
+                          { key: "origin", label: "Origen" },
+                          { key: "amount", label: "Monto", render: (row) => formatUSD(row.amount) },
+                          { key: "percent", label: "% del total", render: (row) => `${row.percent}%` },
+                        ]}
+                        rows={[
+                          {
+                            id: "tho",
+                            origin: "Generadas por TH.O",
+                            amount: thoOriginAmount,
+                            percent: thoOriginPercent,
+                          },
+                          {
+                            id: "seller",
+                            origin: "Generadas por vendedor",
+                            amount: sellerOriginAmount,
+                            percent: sellerOriginPercent,
+                          },
+                        ]}
+                      />
                     </SectionCard>
 
                     <SectionCard title="Ventas por vendedor" icon={<Users className="h-4 w-4" style={{ color: PALETTE.sizzlingSunrise }} />}>
-                      <div className="space-y-4">
-                        {[
-                          ["María Gómez", 64300],
-                          ["Carlos Díaz", 51400],
-                          ["Luis Pérez", 37800],
-                          ["TH.O automático", summary.monthlySales * (summary.thoSalesPercent / 100)],
-                        ].map(([seller, amount]) => (
-                          <div key={seller}>
-                            <div className="mb-1 flex justify-between text-sm">
-                              <span className="font-bold">{seller}</span>
-                              <span>{formatUSD(amount)}</span>
-                            </div>
-                            <ProgressBar
-                              value={amount}
-                              max={summary.monthlySales}
-                              color={seller === "TH.O automático" ? PALETTE.crystalBlue : PALETTE.sizzlingSunrise}
-                            />
-                          </div>
-                        ))}
-                      </div>
+                      <MiniExcel
+                        maxHeight="318px"
+                        columns={[
+                          { key: "name", label: "Vendedor" },
+                          { key: "zone", label: "Ubicación" },
+                          { key: "amount", label: "Ventas", render: (seller) => formatUSD(seller.amount) },
+                          { key: "orders", label: "Pedidos" },
+                          {
+                            key: "share",
+                            label: "% del total",
+                            render: (seller) =>
+                              `${salesSellerTotal > 0 ? ((seller.amount / salesSellerTotal) * 100).toFixed(1) : "0.0"}%`,
+                          },
+                        ]}
+                        rows={salesSellerRows}
+                        emptyMessage="No hay vendedores asignados a esta ubicación."
+                      />
                     </SectionCard>
                   </div>
                 </div>
@@ -845,36 +1627,95 @@ export default function WholesalerDashboard({ userData = {}, onBack, onLogout })
 
             {activeSalesTab === "clients" && (
               <div className="space-y-5">
-                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                  <KPICard title="Clientes nuevos" value={clients.filter((client) => client.type === "Nuevo").length} icon={<Users className="h-5 w-5" />} color={PALETTE.success} />
-                  <KPICard title="Clientes recurrentes" value={clients.filter((client) => client.type === "Recurrente").length} icon={<RotateCcw className="h-5 w-5" />} color={PALETTE.crystalBlue} />
-                  <KPICard title="Clientes reactivados" value={clients.filter((client) => client.type === "Reactivado").length} icon={<RefreshCw className="h-5 w-5" />} color={PALETTE.warning} />
-                  <KPICard title="Ticket promedio por cliente" value={formatUSD(clients.reduce((sum, client) => sum + client.totalAmount, 0) / clients.length)} icon={<Receipt className="h-5 w-5" />} />
+                <CollapsibleFilterSection id="clientAnalysis" title="Filtros de análisis de clientes" icon={<Filter className="h-4 w-4" style={{ color: PALETTE.sizzlingSunrise }} />}>
+                  <div className="mb-2 flex items-center justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={resetClientFilters}
+                      className="inline-flex items-center justify-center rounded-xl border px-4 py-2 text-sm font-bold transition hover:bg-gray-50"
+                      style={{ borderColor: PALETTE.pastelGray, color: PALETTE.maastrichtBlue }}
+                    >
+                      Limpiar filtros
+                    </button>
+
+                    <button
+                      onClick={() => exportToExcel("analisis_clientes", adjustedClientRows.map((client) => ({
+                        cliente: client.name,
+                        ubicación: getLocationLabel(client.zone),
+                        vendedor: client.seller,
+                        facturación: formatUSD(client.periodAmount),
+                        compras: client.periodPurchases,
+                        tipo: client.type,
+                        frecuencia: client.frequency,
+                        ticket_promedio: formatUSD(client.periodAmount / client.periodPurchases)
+                      })))}
+                      className="inline-flex items-center justify-center rounded-xl bg-yellow-400 px-5 py-2 text-sm font-bold"
+                      style={{ color: PALETTE.maastrichtBlue }}
+                    >
+                      <Download className="mr-1 inline h-4 w-4" />Excel
+                    </button>
+                  </div>
+
+                  <div className="grid gap-2 md:grid-cols-3">
+                    <div className="w-full">
+                      <PeriodFilter />
+                    </div>
+
+                    <LocationFilters />
+
+                    <select value={clientSellerFilter} onChange={(event) => setClientSellerFilter(event.target.value)} className="w-full rounded-xl border px-3 py-2 text-sm" style={{ borderColor: PALETTE.pastelGray }}>
+                      <option value="all">Todos los vendedores</option>
+                      {filteredSellersByLocation.filter((seller) => seller.name !== "TH.O automático").map((seller) => <option key={seller.name} value={seller.name}>{seller.name}</option>)}
+                    </select>
+
+                    <select value={clientSort} onChange={(event) => setClientSort(event.target.value)} className="w-full rounded-xl border px-3 py-2 text-sm" style={{ borderColor: PALETTE.pastelGray }}>
+                      <option value="amountDesc">Compra mayor a menor</option>
+                      <option value="amountAsc">Compra menor a mayor</option>
+                      <option value="ordersDesc">Pedidos mayor a menor</option>
+                      <option value="ordersAsc">Pedidos menor a mayor</option>
+                    </select>
+                  </div>
+                  <div className="mt-3">
+                    <LegendBox id="clientes-analisis" items={["Cliente nuevo = primera compra dentro del período seleccionado.", "Cliente reactivado = vuelve a comprar luego de 30+ días sin pedidos.", `Promedio de pedidos = ${avgOrdersInPeriod.toFixed(1)} por cliente en el período.`]} />
+                  </div>
+                </CollapsibleFilterSection>
+
+                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                  <KPICard title="Clientes nuevos" value={adjustedClientRows.filter((client) => client.type === "Nuevo").length} icon={<Users className="h-5 w-5" />} color={PALETTE.success} />
+                  <KPICard title="Clientes recurrentes" value={adjustedClientRows.filter((client) => client.type === "Recurrente").length} icon={<RotateCcw className="h-5 w-5" />} color={PALETTE.crystalBlue} />
+                  <KPICard title="Clientes reactivados" value={adjustedClientRows.filter((client) => client.type === "Reactivado").length} icon={<RefreshCw className="h-5 w-5" />} color={PALETTE.warning} />
+                  <KPICard title="Ticket promedio por cliente" value={formatUSD(adjustedClientRows.reduce((sum, client) => sum + client.periodAmount, 0) / Math.max(adjustedClientRows.length, 1))} icon={<Receipt className="h-5 w-5" />} />
                 </div>
 
-                <div className="grid gap-5 lg:grid-cols-2">
+
+
+                <div className="space-y-5">
                   <SectionCard title="Top clientes por facturación" icon={<Users className="h-4 w-4" style={{ color: PALETTE.sizzlingSunrise }} />}>
-                    <div className="space-y-3">
-                      {[...clients].sort((a, b) => b.totalAmount - a.totalAmount).slice(0, 5).map((client) => (
-                        <div key={client.id} className="flex items-center justify-between rounded-xl border p-3" style={{ borderColor: PALETTE.softBorder }}>
-                          <div>
-                            <p className="font-bold" style={{ color: PALETTE.maastrichtBlue }}>{client.name}</p>
-                            <p className="text-xs text-gray-500">{client.type} · Frecuencia {client.frequency} · {client.totalPurchases} compras</p>
-                          </div>
-                          <div className="text-right">
-                            <p className="font-black">{formatUSD(client.totalAmount)}</p>
-                            <p className="text-xs text-gray-500">Ticket {formatUSD(client.totalAmount / client.totalPurchases)}</p>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
+                    <MiniExcel
+                      maxHeight="318px"
+                      columns={[
+                        { key: "name", label: "Cliente" },
+                        { key: "type", label: "Tipo" },
+                        { key: "frequency", label: "Frecuencia" },
+                        { key: "periodPurchases", label: "Compras" },
+                        { key: "periodAmount", label: "Facturación", render: (client) => formatUSD(client.periodAmount) },
+                        {
+                          key: "averageTicket",
+                          label: "Ticket promedio",
+                          render: (client) => formatUSD(client.periodAmount / client.periodPurchases),
+                        },
+                        { key: "zone", label: "Ubicación", render: (client) => getLocationLabel(client.zone) },
+                        { key: "seller", label: "Vendedor" },
+                      ]}
+                      rows={adjustedClientRows.slice(0, 8)}
+                    />
                   </SectionCard>
 
                   <SectionCard title="Clientes nuevos vs recurrentes" icon={<RotateCcw className="h-4 w-4" style={{ color: PALETTE.crystalBlue }} />}>
                     <div className="space-y-4">
-                      <ProgressBar label="Recurrentes" value={clients.filter((client) => client.type === "Recurrente").length} max={clients.length} color={PALETTE.success} />
-                      <ProgressBar label="Nuevos" value={clients.filter((client) => client.type === "Nuevo").length} max={clients.length} color={PALETTE.sizzlingSunrise} />
-                      <ProgressBar label="Reactivados" value={clients.filter((client) => client.type === "Reactivado").length} max={clients.length} color={PALETTE.crystalBlue} />
+                      <ProgressBar label="Recurrentes" value={adjustedClientRows.filter((client) => client.type === "Recurrente").length} max={Math.max(adjustedClientRows.length, 1)} color={PALETTE.success} />
+                      <ProgressBar label="Nuevos" value={adjustedClientRows.filter((client) => client.type === "Nuevo").length} max={Math.max(adjustedClientRows.length, 1)} color={PALETTE.sizzlingSunrise} />
+                      <ProgressBar label="Reactivados" value={adjustedClientRows.filter((client) => client.type === "Reactivado").length} max={Math.max(adjustedClientRows.length, 1)} color={PALETTE.crystalBlue} />
                     </div>
                     <div className="mt-4 rounded-xl bg-yellow-50 p-3">
                       <p className="text-sm font-bold text-yellow-800">Insight TH.O</p>
@@ -887,31 +1728,100 @@ export default function WholesalerDashboard({ userData = {}, onBack, onLogout })
 
             {activeSalesTab === "performance" && (
               <div className="space-y-5">
-                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <CollapsibleFilterSection id="performance" title="Filtros de performance comercial" icon={<Filter className="h-4 w-4" style={{ color: PALETTE.sizzlingSunrise }} />}>
+                  <div className="mb-2 flex items-center justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={resetPerformanceFilters}
+                      className="inline-flex items-center justify-center rounded-xl border px-4 py-2 text-sm font-bold transition hover:bg-gray-50"
+                      style={{ borderColor: PALETTE.pastelGray, color: PALETTE.maastrichtBlue }}
+                    >
+                      Limpiar filtros
+                    </button>
+
+                    <button
+                      onClick={() => downloadExcelWorkbook("performance_comercial", [
+                        {
+                          name: "Resumen performance",
+                          rows: [
+                            {
+                              "Total ventas": formatUSD(filteredSellers.reduce((sum, seller) => sum + seller.amount, 0)),
+                              "% pedidos c/asis": `${Math.round(
+                                filteredSellers.reduce((sum, seller) => sum + seller.assistedPercent, 0) /
+                                  Math.max(filteredSellers.length, 1)
+                              )}%`,
+                              "Nro pedidos totales": filteredSellers.reduce((sum, seller) => sum + seller.orders, 0),
+                            },
+                          ],
+                        },
+                        {
+                          name: "Detalle vendedores",
+                          rows: filteredSellers.map((seller) => ({
+                            vendedor: seller.name,
+                            ubicación: seller.zone,
+                            ventas: formatUSD(seller.amount),
+                            "Nro de pedidos en los que asistió": seller.orders,
+                            "% del total": `${
+                              salesSellerTotal > 0
+                                ? ((seller.amount / salesSellerTotal) * 100).toFixed(2)
+                                : "0.00"
+                            }%`,
+                          })),
+                        },
+                      ])}
+                      className="inline-flex items-center justify-center rounded-xl bg-yellow-400 px-5 py-2 text-sm font-bold"
+                      style={{ color: PALETTE.maastrichtBlue }}
+                    >
+                      <Download className="mr-1 inline h-4 w-4" />Excel
+                    </button>
+                  </div>
+
+                  <div className="grid gap-2 md:grid-cols-3">
+                    <div className="w-full">
+                      <PeriodFilter />
+                    </div>
+
+                    <LocationFilters />
+
+                    <select value={performanceSellerFilter} onChange={(event) => setPerformanceSellerFilter(event.target.value)} className="w-full rounded-xl border px-3 py-2 text-sm" style={{ borderColor: PALETTE.pastelGray }}>
+                      <option value="all">Todos los vendedores</option>
+                      {filteredSellersByLocation.map((seller) => <option key={seller.name} value={seller.name}>{seller.name}</option>)}
+                    </select>
+
+                    <select value={performanceSort} onChange={(event) => setPerformanceSort(event.target.value)} className="w-full rounded-xl border px-3 py-2 text-sm" style={{ borderColor: PALETTE.pastelGray }}>
+                      <option value="amountDesc">Venta mayor a menor</option>
+                      <option value="amountAsc">Venta menor a mayor</option>
+                      <option value="ordersDesc">Pedidos mayor a menor</option>
+                      <option value="ordersAsc">Pedidos menor a mayor</option>
+                    </select>
+                  </div>
+                  <div className="mt-3">
+                    <LegendBox id="performance-comercial" items={["% con asistencia = ventas con vendedor ÷ ventas totales.", "% sin asistencia = ventas generadas por TH.O automático.", "Conversión = pedidos despachados ÷ pedidos recibidos."]} />
+                  </div>
+                </CollapsibleFilterSection>
+
+                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
                   <KPICard title="Ventas generadas por TH.O" value={formatPercent(summary.thoSalesPercent)} subtitle={formatUSD(summary.monthlySales * (summary.thoSalesPercent / 100))} icon={<Sparkles className="h-5 w-5" />} color={PALETTE.warning} />
                   <KPICard title="Conversión pedidos → despachos" value="76%" subtitle="Pedidos completados" icon={<CheckCircle className="h-5 w-5" />} color={PALETTE.success} />
                   <KPICard title="Mejor vendedor" value="María" subtitle="Ventas: $64,300" icon={<Trophy className="h-5 w-5" />} />
                   <KPICard title="Pedidos activos" value={summary.activeOrders} icon={<ShoppingBag className="h-5 w-5" />} color={PALETTE.crystalBlue} />
                 </div>
 
-                <div className="grid gap-5 lg:grid-cols-2">
+
+
+                <div className="space-y-5">
                   <SectionCard title="Ventas por vendedor" icon={<Users className="h-4 w-4" style={{ color: PALETTE.sizzlingSunrise }} />}>
-                    <div className="space-y-3">
-                      {[
-                        { name: "María Gómez", amount: 64300, percent: 92 },
-                        { name: "Carlos Díaz", amount: 51400, percent: 74 },
-                        { name: "Luis Pérez", amount: 37800, percent: 54 },
-                        { name: "TH.O automático", amount: summary.monthlySales * (summary.thoSalesPercent / 100), percent: 100 },
-                      ].map((seller) => (
-                        <div key={seller.name}>
-                          <div className="mb-1 flex justify-between text-sm">
-                            <span className="font-bold">{seller.name}</span>
-                            <span>{formatUSD(seller.amount)}</span>
-                          </div>
-                          <ProgressBar value={seller.percent} max={100} color={seller.name === "TH.O automático" ? PALETTE.crystalBlue : PALETTE.sizzlingSunrise} />
-                        </div>
-                      ))}
-                    </div>
+                    <MiniExcel
+                      maxHeight="318px"
+                      columns={[
+                        { key: "name", label: "Vendedor" },
+                        { key: "zone", label: "Ubicación" },
+                        { key: "amount", label: "Ventas", render: (seller) => formatUSD(seller.amount) },
+                        { key: "orders", label: "Pedidos" },
+                        { key: "assistedPercent", label: "% asistencia", render: (seller) => `${seller.assistedPercent}%` },
+                      ]}
+                      rows={filteredSellers}
+                    />
                   </SectionCard>
 
                   <SectionCard title="Conversión y evolución histórica" icon={<Truck className="h-4 w-4" style={{ color: PALETTE.success }} />}>
@@ -920,6 +1830,7 @@ export default function WholesalerDashboard({ userData = {}, onBack, onLogout })
                       <div className="rounded-xl bg-green-50 p-3"><p className="text-xl font-black text-green-700">108</p><p className="text-xs text-green-700">Despachos</p></div>
                       <div className="rounded-xl bg-yellow-50 p-3"><p className="text-xl font-black text-yellow-700">76%</p><p className="text-xs text-yellow-700">Conversión</p></div>
                     </div>
+
                     <div className="mt-4">
                       {renderMiniBars([
                         { label: "Ene", amount: 62 },
@@ -989,12 +1900,12 @@ export default function WholesalerDashboard({ userData = {}, onBack, onLogout })
               action={<button onClick={() => setShowInvoiceFilters((value) => !value)} className="rounded-full bg-gray-100 px-3 py-1 text-xs font-bold">{showInvoiceFilters ? "Ocultar" : "Mostrar"}</button>}
             >
               {showInvoiceFilters && (
-                <div className="grid gap-3 lg:grid-cols-3">
+                <div className="grid gap-3 md:grid-cols-3 lg:grid-cols-7">
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
                     <input value={invoiceSearchTerm} onChange={(e) => setInvoiceSearchTerm(e.target.value)} placeholder="Buscar cliente..." className="w-full rounded-xl border py-2 pl-9 pr-3 text-sm" style={{ borderColor: PALETTE.pastelGray }} />
                   </div>
-                  <select value={invoiceStatusFilter} onChange={(e) => setInvoiceStatusFilter(e.target.value)} className="rounded-xl border px-3 py-2 text-sm" style={{ borderColor: PALETTE.pastelGray }}>
+                  <select value={invoiceStatusFilter} onChange={(e) => setInvoiceStatusFilter(e.target.value)} className="w-full rounded-xl border px-3 py-2 text-sm" style={{ borderColor: PALETTE.pastelGray }}>
                     <option value="all">Todos los estados</option>
                     <option value="pending">Pendientes</option>
                     <option value="partial">Pago parcial</option>
@@ -1002,10 +1913,23 @@ export default function WholesalerDashboard({ userData = {}, onBack, onLogout })
                     <option value="paid">Al día</option>
                     <option value="risk">En riesgo</option>
                   </select>
-                  <select value={selectedClientName} onChange={(e) => setSelectedClientName(e.target.value)} className="rounded-xl border px-3 py-2 text-sm" style={{ borderColor: PALETTE.pastelGray }}>
+                  <select value={selectedClientName} onChange={(e) => setSelectedClientName(e.target.value)} className="w-full rounded-xl border px-3 py-2 text-sm" style={{ borderColor: PALETTE.pastelGray }}>
                     <option value="all">Todos los clientes</option>
                     {clients.map((client) => <option key={client.id} value={client.name}>{client.name}</option>)}
                   </select>
+                    <LocationFilters />
+                  <select value={invoiceSellerFilter} onChange={(e) => setInvoiceSellerFilter(e.target.value)} className="w-full rounded-xl border px-3 py-2 text-sm" style={{ borderColor: PALETTE.pastelGray }}>
+                    <option value="all">Todos los vendedores</option>
+                    {filteredSellersByLocation.filter((seller) => seller.name !== "TH.O automático").map((seller) => <option key={seller.name} value={seller.name}>{seller.name}</option>)}
+                  </select>
+                  <select value={invoiceDueSort} onChange={(e) => setInvoiceDueSort(e.target.value)} className="w-full rounded-xl border px-3 py-2 text-sm" style={{ borderColor: PALETTE.pastelGray }}>
+                    <option value="soonest">Vence más pronto</option>
+                    <option value="latest">Vence más tarde</option>
+                  </select>
+                  <label className="flex items-center gap-2 rounded-xl border px-3 py-2 text-sm" style={{ borderColor: PALETTE.pastelGray }}>
+                    <input type="checkbox" checked={invoiceGroupByClient} onChange={(e) => setInvoiceGroupByClient(e.target.checked)} />
+                    Agrupar por cliente
+                  </label>
                 </div>
               )}
             </SectionCard>
@@ -1013,38 +1937,23 @@ export default function WholesalerDashboard({ userData = {}, onBack, onLogout })
             <div className="grid gap-5 lg:grid-cols-[1.2fr_0.8fr]">
               <SectionCard title="Riesgo por cliente" icon={<Users className="h-4 w-4" style={{ color: PALETTE.warning }} />}>
                 <div className="space-y-3">
-                  {filteredClients.map((client) => (
-                    <div key={client.id} className="rounded-xl border p-4" style={{ borderColor: PALETTE.softBorder }}>
-                      <div className="flex flex-wrap items-start justify-between gap-3">
-                        <div>
-                          <p className="font-black" style={{ color: PALETTE.maastrichtBlue }}>{client.name}</p>
-                          <p className="text-xs text-gray-500">
-                            Creada: {client.invoiceCreatedAt} · Vence: {client.invoiceDueAt} · Próximo pago: {client.nextPaymentAt} · {client.blocks} bloqueos
-                          </p>
-                        </div>
-                        <RiskPill risk={client.risk} />
-                      </div>
-                      <div className="mt-3 grid grid-cols-2 gap-3 text-sm md:grid-cols-4">
-                        <div className="rounded-xl bg-gray-50 p-3">
-                          <p className="text-xs text-gray-500">Total de factura</p>
-                          <p className="font-black">{formatUSD(client.invoiceTotal)}</p>
-                        </div>
-                        <div className="rounded-xl bg-green-50 p-3">
-                          <p className="text-xs text-green-700">Monto abonado</p>
-                          <p className="font-black text-green-700">{formatUSD(client.paidAmount)}</p>
-                        </div>
-                        <div className="rounded-xl bg-red-50 p-3">
-                          <p className="text-xs text-red-700">Monto pendiente</p>
-                          <p className="font-black text-red-700">{formatUSD(client.pendingAmount)}</p>
-                        </div>
-                        <div className="rounded-xl bg-gray-50 p-3">
-                          <p className="text-xs text-gray-500">Mora</p>
-                          <p className="font-black">{client.daysOverdue} días</p>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
+                  <LegendBox items={["Un renglón = una factura abierta; un cliente puede tener varias facturas.", "Si agrupas por cliente, se suman facturas y se muestra el vencimiento más cercano.", "Cercanía de vencimiento = fecha de vencimiento contra hoy."]} />
+                  <MiniExcel
+                    maxHeight="318px"
+                    columns={[
+                      { key: "invoiceNumber", label: "Nro. factura" },
+                      { key: "orderNumber", label: "Pedido" },
+                      { key: "client", label: "Cliente" },
+                      { key: "zone", label: "Zona" },
+                      { key: "seller", label: "Vendedor" },
+                      { key: "dueDate", label: "Vence", render: (row) => formatDateShort(row.dueDate) },
+                      { key: "amount", label: "Monto", render: (row) => formatUSD(row.amount) },
+                      { key: "status", label: "Estado" },
+                    ]}
+                    rows={groupedInvoiceRows}
+                  />
                 </div>
+              
               </SectionCard>
 
               <SectionCard title="Alertas críticas" icon={<AlertTriangle className="h-4 w-4" style={{ color: PALETTE.danger }} />}>
@@ -1068,16 +1977,28 @@ export default function WholesalerDashboard({ userData = {}, onBack, onLogout })
             </div>
             <div className="grid gap-5 lg:grid-cols-2">
               <SectionCard title="Cobros proyectados por fecha" icon={<Calendar className="h-4 w-4" style={{ color: PALETTE.sizzlingSunrise }} />}>
-                <div className="space-y-3">
-                  {collectionFlow.map((item) => (
-                    <div key={item.date} className="flex items-center justify-between rounded-xl border p-3" style={{ borderColor: PALETTE.softBorder }}>
-                      <span className="font-bold">{item.date}</span>
-                      <div className="text-right">
-                        <p className="font-black text-green-700">{formatUSD(item.expected)}</p>
-                        <p className="text-xs text-gray-500">proyectado</p>
-                      </div>
-                    </div>
-                  ))}
+                <div className="mb-3 grid gap-3 md:grid-cols-3 lg:grid-cols-6">
+                  <PeriodFilter />
+                    <LocationFilters />
+                  <select value={cashflowSellerFilter} onChange={(event) => setCashflowSellerFilter(event.target.value)} className="w-full rounded-xl border px-3 py-2 text-sm" style={{ borderColor: PALETTE.pastelGray }}>
+                    <option value="all">Todos los vendedores</option>
+                    {filteredSellersByLocation.filter((seller) => seller.name !== "TH.O automático").map((seller) => <option key={seller.name} value={seller.name}>{seller.name}</option>)}
+                  </select>
+                </div>
+                <LegendBox items={["Cobro proyectado = facturas con vencimiento dentro del período.", "Incluye número de factura, pedido y cliente para conciliación.", "Puedes filtrar por día, semana o rango personalizado."]} />
+                <div className="mt-3">
+                  <MiniExcel
+                    maxHeight="318px"
+                    columns={[
+                      { key: "date", label: "Fecha" },
+                      { key: "invoiceNumber", label: "Factura" },
+                      { key: "orderNumber", label: "Pedido" },
+                      { key: "client", label: "Cliente" },
+                      { key: "expected", label: "Proyectado", render: (row) => formatUSD(row.expected) },
+                      { key: "real", label: "Real", render: (row) => formatUSD(row.real) },
+                    ]}
+                    rows={filteredCollectionFlow}
+                  />
                 </div>
               </SectionCard>
               <SectionCard title="Cobros reales vs esperados" icon={<BarChart3 className="h-4 w-4" style={{ color: PALETTE.crystalBlue }} />}>
@@ -1093,103 +2014,162 @@ export default function WholesalerDashboard({ userData = {}, onBack, onLogout })
 
         {activeTab === "products" && (
           <div className="space-y-5">
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              <KPICard title="Productos más vendidos" value={productsData[1].name} subtitle={`${productsData[1].unitsSold.toLocaleString()} unidades`} icon={<Package className="h-5 w-5" />} />
-              <KPICard title="Baja rotación" value={productsData.filter((item) => item.lowRotation).length} subtitle="Productos para revisar" icon={<PackageOpen className="h-5 w-5" />} color={PALETTE.warning} tone="warning" />
-              <KPICard title="Margen promedio" value={formatPercent(productsData.reduce((sum, item) => sum + item.marginPercent, 0) / productsData.length)} icon={<DollarSign className="h-5 w-5" />} color={PALETTE.success} />
-              <KPICard title="Quiebres de stock" value={productsData.filter((item) => item.stockoutRisk === "high").length} subtitle="Riesgo alto" icon={<AlertTriangle className="h-5 w-5" />} color={PALETTE.danger} tone="danger" />
-            </div>
+            <SectionCard
+              title="Inventario y stock"
+              icon={<Package className="h-4 w-4" style={{ color: PALETTE.sizzlingSunrise }} />}
+            >
+              <p className="mb-4 text-sm text-gray-500">
+                Administra tu catálogo publicado: carga productos, actualiza precios, fotos, descripciones y stock.
+              </p>
 
-            <SectionCard title="Filtros de productos" icon={<SlidersHorizontal className="h-4 w-4" style={{ color: PALETTE.sizzlingSunrise }} />}>
-              <div className="grid gap-3 md:grid-cols-2">
-                <div>
-                  <label className="mb-1 block text-xs font-bold uppercase tracking-wide text-gray-500">
-                    Ordenar productos
-                  </label>
+              <div className="flex flex-wrap gap-3">
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-2 rounded-full px-5 py-3 text-sm font-black transition-all hover:-translate-y-0.5 hover:shadow-md"
+                  style={{
+                    backgroundColor: PALETTE.sizzlingSunrise,
+                    color: PALETTE.maastrichtBlue,
+                  }}
+                >
+                  <Plus className="h-4 w-4" />
+                  Subir producto manualmente
+                </button>
 
-                  <select
-                    value={productSort}
-                    onChange={(e) => setProductSort(e.target.value)}
-                    className="w-full rounded-xl border px-3 py-2 text-sm"
-                    style={{ borderColor: PALETTE.pastelGray }}
-                  >
-                    <option value="mostSold">Más vendido a menos vendido</option>
-                    <option value="leastSold">Menos vendido a más vendido</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="mb-1 block text-xs font-bold uppercase tracking-wide text-gray-500">
-                    Estado del producto
-                  </label>
-
-                  <select
-                    value={productStatusFilter}
-                    onChange={(e) => setProductStatusFilter(e.target.value)}
-                    className="w-full rounded-xl border px-3 py-2 text-sm"
-                    style={{ borderColor: PALETTE.pastelGray }}
-                  >
-                    <option value="all">Todos los productos</option>
-                    <option value="lowRotation">Baja rotación</option>
-                    <option value="stockout">Quiebre de stock</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="mt-4 flex flex-wrap gap-2 text-xs">
-                <span className="rounded-full bg-gray-100 px-3 py-1 font-semibold text-gray-600">
-                  {filteredInventoryProducts.length} productos visibles
-                </span>
-                <span className="rounded-full bg-yellow-50 px-3 py-1 font-semibold text-yellow-700">
-                  Orden: {productSort === "mostSold" ? "más vendidos primero" : "menos vendidos primero"}
-                </span>
-                <span className="rounded-full bg-blue-50 px-3 py-1 font-semibold text-blue-700">
-                  Filtro: {productStatusFilter === "all" ? "todos" : productStatusFilter === "lowRotation" ? "baja rotación" : "quiebre de stock"}
-                </span>
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-2 rounded-full px-5 py-3 text-sm font-black transition-all hover:-translate-y-0.5 hover:shadow-md"
+                  style={{
+                    backgroundColor: PALETTE.maastrichtBlue,
+                    color: PALETTE.white,
+                  }}
+                >
+                  <Upload className="h-4 w-4" />
+                  Subida masiva de productos
+                </button>
               </div>
             </SectionCard>
 
-            <SectionCard title="Rendimiento e inventario" icon={<Package className="h-4 w-4" style={{ color: PALETTE.sizzlingSunrise }} />}>
-              <div className="space-y-4">
-                {filteredInventoryProducts.map((product) => (
-                  <div key={product.id} className="rounded-xl border p-4" style={{ borderColor: PALETTE.softBorder }}>
+            <SectionCard
+              title="Productos publicados"
+              icon={<PackageOpen className="h-4 w-4" style={{ color: PALETTE.sizzlingSunrise }} />}
+            >
+              <LegendBox
+                items={[
+                  "Haz clic en cualquier producto para editarlo.",
+                  "Puedes modificar foto, descripción, precio y stock.",
+                  "Los cambios se reflejan automáticamente en el marketplace.",
+                ]}
+              />
+
+              <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                {productsData.map((product) => (
+                  <button
+                    key={product.id}
+                    className="rounded-2xl border p-4 text-left transition-all hover:-translate-y-1 hover:shadow-lg"
+                    style={{
+                      borderColor: PALETTE.softBorder,
+                      backgroundColor: PALETTE.white,
+                    }}
+                  >
                     <div className="flex gap-4">
-                      <img src={product.image} alt={product.name} className="h-16 w-16 rounded-xl object-cover" />
+                      <img
+                        src={product.image}
+                        alt={product.name}
+                        className="h-20 w-20 rounded-2xl object-cover"
+                      />
+
                       <div className="flex-1">
-                        <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div className="flex items-start justify-between gap-2">
                           <div>
-                            <p className="font-black" style={{ color: PALETTE.maastrichtBlue }}>{product.name}</p>
-                            <p className="text-xs text-gray-500">{product.category} · Más vendido en: {product.region}</p>
+                            <p
+                              className="font-black leading-5"
+                              style={{ color: PALETTE.maastrichtBlue }}
+                            >
+                              {product.name}
+                            </p>
+
+                            <p className="mt-1 text-xs text-gray-500">
+                              {product.category}
+                            </p>
                           </div>
-                          <span className={`rounded-full px-2 py-1 text-xs font-bold ${product.stockoutRisk === "high" ? "bg-red-100 text-red-700" : product.stockoutRisk === "medium" ? "bg-yellow-100 text-yellow-700" : "bg-green-100 text-green-700"}`}>{product.stockoutRisk === "high" ? "Quiebre probable" : product.stockoutRisk === "medium" ? "Vigilar stock" : "Stock sano"}</span>
+
+                          <div
+                            className="rounded-full px-2 py-1 text-[10px] font-bold"
+                            style={{
+                              backgroundColor: `${PALETTE.success}22`,
+                              color: PALETTE.success,
+                            }}
+                          >
+                            Publicado
+                          </div>
                         </div>
-                        <div className="mt-3 grid grid-cols-2 gap-3 text-sm md:grid-cols-5">
-                          <div><p className="text-xs text-gray-500">Ventas</p><p className="font-black">{formatUSD(product.revenue)}</p></div>
-                          <div><p className="text-xs text-gray-500">Unidades</p><p className="font-black">{product.unitsSold}</p></div>
-                          <div><p className="text-xs text-gray-500">Margen</p><p className="font-black">{formatPercent(product.marginPercent)}</p></div>
-                          <div><p className="text-xs text-gray-500">Stock</p><p className="font-black">{product.stock}</p></div>
-                          <div><p className="text-xs text-gray-500">Rotación</p><p className="font-black">{product.turnoverDays} días</p></div>
+
+                        <div className="mt-4 grid grid-cols-2 gap-2 text-sm">
+                          <div className="rounded-xl bg-gray-50 p-2">
+                            <p className="text-[11px] text-gray-500">Precio</p>
+                            <p className="font-black">
+                              {formatUSD(product.price || product.revenue / 10)}
+                            </p>
+                          </div>
+
+                          <div className="rounded-xl bg-gray-50 p-2">
+                            <p className="text-[11px] text-gray-500">Stock</p>
+                            <p className="font-black">{product.stock} unidades</p>
+                          </div>
+                        </div>
+
+                        <div className="mt-4 flex flex-wrap gap-2">
+                          <span
+                            className="rounded-full px-2 py-1 text-[11px] font-bold"
+                            style={{
+                              backgroundColor: `${PALETTE.crystalBlue}22`,
+                              color: PALETTE.crystalBlue,
+                            }}
+                          >
+                            Editar foto
+                          </span>
+
+                          <span
+                            className="rounded-full px-2 py-1 text-[11px] font-bold"
+                            style={{
+                              backgroundColor: `${PALETTE.warning}22`,
+                              color: PALETTE.warning,
+                            }}
+                          >
+                            Editar descripción
+                          </span>
+
+                          <span
+                            className="rounded-full px-2 py-1 text-[11px] font-bold"
+                            style={{
+                              backgroundColor: `${PALETTE.sizzlingSunrise}22`,
+                              color: PALETTE.maastrichtBlue,
+                            }}
+                          >
+                            Editar precio
+                          </span>
                         </div>
                       </div>
                     </div>
-                  </div>
+                  </button>
                 ))}
-
-                {filteredInventoryProducts.length === 0 && (
-                  <div className="rounded-xl bg-gray-50 p-6 text-center text-sm text-gray-500">
-                    No hay productos que coincidan con el filtro seleccionado.
-                  </div>
-                )}
               </div>
             </SectionCard>
           </div>
         )}
 
-        {activeTab === "discipline" && (
+{activeTab === "discipline" && (
           <div className="space-y-5">
+            <SectionCard title="Filtros de disciplina del canal" icon={<Filter className="h-4 w-4" style={{ color: PALETTE.sizzlingSunrise }} />}>
+              <div className="grid gap-3 md:grid-cols-3 lg:grid-cols-4">
+                <PeriodFilter />
+                <LocationFilters />
+              </div>
+            </SectionCard>
+
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               <KPICard title="Clientes bloqueados" value={discipline.blockedClients} icon={<X className="h-5 w-5" />} color={PALETTE.danger} tone="danger" />
-              <KPICard title="Reincorporaciones" value={discipline.reinstatements} subtitle="Pagaron +30%" icon={<CheckCircle className="h-5 w-5" />} color={PALETTE.success} tone="success" />
+              <KPICard title="Reincorporaciones" value={discipline.reinstatements} subtitle="Clientes reincorporados" icon={<CheckCircle className="h-5 w-5" />} color={PALETTE.success} tone="success" />
               <KPICard title="Tiempo promedio de mora" value={`${discipline.avgOverdueDays} días`} icon={<Clock className="h-5 w-5" />} color={PALETTE.warning} />
               <KPICard title="Clientes disciplinados" value={formatPercent(discipline.disciplinedPercent)} icon={<Shield className="h-5 w-5" />} color={PALETTE.success} />
             </div>
@@ -1201,13 +2181,17 @@ export default function WholesalerDashboard({ userData = {}, onBack, onLogout })
                   <AlertCard type="success" title="Insight" message="El mercado se está ordenando: la mayoría mantiene comportamiento sano después de las reglas TH.O." />
                 </div>
               </SectionCard>
-              <SectionCard title="Clientes y sanciones" icon={<Users className="h-4 w-4" style={{ color: PALETTE.crystalBlue }} />}>
+              <SectionCard title="Clientes sancionados" icon={<Users className="h-4 w-4" style={{ color: PALETTE.crystalBlue }} />}>
+                <div className="mb-3 flex flex-wrap gap-2">
+                  <button onClick={() => setActiveDisciplineView("own")} className="rounded-full px-3 py-1 text-xs font-bold" style={{ backgroundColor: activeDisciplineView === "own" ? PALETTE.sizzlingSunrise : PALETTE.page, color: PALETTE.maastrichtBlue }}>Morosos con este mayorista</button>
+                  <button onClick={() => setActiveDisciplineView("platform")} className="rounded-full px-3 py-1 text-xs font-bold" style={{ backgroundColor: activeDisciplineView === "platform" ? PALETTE.sizzlingSunrise : PALETTE.page, color: PALETTE.maastrichtBlue }}>Morosos con otros mayoristas</button>
+                </div>
                 <div className="space-y-3">
-                  {discipline.clients.map((client) => (
+                  {(activeDisciplineView === "own" ? discipline.ownDelinquents : discipline.platformDelinquents).map((client) => (
                     <div key={client.name} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border p-3" style={{ borderColor: PALETTE.softBorder }}>
                       <div>
                         <p className="font-black">{client.name}</p>
-                        <p className="text-xs text-gray-500">{client.overdueDays} días de mora · Pago recuperación {client.recoveryPayment}%</p>
+                        <p className="text-xs text-gray-500">{client.overdueDays} días de mora · Zona {client.zone} · Vendedor {client.seller}</p>
                       </div>
                       <div className="text-right">
                         <p className="font-bold">{client.status}</p>
@@ -1223,44 +2207,93 @@ export default function WholesalerDashboard({ userData = {}, onBack, onLogout })
 
         {activeTab === "orders" && (
           <div className="space-y-5">
-            <SectionCard title="Solicitudes de compra pendientes" icon={<Inbox className="h-4 w-4" style={{ color: PALETTE.sizzlingSunrise }} />}>
-              <div className="space-y-4">
-                {receivedOrders.filter((order) => order.status === "pending").map((order) => (
-                  <div key={order.id} className="rounded-xl border p-4" style={{ borderColor: PALETTE.softBorder }}>
-                    <div className="flex flex-wrap justify-between gap-3">
-                      <div>
-                        <p className="font-black">{order.productName}</p>
-                        <p className="text-xs text-gray-500">{order.buyer} · {order.buyerType} · {order.date}</p>
-                        <p className="mt-2 rounded-xl bg-blue-50 p-2 text-xs text-blue-700">{order.message}</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="font-black text-green-700">{formatUSD(order.offeredPrice * order.quantity)}</p>
-                        <p className="text-xs text-gray-500">{order.quantity} unidades</p>
-                      </div>
-                    </div>
-                    <div className="mt-3 flex gap-2">
-                      <button onClick={() => handleOrderAction(order.id, "accept")} className="flex-1 rounded-xl bg-green-500 py-2 font-bold text-white">Aceptar</button>
-                      <button onClick={() => handleOrderAction(order.id, "reject")} className="flex-1 rounded-xl bg-red-500 py-2 font-bold text-white">Rechazar</button>
-                    </div>
-                  </div>
+            <SectionCard title="Gestión de pedidos" icon={<ShoppingBag className="h-4 w-4" style={{ color: PALETTE.sizzlingSunrise }} />}>
+              <div className="grid gap-3 md:grid-cols-3 lg:grid-cols-6">
+                <PeriodFilter />
+                    <LocationFilters />
+                <select value={cashflowSellerFilter} onChange={(event) => setCashflowSellerFilter(event.target.value)} className="w-full rounded-xl border px-3 py-2 text-sm" style={{ borderColor: PALETTE.pastelGray }}>
+                  <option value="all">Todos los vendedores</option>
+                  {filteredSellersByLocation.filter((seller) => seller.name !== "TH.O automático").map((seller) => <option key={seller.name} value={seller.name}>{seller.name}</option>)}
+                </select>
+              </div>
+
+              <div className="mt-4 flex flex-wrap gap-2">
+                {[
+                  { id: "accept", label: `Por aceptar (${acceptOrders.length})` },
+                  { id: "dispatch", label: `Por despachar (${toDispatchOrders.length})` },
+                  { id: "dispatched", label: `Despachados (${dispatchedOrders.length})` },
+                ].map((view) => (
+                  <button key={view.id} onClick={() => setActiveOrdersView(view.id)} className="rounded-full px-4 py-2 text-sm font-bold" style={{ backgroundColor: activeOrdersView === view.id ? PALETTE.sizzlingSunrise : PALETTE.page, color: PALETTE.maastrichtBlue }}>
+                    {view.label}
+                  </button>
                 ))}
               </div>
             </SectionCard>
-            <SectionCard title="Historial de pedidos procesados" icon={<History className="h-4 w-4" style={{ color: PALETTE.crystalBlue }} />}>
-              <div className="space-y-2">
-                {orderHistory.map((order) => (
-                  <div key={order.id} className="flex items-center justify-between rounded-xl border p-3" style={{ borderColor: PALETTE.softBorder }}>
-                    <div>
-                      <p className="font-bold">{order.productName}</p>
-                      <p className="text-xs text-gray-500">{order.buyer} · {order.quantity} unidades · {order.date}</p>
+
+            {activeOrdersView === "accept" && (
+              <SectionCard title="Pedidos por aceptar" icon={<Inbox className="h-4 w-4" style={{ color: PALETTE.sizzlingSunrise }} />} action={<button onClick={() => exportToExcel("pedidos_por_aceptar", acceptOrders.map((order) => ({ pedido: order.orderNumber, cliente: order.buyer, zona: order.zone, vendedor: order.seller, total: (order.items || []).reduce((sum, item) => sum + item.unitPrice * item.quantity, 0) })))} className="rounded-full bg-yellow-400 px-3 py-1 text-xs font-bold"><Download className="mr-1 inline h-3 w-3" />Excel</button>}>
+                <div className="space-y-4">
+                  {acceptOrders.map((order) => (
+                    <div key={order.id} className="rounded-xl border p-4" style={{ borderColor: PALETTE.softBorder }}>
+                      <div className="mb-3 flex flex-wrap justify-between gap-3">
+                        <div>
+                          <p className="font-black">{order.orderNumber}</p>
+                          <p className="text-xs text-gray-500">{order.buyer} · Zona {order.zone} · Vendedor {order.seller} · {order.date}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="font-black text-green-700">{formatUSD((order.items || []).reduce((sum, item) => sum + item.unitPrice * item.quantity, 0))}</p>
+                          <p className="text-xs text-gray-500">{(order.items || []).length} artículos</p>
+                        </div>
+                      </div>
+
+                      <MiniExcel maxHeight="318px" columns={[
+                        { key: "sku", label: "SKU" },
+                        { key: "name", label: "Artículo" },
+                        { key: "unitPrice", label: "Precio unit.", render: (item) => formatUSD(item.unitPrice) },
+                        { key: "quantity", label: "Cantidad" },
+                        { key: "total", label: "Total", render: (item) => formatUSD(item.unitPrice * item.quantity) },
+                      ]} rows={order.items || []} />
+
+                      <div className="mt-3 flex gap-2">
+                        <button onClick={() => handleOrderAction(order.id, "accept")} className="flex-1 rounded-xl bg-green-500 py-2 font-bold text-white">Aceptar</button>
+                        <button onClick={() => handleOrderAction(order.id, "reject")} className="flex-1 rounded-xl bg-red-500 py-2 font-bold text-white">Rechazar</button>
+                      </div>
                     </div>
-                    <p className="font-black text-green-700">{formatUSD(order.totalAmount)}</p>
-                  </div>
-                ))}
-              </div>
-            </SectionCard>
+                  ))}
+                </div>
+              </SectionCard>
+            )}
+
+            {activeOrdersView === "dispatch" && (
+              <SectionCard title="Pedidos por despachar" icon={<Truck className="h-4 w-4" style={{ color: PALETTE.warning }} />}>
+                <MiniExcel maxHeight="318px" columns={[
+                  { key: "orderNumber", label: "Pedido" },
+                  { key: "buyer", label: "Cliente" },
+                  { key: "zone", label: "Zona" },
+                  { key: "seller", label: "Vendedor" },
+                  { key: "total", label: "Total", render: (order) => formatUSD((order.items || []).reduce((sum, item) => sum + item.unitPrice * item.quantity, 0)) },
+                  { key: "action", label: "Despachar", render: (order) => <button onClick={() => markOrderAsDispatched(order.id)} className="rounded-lg bg-green-500 px-3 py-1 text-xs font-bold text-white">Marcar despachado</button> },
+                ]} rows={toDispatchOrders} />
+                <p className="mt-3 text-xs text-gray-500">Al marcar como despachado, empieza a contar el plazo de 30 días hasta la fecha de pago.</p>
+              </SectionCard>
+            )}
+
+            {activeOrdersView === "dispatched" && (
+              <SectionCard title="Histórico de pedidos despachados" icon={<History className="h-4 w-4" style={{ color: PALETTE.crystalBlue }} />}>
+                <MiniExcel maxHeight="318px" columns={[
+                  { key: "orderNumber", label: "Pedido" },
+                  { key: "buyer", label: "Cliente" },
+                  { key: "zone", label: "Zona" },
+                  { key: "seller", label: "Vendedor" },
+                  { key: "dispatchedAt", label: "Despachado", render: (row) => formatDateShort(row.dispatchedAt) },
+                  { key: "paymentDueAt", label: "Fecha pago", render: (row) => formatDateShort(row.paymentDueAt) },
+                  { key: "total", label: "Total", render: (order) => formatUSD((order.items || []).reduce((sum, item) => sum + item.unitPrice * item.quantity, 0)) },
+                ]} rows={dispatchedOrders} />
+              </SectionCard>
+            )}
           </div>
         )}
+
       </main>
     </div>
   );
