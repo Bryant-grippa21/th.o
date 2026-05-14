@@ -143,7 +143,7 @@ Sistema
 Y guardar ambos:
 
 - `external_sku`: el valor que vino en el Excel de la empresa
-- `sku`: el SKU unico del sistema usado en `Product_Variant`
+- `sku`: el SKU unico del sistema usado en `Product`
 
 ### Beneficios
 
@@ -184,11 +184,11 @@ Y guardar el SKU de la empresa por separado.
 
 ### Cambios sugeridos al modelo
 
-En `Product_Variant` o en staging deberia existir tambien:
+En `Product` o en staging deberia existir tambien:
 
 - `external_sku`
 
-Si no quieres tocar `Product_Variant` todavia, al menos debe existir en la tabla staging.
+Si no quieres tocar `Product` todavia, al menos debe existir en la tabla staging.
 
 ---
 
@@ -350,7 +350,7 @@ Campos sugeridos:
 - `external_sku`
 - `source_code`
 - `id_product_fk`
-- `id_variant_fk`
+- `id_product_fk`
 - `created_at`
 
 ### Utilidad
@@ -570,7 +570,7 @@ o en su defecto:
 - `external_sku`
 - `source_code`
 - `id_product_fk`
-- `id_variant_fk`
+- `id_product_fk`
 - `global_sku`
 - `created_at`
 

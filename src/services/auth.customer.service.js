@@ -42,6 +42,58 @@ const findUserById = async (id) => {
   return rows[0];
 };
 
+const listCustomersForAdmin = async () => {
+  const [rows] = await pool.query(
+    `SELECT
+       id_customer,
+       name,
+       email,
+       auth_provider,
+       is_verified,
+       is_active,
+       attempts,
+       cell_phone,
+       mail_address,
+       created_at,
+       updated_at
+     FROM Customer
+     ORDER BY created_at DESC, id_customer DESC`
+  );
+
+  return rows;
+};
+
+const updateCustomerBasicByAdmin = async (customerId, name, email) => {
+  await pool.query(
+    `UPDATE Customer
+     SET
+       name = ?,
+       email = ?,
+       updated_at = CURRENT_TIMESTAMP
+     WHERE id_customer = ?`,
+    [name, email, customerId]
+  );
+
+  return findUserById(customerId);
+};
+
+const updateCustomerPasswordByAdmin = async (customerId, passwordHash) => {
+  await pool.query(
+    `UPDATE Customer
+     SET
+       password_hash = ?,
+       auth_provider = CASE
+         WHEN auth_provider = 'google' THEN 'both'
+         ELSE auth_provider
+       END,
+       updated_at = CURRENT_TIMESTAMP
+     WHERE id_customer = ?`,
+    [passwordHash, customerId]
+  );
+
+  return findUserById(customerId);
+};
+
 // 🔵 REGISTRO GOOGLE
 const registerGoogleUser = async (data) => {
   const { name, email, provider_id, cell_phone, mail_address } = data;
@@ -173,6 +225,9 @@ module.exports = {
   registerLocalUser,
   findUserByEmail,
   findUserById,
+  listCustomersForAdmin,
+  updateCustomerBasicByAdmin,
+  updateCustomerPasswordByAdmin,
   registerGoogleUser,
   updateUser,
   enableLocalAuthForCustomer,

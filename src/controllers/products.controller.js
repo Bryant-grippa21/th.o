@@ -1,13 +1,21 @@
 const {
   listCategories,
   listSubcategoriesByCategory,
+  listSubcategoriesForManagement,
+  listLinesForManagement,
+  listProductsForManagement,
   listPublicCatalog,
   getPublicProductDetail,
   createCategory,
+  updateCategory,
+  toggleCategory,
   createSubcategory,
+  updateSubcategory,
+  toggleSubcategory,
   createProductFull,
   addVariant,
   updateProduct,
+  toggleLine,
   updateVariant,
   syncStock
 } = require('../services/products.service');
@@ -34,6 +42,20 @@ const requireAdminCompany = (req, res) => {
   return true;
 };
 
+const parseOptionalPositiveInteger = (rawValue, fieldName) => {
+  if (!rawValue) {
+    return { value: null };
+  }
+
+  const parsedValue = Number(rawValue);
+
+  if (!Number.isInteger(parsedValue) || parsedValue <= 0) {
+    return { error: `${fieldName} inválido` };
+  }
+
+  return { value: parsedValue };
+};
+
 const getCategories = async (_req, res) => {
   try {
     const categories = await listCategories();
@@ -58,6 +80,115 @@ const getSubcategoriesByCategory = async (req, res) => {
     return res.status(200).json({ subcategories });
   } catch (error) {
     console.error('❌ ERROR GET SUBCATEGORIES:', error);
+    return res.status(500).json({ error: error.message });
+  }
+};
+
+const getManagedSubcategories = async (req, res) => {
+  try {
+    if (!requireCompanyToken(req, res)) {
+      return;
+    }
+
+    const categoryId = req.query.category_id ? Number(req.query.category_id) : null;
+
+    if (req.query.category_id && (!Number.isInteger(categoryId) || categoryId <= 0)) {
+      return res.status(400).json({ error: 'category_id inválido' });
+    }
+
+    const subcategories = await listSubcategoriesForManagement(categoryId);
+
+    return res.status(200).json({ subcategories });
+  } catch (error) {
+    console.error('❌ ERROR GET MANAGED SUBCATEGORIES:', error);
+    return res.status(500).json({ error: error.message });
+  }
+};
+
+const getManagedLines = async (req, res) => {
+  try {
+    if (!requireCompanyToken(req, res)) {
+      return;
+    }
+
+    const requestedCompanyId = req.query.company_id ? Number(req.query.company_id) : null;
+    const categoryId = req.query.category_id ? Number(req.query.category_id) : null;
+    const subcategoryId = req.query.subcategory_id ? Number(req.query.subcategory_id) : null;
+
+    if (req.query.company_id && (!Number.isInteger(requestedCompanyId) || requestedCompanyId <= 0)) {
+      return res.status(400).json({ error: 'company_id inválido' });
+    }
+
+    if (req.query.category_id && (!Number.isInteger(categoryId) || categoryId <= 0)) {
+      return res.status(400).json({ error: 'category_id inválido' });
+    }
+
+    if (req.query.subcategory_id && (!Number.isInteger(subcategoryId) || subcategoryId <= 0)) {
+      return res.status(400).json({ error: 'subcategory_id inválido' });
+    }
+
+    const companyId = req.user.id_role === 1
+      ? requestedCompanyId
+      : req.user.id;
+
+    const lines = await listLinesForManagement({
+      companyId,
+      categoryId,
+      subcategoryId
+    });
+
+    return res.status(200).json({ lines });
+  } catch (error) {
+    console.error('❌ ERROR GET MANAGED LINES:', error);
+    return res.status(500).json({ error: error.message });
+  }
+};
+
+const getManagedProducts = async (req, res) => {
+  try {
+    if (!requireCompanyToken(req, res)) {
+      return;
+    }
+
+    const page = req.query.page ? Number(req.query.page) : 1;
+    const limit = req.query.limit ? Number(req.query.limit) : 20;
+    const categoryResult = parseOptionalPositiveInteger(req.query.category_id, 'category_id');
+    const subcategoryResult = parseOptionalPositiveInteger(req.query.subcategory_id, 'subcategory_id');
+    const lineResult = parseOptionalPositiveInteger(req.query.line_id, 'line_id');
+
+    if (!Number.isInteger(page) || page <= 0) {
+      return res.status(400).json({ error: 'page inválido' });
+    }
+
+    if (!Number.isInteger(limit) || limit <= 0 || limit > 100) {
+      return res.status(400).json({ error: 'limit inválido' });
+    }
+
+    const invalidResult = [categoryResult, subcategoryResult, lineResult].find((result) => result.error);
+
+    if (invalidResult) {
+      return res.status(400).json({ error: invalidResult.error });
+    }
+
+    const filters = {
+      page,
+      limit,
+      name: String(req.query.name ?? '').trim(),
+      company: String(req.query.company ?? '').trim(),
+      categoryId: categoryResult.value,
+      subcategoryId: subcategoryResult.value,
+      lineId: lineResult.value,
+      category: String(req.query.category ?? '').trim(),
+      subcategory: String(req.query.subcategory ?? '').trim(),
+      line: String(req.query.line ?? '').trim(),
+      companyId: req.user.id_role === 1 ? null : req.user.id
+    };
+
+    const result = await listProductsForManagement(filters);
+
+    return res.status(200).json(result);
+  } catch (error) {
+    console.error('❌ ERROR GET MANAGED PRODUCTS:', error);
     return res.status(500).json({ error: error.message });
   }
 };
@@ -119,6 +250,64 @@ const createCategoryManual = async (req, res) => {
   }
 };
 
+const updateCategoryManual = async (req, res) => {
+  try {
+    if (!requireAdminCompany(req, res)) {
+      return;
+    }
+
+    const categoryId = Number(req.params.categoryId);
+    const name = String(req.body.name ?? '').trim();
+
+    if (!Number.isInteger(categoryId) || categoryId <= 0) {
+      return res.status(400).json({ error: 'categoryId inválido' });
+    }
+
+    if (!name) {
+      return res.status(400).json({ error: 'name es requerido' });
+    }
+
+    const category = await updateCategory(categoryId, name);
+
+    return res.status(200).json({
+      message: 'Categoría actualizada correctamente',
+      category
+    });
+  } catch (error) {
+    console.error('❌ ERROR UPDATE CATEGORY:', error);
+    return res.status(500).json({ error: error.message });
+  }
+};
+
+const toggleCategoryStatusManual = async (req, res) => {
+  try {
+    if (!requireAdminCompany(req, res)) {
+      return;
+    }
+
+    const categoryId = Number(req.params.categoryId);
+    const { is_active } = req.body;
+
+    if (!Number.isInteger(categoryId) || categoryId <= 0) {
+      return res.status(400).json({ error: 'categoryId inválido' });
+    }
+
+    if (typeof is_active !== 'boolean') {
+      return res.status(400).json({ error: 'is_active inválido' });
+    }
+
+    const category = await toggleCategory(categoryId, is_active);
+
+    return res.status(200).json({
+      message: is_active ? 'Categoría activada correctamente' : 'Categoría desactivada correctamente',
+      category
+    });
+  } catch (error) {
+    console.error('❌ ERROR TOGGLE CATEGORY:', error);
+    return res.status(500).json({ error: error.message });
+  }
+};
+
 const createSubcategoryManual = async (req, res) => {
   try {
     if (!requireAdminCompany(req, res)) {
@@ -139,6 +328,69 @@ const createSubcategoryManual = async (req, res) => {
     });
   } catch (error) {
     console.error('❌ ERROR CREATE SUBCATEGORY:', error);
+    return res.status(500).json({ error: error.message });
+  }
+};
+
+const updateSubcategoryManual = async (req, res) => {
+  try {
+    if (!requireAdminCompany(req, res)) {
+      return;
+    }
+
+    const subcategoryId = Number(req.params.subcategoryId);
+    const name = String(req.body.name ?? '').trim();
+    const categoryId = req.body.category_id == null ? null : Number(req.body.category_id);
+
+    if (!Number.isInteger(subcategoryId) || subcategoryId <= 0) {
+      return res.status(400).json({ error: 'subcategoryId inválido' });
+    }
+
+    if (!name) {
+      return res.status(400).json({ error: 'name es requerido' });
+    }
+
+    if (req.body.category_id != null && (!Number.isInteger(categoryId) || categoryId <= 0)) {
+      return res.status(400).json({ error: 'category_id inválido' });
+    }
+
+    const subcategory = await updateSubcategory(subcategoryId, name, categoryId);
+
+    return res.status(200).json({
+      message: 'Subcategoría actualizada correctamente',
+      subcategory
+    });
+  } catch (error) {
+    console.error('❌ ERROR UPDATE SUBCATEGORY:', error);
+    return res.status(500).json({ error: error.message });
+  }
+};
+
+const toggleSubcategoryStatusManual = async (req, res) => {
+  try {
+    if (!requireAdminCompany(req, res)) {
+      return;
+    }
+
+    const subcategoryId = Number(req.params.subcategoryId);
+    const { is_active } = req.body;
+
+    if (!Number.isInteger(subcategoryId) || subcategoryId <= 0) {
+      return res.status(400).json({ error: 'subcategoryId inválido' });
+    }
+
+    if (typeof is_active !== 'boolean') {
+      return res.status(400).json({ error: 'is_active inválido' });
+    }
+
+    const subcategory = await toggleSubcategory(subcategoryId, is_active);
+
+    return res.status(200).json({
+      message: is_active ? 'Subcategoría activada correctamente' : 'Subcategoría desactivada correctamente',
+      subcategory
+    });
+  } catch (error) {
+    console.error('❌ ERROR TOGGLE SUBCATEGORY:', error);
     return res.status(500).json({ error: error.message });
   }
 };
@@ -261,6 +513,35 @@ const updateProductManual = async (req, res) => {
   }
 };
 
+const toggleLineStatusManual = async (req, res) => {
+  try {
+    if (!requireCompanyToken(req, res)) {
+      return;
+    }
+
+    const productId = Number(req.params.productId);
+    const { is_active } = req.body;
+
+    if (!Number.isInteger(productId) || productId <= 0) {
+      return res.status(400).json({ error: 'productId inválido' });
+    }
+
+    if (typeof is_active !== 'boolean') {
+      return res.status(400).json({ error: 'is_active inválido' });
+    }
+
+    const line = await toggleLine(productId, is_active);
+
+    return res.status(200).json({
+      message: is_active ? 'Línea activada correctamente' : 'Línea desactivada correctamente',
+      line
+    });
+  } catch (error) {
+    console.error('❌ ERROR TOGGLE LINE:', error);
+    return res.status(500).json({ error: error.message });
+  }
+};
+
 const updateVariantManual = async (req, res) => {
   try {
     if (!requireCompanyToken(req, res)) {
@@ -330,13 +611,21 @@ const syncVariantStock = async (req, res) => {
 module.exports = {
   getCategories,
   getSubcategoriesByCategory,
+  getManagedSubcategories,
+  getManagedLines,
+  getManagedProducts,
   getPublicCatalog,
   getPublicProduct,
   createCategoryManual,
+  updateCategoryManual,
+  toggleCategoryStatusManual,
   createSubcategoryManual,
+  updateSubcategoryManual,
+  toggleSubcategoryStatusManual,
   createProductManual,
   addVariantManual,
   updateProductManual,
+  toggleLineStatusManual,
   updateVariantManual,
   syncVariantStock
 };

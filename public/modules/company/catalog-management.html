@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="es" xml:lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Modulo deshabilitado</title>
+</head>
+<body>
+
+<h1>Modulo temporalmente deshabilitado</h1>
+<a href="/index.html">Volver al inicio</a><br>
+<a href="/modules/company/dashboard.html">Volver al dashboard empresa</a><br><br>
+<button onclick="logout()">Cerrar sesion</button>
+
+<p>La gestion de lineas, categorias y subcategorias fue retirada temporalmente del frontend.</p>
+<p>Ese modulo se retomara mas adelante con reglas y permisos separados.</p>
+
+<script src="/assets/js/utils/auth.js"></script>
+<script>
+  if (!requireCompanySession()) {
+    throw new Error('Sesion requerida');
+  }
+</script>
+
+</body>
+</html>

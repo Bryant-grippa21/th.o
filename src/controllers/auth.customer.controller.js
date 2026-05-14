@@ -7,6 +7,9 @@ const {
   registerGoogleUser,
   findUserByEmail,
   findUserById,
+  listCustomersForAdmin,
+  updateCustomerBasicByAdmin,
+  updateCustomerPasswordByAdmin,
   registerLocalUser,
   updateUser,
   enableLocalAuthForCustomer,
@@ -16,6 +19,20 @@ const {
   toggleUserActive,
   updateCustomerImage
 } = require('../services/auth.customer.service');
+
+const requireAdminCompany = (req, res) => {
+  if (req.user?.entity !== 'company') {
+    res.status(403).json({ error: 'Token no válido para admin' });
+    return false;
+  }
+
+  if (req.user.id_role !== 1) {
+    res.status(403).json({ error: 'Solo el admin puede realizar esta acción' });
+    return false;
+  }
+
+  return true;
+};
 
 // 🟢 REGISTER
 const registerLocal = async (req, res) => {
@@ -275,11 +292,190 @@ const updateCustomerProfileImage = async (req, res) => {
   }
 };
 
+const getAdminCustomers = async (req, res) => {
+  try {
+    if (!requireAdminCompany(req, res)) {
+      return;
+    }
+
+    const customers = await listCustomersForAdmin();
+
+    return res.status(200).json({ customers });
+  } catch (error) {
+    console.error('❌ ERROR GET ADMIN CUSTOMERS:', error);
+    return res.status(500).json({ error: error.message });
+  }
+};
+
+const updateAdminCustomerStatus = async (req, res) => {
+  try {
+    if (!requireAdminCompany(req, res)) {
+      return;
+    }
+
+    const customerId = Number(req.params.customerId);
+    const { is_active } = req.body;
+
+    if (!Number.isInteger(customerId) || customerId <= 0) {
+      return res.status(400).json({ error: 'customerId inválido' });
+    }
+
+    if (typeof is_active !== 'boolean') {
+      return res.status(400).json({ error: 'is_active inválido' });
+    }
+
+    const customer = await findUserById(customerId);
+
+    if (!customer) {
+      return res.status(404).json({ error: 'Usuario no encontrado' });
+    }
+
+    await toggleUserActive(customerId, is_active);
+
+    if (is_active) {
+      await resetLoginAttempts(customerId);
+    }
+
+    const updatedCustomer = await findUserById(customerId);
+    const { password_hash, ...safeCustomer } = updatedCustomer;
+
+    return res.status(200).json({
+      message: is_active
+        ? 'Usuario desbloqueado correctamente'
+        : 'Usuario bloqueado correctamente',
+      customer: safeCustomer
+    });
+  } catch (error) {
+    console.error('❌ ERROR UPDATE ADMIN CUSTOMER STATUS:', error);
+    return res.status(500).json({ error: error.message });
+  }
+};
+
+const updateAdminCustomerBasic = async (req, res) => {
+  try {
+    if (!requireAdminCompany(req, res)) {
+      return;
+    }
+
+    const customerId = Number(req.params.customerId);
+    const name = String(req.body.name ?? '').trim();
+    const email = String(req.body.email ?? '').trim();
+
+    if (!Number.isInteger(customerId) || customerId <= 0) {
+      return res.status(400).json({ error: 'customerId inválido' });
+    }
+
+    if (!name || !email) {
+      return res.status(400).json({ error: 'name y email son requeridos' });
+    }
+
+    const customer = await findUserById(customerId);
+
+    if (!customer) {
+      return res.status(404).json({ error: 'Usuario no encontrado' });
+    }
+
+    if (email !== customer.email) {
+      const existingUser = await findUserByEmail(email);
+
+      if (existingUser && existingUser.id_customer !== customerId) {
+        return res.status(400).json({ error: 'El correo ya está en uso' });
+      }
+    }
+
+    const updatedCustomer = await updateCustomerBasicByAdmin(customerId, name, email);
+    const { password_hash, ...safeCustomer } = updatedCustomer;
+
+    return res.status(200).json({
+      message: 'Información de customer actualizada correctamente',
+      customer: safeCustomer
+    });
+  } catch (error) {
+    console.error('❌ ERROR UPDATE ADMIN CUSTOMER BASIC:', error);
+    return res.status(500).json({ error: error.message });
+  }
+};
+
+const resetAdminCustomerAttempts = async (req, res) => {
+  try {
+    if (!requireAdminCompany(req, res)) {
+      return;
+    }
+
+    const customerId = Number(req.params.customerId);
+
+    if (!Number.isInteger(customerId) || customerId <= 0) {
+      return res.status(400).json({ error: 'customerId inválido' });
+    }
+
+    const customer = await findUserById(customerId);
+
+    if (!customer) {
+      return res.status(404).json({ error: 'Usuario no encontrado' });
+    }
+
+    await resetLoginAttempts(customerId);
+
+    const updatedCustomer = await findUserById(customerId);
+    const { password_hash, ...safeCustomer } = updatedCustomer;
+
+    return res.status(200).json({
+      message: 'Intentos de customer reiniciados correctamente',
+      customer: safeCustomer
+    });
+  } catch (error) {
+    console.error('❌ ERROR RESET ADMIN CUSTOMER ATTEMPTS:', error);
+    return res.status(500).json({ error: error.message });
+  }
+};
+
+const updateAdminCustomerPassword = async (req, res) => {
+  try {
+    if (!requireAdminCompany(req, res)) {
+      return;
+    }
+
+    const customerId = Number(req.params.customerId);
+    const password = String(req.body.password ?? '').trim();
+
+    if (!Number.isInteger(customerId) || customerId <= 0) {
+      return res.status(400).json({ error: 'customerId inválido' });
+    }
+
+    if (!password) {
+      return res.status(400).json({ error: 'password es requerido' });
+    }
+
+    const customer = await findUserById(customerId);
+
+    if (!customer) {
+      return res.status(404).json({ error: 'Usuario no encontrado' });
+    }
+
+    const passwordHash = await hashPassword(password);
+    const updatedCustomer = await updateCustomerPasswordByAdmin(customerId, passwordHash);
+    const { password_hash, ...safeCustomer } = updatedCustomer;
+
+    return res.status(200).json({
+      message: 'Contraseña de customer actualizada correctamente',
+      customer: safeCustomer
+    });
+  } catch (error) {
+    console.error('❌ ERROR UPDATE ADMIN CUSTOMER PASSWORD:', error);
+    return res.status(500).json({ error: error.message });
+  }
+};
+
 module.exports = {
   registerLocal,
   loginLocal,
   loginGoogle,
   getProfile,
   updateProfile,
-  updateCustomerProfileImage
+  updateCustomerProfileImage,
+  getAdminCustomers,
+  updateAdminCustomerStatus,
+  updateAdminCustomerBasic,
+  resetAdminCustomerAttempts,
+  updateAdminCustomerPassword
 };

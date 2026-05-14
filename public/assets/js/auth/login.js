@@ -1,5 +1,18 @@
+const loginEntitySelect = document.getElementById('login-entity');
+const loginGoogleSection = document.getElementById('login-google-section');
+
+const onLoginEntityChange = () => {
+  const entity = loginEntitySelect.value;
+  loginGoogleSection.style.display = entity === 'customer' ? 'block' : 'none';
+};
+
 function login() {
-  fetch('http://localhost:3000/api/auth/login', {
+  const entity = loginEntitySelect.value;
+  const endpoint = entity === 'company'
+    ? `${API_BASE_URL}/api/company-auth/login`
+    : `${API_BASE_URL}/api/auth/login`;
+
+  fetch(endpoint, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json'
@@ -22,8 +35,10 @@ function login() {
     return data;
   })
   .then(data => {
-    localStorage.setItem('token', data.token);
-    location.href = '/index.html';
+    setSession(data.token, entity);
+    return redirectToDashboard();
   })
   .catch(err => alert(err.message));
-};
+}
+
+onLoginEntityChange();

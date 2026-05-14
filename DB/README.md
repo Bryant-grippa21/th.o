@@ -114,21 +114,21 @@ DB/
 |---|---|
 | `Category` | Categorías principales |
 | `Subcategory` | Subcategorías → `Category` |
-| `Product` | Producto base → `Company` + `Subcategory` |
-| `Product_Variant` | Variantes (talla, color, etc.) con SKU único |
+| `Line` | Línea base → `Company` + `Subcategory` |
+| `Product` | Productos de la línea con SKU único |
 | `Stock` | Inventario por variante |
 | `Stock_History` | Historial: `PURCHASE`, `SALE`, `ADJUSTMENT`, `RETURN` |
 | `Product_Image` | Imágenes por variante con `sort_order` |
 
-#### Columnas clave — `Product`:
+#### Columnas clave — `Line`:
 | Columna | Tipo | Notas |
 |---|---|---|
 | `id_company_fk` | INT FK | → `Company` |
 | `id_subcategory_fk` | INT FK | → `Subcategory` |
-| `is_active` | BOOLEAN | Activar / desactivar producto |
+| `is_active` | BOOLEAN | Activar / desactivar línea |
 | `UNIQUE(name, id_company_fk)` | — | Sin duplicados por empresa |
 
-#### Columnas clave — `Product_Variant`:
+#### Columnas clave — `Product`:
 | Columna | Tipo | Notas |
 |---|---|---|
 | `sku` | VARCHAR(50) | UNIQUE global |
@@ -148,10 +148,10 @@ DB/
 | `idx_stock_history_stock` | `Stock_History` | Búsqueda por stock |
 | `idx_stock_history_type` | `Stock_History` | Filtro por tipo |
 | `idx_stock_history_created` | `Stock_History` | Filtro por fecha |
-| `idx_image_variant_order` | `Product_Image` | Orden de imágenes |
+| `idx_image_product_order` | `Product_Image` | Orden de imágenes |
+| `idx_line_active` | `Line` | Filtro activos |
 | `idx_product_active` | `Product` | Filtro activos |
-| `idx_variant_active` | `Product_Variant` | Filtro activos |
-| `idx_product_created` | `Product` | Orden por fecha |
+| `idx_line_created` | `Line` | Orden por fecha |
 
 ---
 
@@ -164,11 +164,11 @@ DB/
 | `sp_admin_create_subcategory` | `p_name, p_id_category` | Crear subcategoría, valida categoría |
 | `sp_create_product_full` | `p_id_company, p_id_subcategory, ...` | Producto completo en transacción |
 | `sp_create_product_auto` | `p_categoria, p_subcategoria, p_id_company` | Producto básico por nombres |
-| `sp_update_product` | `p_id_product, p_name, p_brand` | Update nombre/marca |
-| `sp_update_variant` | `p_id_variant, p_price, p_attributes` | Update precio/atributos |
-| `sp_add_variant` | `p_id_product, p_sku, ...` | Nueva variante a producto existente |
-| `sp_toggle_product` | `p_id_product, p_is_active` | Activar / desactivar producto |
-| `sp_toggle_variant` | `p_id_variant, p_is_active` | Activar / desactivar variante |
+| `sp_update_product` | `p_id_product, p_name, p_brand` | Update nombre de la línea y marca de sus productos |
+| `sp_update_variant` | `p_id_variant, p_price, p_attributes` | Update precio/atributos del producto |
+| `sp_add_variant` | `p_id_product, p_sku, ...` | Nuevo producto a línea existente |
+| `sp_toggle_product` | `p_id_product, p_is_active` | Activar / desactivar línea |
+| `sp_toggle_variant` | `p_id_variant, p_is_active` | Activar / desactivar producto |
 | `sp_update_stock` | `p_id_variant, p_quantity, p_movement_type, p_notes` | Reemplazar stock + historial |
 | `sp_add_stock` | `p_id_variant, p_amount, p_movement_type, p_notes` | Sumar stock + historial |
 | `sp_remove_stock` | `p_id_variant, p_amount, p_movement_type, p_notes` | Restar stock + historial |
@@ -193,8 +193,8 @@ Company ──── Role
   │
   ├── Credit_Limit ──── Credit_History
   │
-  └── Product
-        └── Product_Variant
+  └── Line
+        └── Product
               ├── Stock ──── Stock_History
               └── Product_Image
 ```

@@ -8,11 +8,23 @@ const {
   loginLocalCompany,
   getCompanyProfile,
   updateCompanyProfile,
-  updateCompanyProfileImage
+  updateCompanyProfileImage,
+  getAdminCompanies,
+  getAdminCompanyRoles,
+  updateAdminCompanyRole,
+  updateAdminCompanyStatus,
+  resetAdminCompanyAttempts,
+  updateAdminCompanyPassword
 } = require('../controllers/auth.company.controller');
 
 router.post('/register', registerLocalCompany);
 router.post('/login', loginLocalCompany);
+router.get('/admin/companies', verifyToken, getAdminCompanies);
+router.get('/admin/company-roles', verifyToken, getAdminCompanyRoles);
+router.put('/admin/companies/:companyId/role', verifyToken, updateAdminCompanyRole);
+router.put('/admin/companies/:companyId/status', verifyToken, updateAdminCompanyStatus);
+router.put('/admin/companies/:companyId/attempts/reset', verifyToken, resetAdminCompanyAttempts);
+router.put('/admin/companies/:companyId/password', verifyToken, updateAdminCompanyPassword);
 router.get('/me', verifyToken, getCompanyProfile);
 router.get('/profile', verifyToken, getCompanyProfile);
 router.put('/profile', verifyToken, updateCompanyProfile);

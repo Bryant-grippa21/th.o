@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="es" xml:lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Perfil empresa</title>
+</head>
+<body>
+
+<h2>Perfil empresa</h2>
+
+<p><b>Nombre:</b> <span id="company_name"></span></p>
+<p><b>RIF:</b> <span id="rif"></span></p>
+<p><b>Email:</b> <span id="email"></span></p>
+<input id="phone" placeholder="Teléfono"><br>
+<input id="address" placeholder="Dirección"><br>
+<input id="password" type="password" placeholder="Nueva contraseña"><br>
+
+<p>El nombre, el RIF y el correo solo pueden ser actualizados por un admin.</p>
+
+<button onclick="updateCompanyProfile()">Actualizar</button>
+
+<br><br>
+
+<a href="/modules/company/dashboard.html">Volver</a>
+
+<script src="/assets/js/utils/auth.js"></script>
+<script src="/assets/js/company/profile.js"></script>
+
+</body>
+</html>

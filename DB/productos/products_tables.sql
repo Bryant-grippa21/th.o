@@ -22,15 +22,13 @@ CREATE TABLE Subcategory (
     FOREIGN KEY (id_category_fk) REFERENCES Category(id_category)
 );
 
-CREATE TABLE Product (
-    id_product INT AUTO_INCREMENT PRIMARY KEY,
+CREATE TABLE Line (
+    id_line INT AUTO_INCREMENT PRIMARY KEY,
 
     name VARCHAR(150) NOT NULL,
 
     id_subcategory_fk INT NOT NULL,
     id_company_fk INT NOT NULL,             -- ✅ User_J → Company
-
-    brand VARCHAR(100),
 
     is_active BOOLEAN DEFAULT TRUE,
 
@@ -43,12 +41,14 @@ CREATE TABLE Product (
     FOREIGN KEY (id_company_fk) REFERENCES Company(id_company)  -- ✅ User_J → Company
 );
 
-CREATE TABLE Product_Variant (
-    id_variant INT AUTO_INCREMENT PRIMARY KEY,
+CREATE TABLE Product (
+    id_product INT AUTO_INCREMENT PRIMARY KEY,
 
-    id_product_fk INT NOT NULL,
+    id_line_fk INT NOT NULL,
 
     sku VARCHAR(50) UNIQUE, -- identificador público
+
+    brand VARCHAR(100),
 
     description VARCHAR(255),
 
@@ -61,13 +61,13 @@ CREATE TABLE Product_Variant (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 
-    FOREIGN KEY (id_product_fk) REFERENCES Product(id_product)
+    FOREIGN KEY (id_line_fk) REFERENCES Line(id_line)
 );
 
 CREATE TABLE Stock (
     id_stock INT AUTO_INCREMENT PRIMARY KEY,
 
-    id_variant_fk INT NOT NULL,
+    id_product_fk INT NOT NULL,
 
     quantity INT NOT NULL DEFAULT 0 CHECK (quantity >= 0),      -- ✅ FIX
     min_stock INT DEFAULT 0 CHECK (min_stock >= 0),             -- ✅ FIX
@@ -75,7 +75,7 @@ CREATE TABLE Stock (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,             -- ✅ FIX agregado
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 
-    FOREIGN KEY (id_variant_fk) REFERENCES Product_Variant(id_variant)
+    FOREIGN KEY (id_product_fk) REFERENCES Product(id_product)
 );
 
 -- ✅ FIX: Tabla de historial de stock agregada
@@ -107,7 +107,7 @@ CREATE TABLE Stock_History (
 CREATE TABLE Product_Image (
     id_image INT AUTO_INCREMENT PRIMARY KEY,
 
-    id_variant_fk INT NOT NULL,
+    id_product_fk INT NOT NULL,
 
     image_url VARCHAR(255) NOT NULL,
     is_main BOOLEAN DEFAULT FALSE,
@@ -115,7 +115,7 @@ CREATE TABLE Product_Image (
 
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
-    FOREIGN KEY (id_variant_fk) REFERENCES Product_Variant(id_variant)
+    FOREIGN KEY (id_product_fk) REFERENCES Product(id_product)
 );
 
 -- ✅ FIX: Índice para historial de stock
@@ -124,14 +124,14 @@ CREATE INDEX idx_stock_history_type ON Stock_History(movement_type);
 CREATE INDEX idx_stock_history_created ON Stock_History(created_at);
 
 -- ✅ FIX: Índice para ordenar imágenes
-CREATE INDEX idx_image_variant_order ON Product_Image(id_variant_fk, sort_order);
+CREATE INDEX idx_image_product_order ON Product_Image(id_product_fk, sort_order);
 
 -- búsquedas reales ecommerce
+CREATE INDEX idx_line_active ON Line(is_active);
 CREATE INDEX idx_product_active ON Product(is_active);
-CREATE INDEX idx_variant_active ON Product_Variant(is_active);
 
 -- filtros típicos
-CREATE INDEX idx_variant_price ON Product_Variant(price);
+CREATE INDEX idx_product_price ON Product(price);
 
 -- ordenamientos
-CREATE INDEX idx_product_created ON Product(created_at);
+CREATE INDEX idx_line_created ON Line(created_at);

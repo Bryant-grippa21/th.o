@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="es" xml:lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Dashboard admin</title>
+</head>
+<body>
+
+<h1>Dashboard admin</h1>
+<a href="/index.html">Volver al inicio</a><br><br>
+<button onclick="logout()">Cerrar sesión</button>
+
+<h2>Modulos</h2>
+<div>
+  <button type="button" onclick="showAdminModule('customers')">Clientes</button>
+  <button type="button" onclick="showAdminModule('companies')">Juridicos</button>
+  <button type="button" onclick="showAdminModule('products')">Productos</button>
+</div>
+<br>
+
+<section id="admin-module-customers">
+  <h2>Clientes</h2>
+  <div>
+    <label>
+      Buscar por nombre
+      <input id="customer-filter-name" type="text" placeholder="Nombre del cliente">
+    </label>
+    <label>
+      Buscar por correo
+      <input id="customer-filter-email" type="text" placeholder="Correo del cliente">
+    </label>
+    <button type="button" onclick="applyCustomerFilters()">Buscar</button>
+    <button type="button" onclick="resetCustomerFilters()">Limpiar</button>
+  </div>
+
+  <div id="admin-customer-summary">
+    <p>Cargando resumen...</p>
+  </div>
+
+  <div id="admin-customer-list">
+    <p>Cargando customers...</p>
+  </div>
+</section>
+
+<section id="admin-module-companies" hidden>
+  <h2>Juridicos</h2>
+  <div>
+    <label>
+      Buscar por nombre
+      <input id="company-filter-name" type="text" placeholder="Nombre de la empresa">
+    </label>
+    <label>
+      Buscar por RIF
+      <input id="company-filter-document" type="text" placeholder="RIF de la empresa">
+    </label>
+    <label>
+      Buscar por correo
+      <input id="company-filter-email" type="text" placeholder="Correo de la empresa">
+    </label>
+    <button type="button" onclick="applyCompanyFilters()">Buscar</button>
+    <button type="button" onclick="resetCompanyFilters()">Limpiar</button>
+  </div>
+
+  <div id="admin-company-summary">
+    <p>Cargando resumen...</p>
+  </div>
+
+  <div id="admin-company-list">
+    <p>Cargando empresas...</p>
+  </div>
+</section>
+
+<section id="admin-module-products" hidden>
+  <h2>Productos</h2>
+  <div>
+    <button type="button" onclick="showProductSubmenu('list')">Listado general</button>
+  </div>
+
+  <section id="admin-product-submenu-list">
+    <h3>Listado de productos</h3>
+    <div>
+      <label>
+        Buscar por nombre
+        <input id="product-filter-name" type="text" placeholder="Nombre del producto">
+      </label>
+      <label>
+        Empresa o mayorista
+        <input id="product-filter-company" type="text" placeholder="Empresa o mayorista">
+      </label>
+      <label>
+        Categoria
+        <select id="product-filter-category" onchange="handleProductCategoryChange()">
+          <option value="">Todas las categorias</option>
+        </select>
+      </label>
+      <label>
+        Subcategoria
+        <select id="product-filter-subcategory" onchange="handleProductSubcategoryChange()">
+          <option value="">Todas las subcategorias</option>
+        </select>
+      </label>
+      <label>
+        Linea
+        <select id="product-filter-line">
+          <option value="">Todas las lineas</option>
+        </select>
+      </label>
+      <button type="button" onclick="applyProductFilters()">Buscar</button>
+      <button type="button" onclick="resetProductFilters()">Limpiar</button>
+    </div>
+
+    <div id="admin-product-summary">
+      <p>Cargando productos...</p>
+    </div>
+
+    <div id="admin-product-list">
+      <p>Cargando listado...</p>
+    </div>
+
+    <div id="admin-product-pagination">
+      <p></p>
+    </div>
+  </section>
+</section>
+
+<script src="/assets/js/utils/auth.js"></script>
+<script src="/assets/js/admin/dashboard.js"></script>
+
+</body>
+</html>

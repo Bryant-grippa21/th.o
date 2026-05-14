@@ -4,7 +4,7 @@
 
 Definir una estrategia realista para cargar productos al sistema por primera vez mediante Excel, con una fase de categorizacion semi-automatica y validacion administrativa antes de insertar en las tablas finales del catalogo.
 
-La idea no es insertar productos directamente desde el Excel a `Product`, `Product_Variant`, `Stock` y `Product_Image`, sino pasar primero por una capa de revision para evitar datos mal clasificados, duplicados o incompletos.
+La idea no es insertar productos directamente desde el Excel a `Line`, `Product`, `Stock` y `Product_Image`, sino pasar primero por una capa de revision para evitar datos mal clasificados, duplicados o incompletos.
 
 ---
 
@@ -14,8 +14,8 @@ La base de datos ya tiene una estructura final suficientemente buena para el cat
 
 - `Category`
 - `Subcategory`
+- `Line`
 - `Product`
-- `Product_Variant`
 - `Stock`
 - `Stock_History`
 - `Product_Image`
@@ -25,9 +25,9 @@ Tambien existen procedimientos almacenados utiles para:
 - crear categorias y subcategorias manualmente
 - crear productos completos
 - crear productos automáticos
-- agregar variantes
+- agregar productos a una linea
 - actualizar stock
-- activar o desactivar productos y variantes
+- activar o desactivar lineas y productos
 
 Esto sirve bien para la operacion final del catalogo, pero todavia falta una capa de ingesta inicial y clasificacion previa.
 
@@ -196,7 +196,7 @@ Motor de clasificacion
 Panel de validacion del administrador
 	 ↓
 Insercion final en:
-Category / Subcategory / Product / Product_Variant / Stock / Product_Image
+Category / Subcategory / Line / Product / Stock / Product_Image
 ```
 
 ---

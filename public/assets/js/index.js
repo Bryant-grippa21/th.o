@@ -8,7 +8,7 @@ const renderProductList = (products) => {
   }
 
   productList.innerHTML = products
-    .map((product) => `<a href="/products/detail.html?productId=${product.id_product}">${product.name}</a><br>`)
+    .map((line) => `<a href="/products/detail.html?lineId=${line.id_line}">${line.name}</a><br>`)
     .join('');
 };
 
@@ -32,21 +32,25 @@ const loadPublicCatalog = () => {
 };
 
 if (isLogged()) {
-  globalThis.fetch(`${API_BASE_URL}/api/auth/me`, {
-    headers: getAuthHeaders()
-  })
-  .then(res => res.json())
-  .then(data => {
-    if (!data.user) {
-      throw new Error(data.error || 'Sesión inválida');
-    }
+  fetchCurrentSession()
+  .then((session) => {
+    const profile = session.entity === 'company'
+      ? session.data.company
+      : session.data.user;
 
-    const name = data.user.name || data.user.email;
+    const name = profile.name || profile.email;
+    let dashboardLabel = 'Ir a mi dashboard';
+
+    if (session.entity === 'company') {
+      dashboardLabel = profile.id_role_fk === 1
+        ? 'Ir a dashboard admin'
+        : 'Ir a dashboard empresa';
+    }
 
     container.innerHTML = `
       <p>Bienvenido <b>${name}</b></p>
       
-      <button onclick="goDashboard()">Ir a mi dashboard</button><br><br>
+      <button onclick="goDashboard()">${dashboardLabel}</button><br><br>
       
       <button onclick="logout()">Cerrar sesión</button>
     `;
@@ -63,7 +67,10 @@ if (isLogged()) {
 }
 
 function goDashboard() {
-  globalThis.location.href = '/modules/user_n/dashboard.html';
+  redirectToDashboard().catch(() => {
+    clearSession();
+    redirectToLogin();
+  });
 }
 
 loadPublicCatalog();

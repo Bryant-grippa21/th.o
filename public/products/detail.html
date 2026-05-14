@@ -2,40 +2,41 @@
 <html lang="es" xml:lang="es">
 <head>
   <meta charset="UTF-8">
-  <title>Detalle de producto</title>
+  <title>Detalle de linea</title>
 </head>
 <body>
 
-<h1>Detalle de producto</h1>
+<h1>Detalle de linea</h1>
 <a href="/index.html">Volver al inicio</a>
 
 <div id="product-detail">
-  <p>Cargando producto...</p>
+  <p>Cargando linea...</p>
 </div>
 
 <script>
   const params = new URLSearchParams(location.search);
-  const productId = params.get('productId');
+  const lineId = params.get('lineId');
   const detailContainer = document.getElementById('product-detail');
 
-  if (productId) {
-    fetch(`http://localhost:3000/api/products/catalog/${productId}`)
+  if (lineId) {
+    fetch(`http://localhost:3000/api/products/catalog/${lineId}`)
       .then(async (res) => {
         const data = await res.json();
 
         if (!res.ok) {
-          throw new Error(data.error || 'No se pudo cargar el producto');
+          throw new Error(data.error || 'No se pudo cargar la linea');
         }
 
         return data;
       })
       .then(({ product }) => {
+        const mainBrand = product.brand || product.products.find((item) => item.brand)?.brand || null;
         detailContainer.innerHTML = `
-          <p><b>Nombre:</b> ${product.name}</p>
-          <p><b>Marca:</b> ${product.brand || 'Sin marca'}</p>
+          <p><b>Linea:</b> ${product.name}</p>
+          <p><b>Marca:</b> ${mainBrand || 'Sin marca'}</p>
           <p><b>Categoría:</b> ${product.category_name}</p>
           <p><b>Subcategoría:</b> ${product.subcategory_name}</p>
-          <p><b>Variantes activas:</b> ${product.variants.length}</p>
+          <p><b>Productos activos:</b> ${product.products.length}</p>
           <p>Vista de detalle completa pendiente de implementación.</p>
         `;
       })
@@ -43,7 +44,7 @@
         detailContainer.innerHTML = `<p>${error.message}</p>`;
       });
   } else {
-    detailContainer.innerHTML = '<p>Producto no especificado.</p>';
+    detailContainer.innerHTML = '<p>Linea no especificada.</p>';
   }
 </script>
 

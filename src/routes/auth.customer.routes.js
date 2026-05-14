@@ -9,12 +9,22 @@ const {
   loginGoogle,
   getProfile,
   updateProfile,
-  updateCustomerProfileImage
+  updateCustomerProfileImage,
+  getAdminCustomers,
+  updateAdminCustomerStatus,
+  updateAdminCustomerBasic,
+  resetAdminCustomerAttempts,
+  updateAdminCustomerPassword
 } = require('../controllers/auth.customer.controller');
 
 router.post('/register', registerLocal);
 router.post('/login', loginLocal);
 router.post('/google', loginGoogle);
+router.get('/admin/customers', verifyToken, getAdminCustomers);
+router.put('/admin/customers/:customerId/status', verifyToken, updateAdminCustomerStatus);
+router.put('/admin/customers/:customerId/basic', verifyToken, updateAdminCustomerBasic);
+router.put('/admin/customers/:customerId/attempts/reset', verifyToken, resetAdminCustomerAttempts);
+router.put('/admin/customers/:customerId/password', verifyToken, updateAdminCustomerPassword);
 
 router.get('/profile', verifyToken, getProfile);
 router.put('/profile', verifyToken, updateProfile);
