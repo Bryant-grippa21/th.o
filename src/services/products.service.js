@@ -1,3 +1,5 @@
+const fs = require('node:fs');
+const path = require('node:path');
 const { randomInt } = require('node:crypto');
 const pool = require('../config/db');
 
@@ -6,6 +8,39 @@ const SKU_MIN = 10 ** (SKU_DIGITS - 1);
 const SKU_MAX_EXCLUSIVE = 10 ** SKU_DIGITS;
 const FORBIDDEN_SKU = '9'.repeat(SKU_DIGITS);
 const SKU_GENERATION_ATTEMPTS = 25;
+const productUploadsDir = path.resolve(__dirname, '../../public/uploads/products');
+
+const resolveProductImageUrl = (imageUrl) => {
+  if (!imageUrl) {
+    return null;
+  }
+
+  const normalizedImageName = path.basename(String(imageUrl).trim());
+
+  if (!normalizedImageName) {
+    return null;
+  }
+
+  const absoluteImagePath = path.join(productUploadsDir, normalizedImageName);
+
+  if (!fs.existsSync(absoluteImagePath)) {
+    return null;
+  }
+
+  return `/uploads/products/${normalizedImageName}`;
+};
+
+const mapProductImageFields = (row) => {
+  if (!row) {
+    return row;
+  }
+
+  return {
+    ...row,
+    image_url: resolveProductImageUrl(row.image_url),
+    main_image_url: resolveProductImageUrl(row.main_image_url)
+  };
+};
 
 const generateRandomSkuCandidate = () => {
   let candidate = String(randomInt(SKU_MIN, SKU_MAX_EXCLUSIVE));
@@ -149,6 +184,39 @@ const appendLikeFilter = (conditions, values, value, clause) => {
   values.push(`%${value}%`);
 };
 
+const ensureCompanyExists = async (companyId, connection = pool) => {
+  const [rows] = await connection.query(
+    'SELECT id_company FROM Company WHERE id_company = ? LIMIT 1',
+    [companyId]
+  );
+
+  if (!rows.length) {
+    throw new Error('Empresa no existe');
+  }
+};
+
+const ensureSubcategoryExists = async (subcategoryId, connection = pool) => {
+  const [rows] = await connection.query(
+    'SELECT id_subcategory FROM Subcategory WHERE id_subcategory = ? LIMIT 1',
+    [subcategoryId]
+  );
+
+  if (!rows.length) {
+    throw new Error('Subcategoría no existe');
+  }
+};
+
+const ensureLineNameAvailable = async (name, companyId, connection = pool) => {
+  const [rows] = await connection.query(
+    'SELECT id_line FROM Line WHERE name = ? AND id_company_fk = ? LIMIT 1',
+    [name, companyId]
+  );
+
+  if (rows.length) {
+    throw new Error('Ya existe una línea o producto con ese nombre para esta empresa');
+  }
+};
+
 const listProductsForManagement = async (filters = {}) => {
   const conditions = [];
   const values = [];
@@ -213,7 +281,7 @@ const listProductsForManagement = async (filters = {}) => {
   );
 
   return {
-    products: rows,
+    products: rows.map(mapProductImageFields),
     pagination: {
       page,
       limit,
@@ -248,7 +316,7 @@ const listPublicCatalog = async (limit = 12) => {
     [safeLimit]
   );
 
-  return rows;
+  return rows.map(mapProductImageFields);
 };
 
 const getPublicProductDetail = async (productId) => {
@@ -298,7 +366,7 @@ const getPublicProductDetail = async (productId) => {
   return {
     ...lineRows[0],
     brand: productRows[0]?.brand ?? null,
-    products: productRows
+    products: productRows.map(mapProductImageFields)
   };
 };
 
@@ -399,15 +467,71 @@ const createProductFull = async (productData) => {
     attributes,
     quantity,
     min_stock,
-    image_url
+    image_url,
+    secondary_images = []
   } = productData;
 
-  const resolvedSku = await ensureUniqueSku();
+  await ensureCompanyExists(id_company);
+  await ensureSubcategoryExists(id_subcategory);
+  await ensureLineNameAvailable(name, id_company);
 
-  await pool.query(
-    'CALL sp_create_product_full(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-    [name, id_subcategory, id_company, brand, resolvedSku, description, price, attributes, quantity, min_stock, image_url]
-  );
+  const resolvedSku = await ensureUniqueSku();
+  const connection = await pool.getConnection();
+
+  try {
+    await connection.beginTransaction();
+
+    const [lineResult] = await connection.query(
+      'INSERT INTO Line (name, id_subcategory_fk, id_company_fk) VALUES (?, ?, ?)',
+      [name, id_subcategory, id_company]
+    );
+
+    const lineId = lineResult.insertId;
+
+    const [productResult] = await connection.query(
+      `INSERT INTO Product (
+         id_line_fk, sku, brand, description, price, attributes
+       )
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [lineId, resolvedSku, brand, description, price, attributes]
+    );
+
+    const productId = productResult.insertId;
+
+    await connection.query(
+      'INSERT INTO Stock (id_product_fk, quantity, min_stock) VALUES (?, ?, ?)',
+      [productId, quantity, min_stock]
+    );
+
+    const productImages = [];
+
+    if (image_url) {
+      productImages.push([productId, image_url, true, 0]);
+    }
+
+    secondary_images.forEach((secondaryImage, index) => {
+      productImages.push([productId, secondaryImage, false, index + 1]);
+    });
+
+    if (productImages.length) {
+      await connection.query(
+        'INSERT INTO Product_Image (id_product_fk, image_url, is_main, sort_order) VALUES ?',
+        [productImages]
+      );
+    }
+
+    await connection.commit();
+  } catch (error) {
+    await connection.rollback();
+
+    if (error.code === 'ER_DUP_ENTRY') {
+      throw new Error('No se pudo crear el producto porque ya existe un registro duplicado');
+    }
+
+    throw error;
+  } finally {
+    connection.release();
+  }
 
   const [rows] = await pool.query(
     `SELECT
@@ -434,7 +558,16 @@ const createProductFull = async (productData) => {
     [id_company, name]
   );
 
-  return rows[0] ?? null;
+  const product = rows[0] ?? null;
+
+  if (!product) {
+    return null;
+  }
+
+  return {
+    ...mapProductImageFields(product),
+    secondary_images
+  };
 };
 
 const addVariant = async (variantData) => {
@@ -474,7 +607,7 @@ const addVariant = async (variantData) => {
     [resolvedSku]
   );
 
-  return rows[0] ?? null;
+  return mapProductImageFields(rows[0] ?? null);
 };
 
 const updateProduct = async (productId, name, brand) => {

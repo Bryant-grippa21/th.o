@@ -1,7 +1,7 @@
 const express = require('express');
 
 const { verifyToken } = require('../middlewares/auth.middleware');
-const { uploadProductImage } = require('../middlewares/upload.middleware');
+const { uploadProductImage, uploadProductImages } = require('../middlewares/upload.middleware');
 const {
   getCategories,
   getSubcategoriesByCategory,
@@ -41,7 +41,7 @@ router.post('/subcategories', verifyToken, createSubcategoryManual);
 router.put('/subcategories/:subcategoryId', verifyToken, updateSubcategoryManual);
 router.put('/subcategories/:subcategoryId/status', verifyToken, toggleSubcategoryStatusManual);
 
-router.post('/', verifyToken, uploadProductImage.single('image'), createProductManual);
+router.post('/', verifyToken, uploadProductImages, createProductManual);
 router.post('/:productId/variants', verifyToken, uploadProductImage.single('image'), addVariantManual);
 
 router.put('/:productId', verifyToken, updateProductManual);

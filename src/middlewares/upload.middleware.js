@@ -44,8 +44,14 @@ const uploadProductImage = multer({
   limits: { fileSize: 5 * 1024 * 1024 }
 });
 
+const uploadProductImages = uploadProductImage.fields([
+  { name: 'main_image', maxCount: 1 },
+  { name: 'secondary_images', maxCount: 8 }
+]);
+
 module.exports = {
   uploadCustomerImage,
   uploadCompanyImage,
-  uploadProductImage
+  uploadProductImage,
+  uploadProductImages
 };

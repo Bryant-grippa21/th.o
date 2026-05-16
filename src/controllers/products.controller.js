@@ -1,3 +1,6 @@
+const fs = require('node:fs');
+const path = require('node:path');
+
 const {
   listCategories,
   listSubcategoriesByCategory,
@@ -55,6 +58,52 @@ const parseOptionalPositiveInteger = (rawValue, fieldName) => {
 
   return { value: parsedValue };
 };
+
+const deleteUploadedProductFiles = (files = {}) => {
+  const uploadedFiles = [
+    ...(Array.isArray(files.main_image) ? files.main_image : []),
+    ...(Array.isArray(files.secondary_images) ? files.secondary_images : [])
+  ];
+
+  uploadedFiles.forEach((file) => {
+    if (!file?.path) {
+      return;
+    }
+
+    const absolutePath = path.resolve(file.path);
+
+    if (fs.existsSync(absolutePath)) {
+      fs.unlinkSync(absolutePath);
+    }
+  });
+};
+
+const normalizeProductAttributes = (attributes) => {
+  const rawAttributes = typeof attributes === 'string'
+    ? attributes.trim()
+    : JSON.stringify(attributes ?? {});
+
+  const parsedAttributes = JSON.parse(rawAttributes || '{}');
+
+  if (!parsedAttributes || typeof parsedAttributes !== 'object' || Array.isArray(parsedAttributes)) {
+    throw new Error('attributes debe ser un objeto JSON válido');
+  }
+
+  if (!Object.keys(parsedAttributes).length) {
+    throw new Error('Debes enviar al menos un atributo');
+  }
+
+  return JSON.stringify(parsedAttributes);
+};
+
+const isProductCreationValidationError = (message) => [
+  'attributes debe ser un objeto JSON válido',
+  'Debes enviar al menos un atributo',
+  'Empresa no existe',
+  'Subcategoría no existe',
+  'Ya existe una línea o producto con ese nombre para esta empresa',
+  'No se pudo crear el producto porque ya existe un registro duplicado'
+].includes(message);
 
 const getCategories = async (_req, res) => {
   try {
@@ -420,7 +469,12 @@ const createProductManual = async (req, res) => {
     }
 
     const ownerCompanyId = req.user.id_role === 1 && id_company ? Number(id_company) : req.user.id;
-    const parsedAttributes = typeof attributes === 'string' ? attributes : JSON.stringify(attributes ?? {});
+    const parsedAttributes = normalizeProductAttributes(attributes);
+    const mainImage = req.files?.main_image?.[0]?.filename ?? null;
+    const secondaryImages = Array.isArray(req.files?.secondary_images)
+      ? req.files.secondary_images.map((file) => file.filename)
+      : [];
+
     const product = await createProductFull({
       name: name.trim(),
       id_subcategory: Number(id_subcategory),
@@ -431,7 +485,8 @@ const createProductManual = async (req, res) => {
       attributes: parsedAttributes,
       quantity: Number(quantity),
       min_stock: min_stock == null || min_stock === '' ? 0 : Number(min_stock),
-      image_url: req.file?.filename ?? null
+      image_url: mainImage,
+      secondary_images: secondaryImages
     });
 
     return res.status(201).json({
@@ -440,7 +495,14 @@ const createProductManual = async (req, res) => {
     });
   } catch (error) {
     console.error('❌ ERROR CREATE PRODUCT:', error);
-    return res.status(500).json({ error: error.message });
+
+    if (req.files) {
+      deleteUploadedProductFiles(req.files);
+    }
+
+    const statusCode = isProductCreationValidationError(error.message) ? 400 : 500;
+
+    return res.status(statusCode).json({ error: error.message });
   }
 };
 
