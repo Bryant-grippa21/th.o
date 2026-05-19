@@ -1,6 +1,9 @@
 const multer = require('multer');
 const path = require('node:path');
 const fs = require('node:fs');
+const { randomUUID } = require('node:crypto');
+
+const MAX_SECONDARY_PRODUCT_IMAGES = 7;
 
 const ensureDir = (dirPath) => {
   if (!fs.existsSync(dirPath)) {
@@ -24,7 +27,8 @@ const createStorage = (folder, prefix) =>
     filename: (req, file, cb) => {
       const ext = path.extname(file.originalname);
       const userId = req.user?.id || Date.now();
-      const filename = `${prefix}_${userId}_${Date.now()}${ext}`;
+      const uniqueSuffix = randomUUID();
+      const filename = `${prefix}_${userId}_${Date.now()}_${uniqueSuffix}${ext}`;
       cb(null, filename);
     }
   });
@@ -46,7 +50,7 @@ const uploadProductImage = multer({
 
 const uploadProductImages = uploadProductImage.fields([
   { name: 'main_image', maxCount: 1 },
-  { name: 'secondary_images', maxCount: 8 }
+  { name: 'secondary_images', maxCount: MAX_SECONDARY_PRODUCT_IMAGES }
 ]);
 
 module.exports = {

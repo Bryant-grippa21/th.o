@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="es" xml:lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Carrito</title>
+</head>
+<body>
+
+<h1>Mi carrito</h1>
+<a href="/index.html">Volver al inicio</a><br>
+<a href="/modules/customer/dashboard.html">Volver al dashboard</a><br><br>
+
+<button onclick="logout()">Cerrar sesión</button>
+
+<p id="cart-summary">Cargando carrito...</p>
+<button id="cart-clear-button" type="button">Vaciar carrito</button>
+<div id="cart-list">
+  <p>Cargando productos...</p>
+</div>
+
+<script src="/assets/js/utils/auth.js"></script>
+<script src="/assets/js/customer/cart.js"></script>
+
+</body>
+</html>

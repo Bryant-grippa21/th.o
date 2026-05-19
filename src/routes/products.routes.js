@@ -7,9 +7,13 @@ const {
   getSubcategoriesByCategory,
   getManagedSubcategories,
   getManagedLines,
+  getLineReferences,
   getManagedProducts,
+  getManagedProductDetail,
+  getManagedProductStockHistory,
   getPublicCatalog,
   getPublicProduct,
+  getPublicProductBySku,
   createCategoryManual,
   updateCategoryManual,
   toggleCategoryStatusManual,
@@ -19,7 +23,9 @@ const {
   createProductManual,
   addVariantManual,
   updateProductManual,
-  toggleLineStatusManual,
+  toggleProductStatusManual,
+  adjustProductStockManual,
+  deleteProductImageManual,
   updateVariantManual,
   syncVariantStock
 } = require('../controllers/products.controller');
@@ -27,12 +33,16 @@ const {
 const router = express.Router();
 
 router.get('/catalog', getPublicCatalog);
+router.get('/catalog/sku/:sku', getPublicProductBySku);
 router.get('/catalog/:productId', getPublicProduct);
 router.get('/categories', getCategories);
 router.get('/categories/:categoryId/subcategories', getSubcategoriesByCategory);
 router.get('/management/subcategories', verifyToken, getManagedSubcategories);
 router.get('/management/lines', verifyToken, getManagedLines);
+router.get('/management/line-references', verifyToken, getLineReferences);
 router.get('/management/products', verifyToken, getManagedProducts);
+router.get('/management/products/:productId', verifyToken, getManagedProductDetail);
+router.get('/management/products/:productId/stock-history', verifyToken, getManagedProductStockHistory);
 
 router.post('/categories', verifyToken, createCategoryManual);
 router.put('/categories/:categoryId', verifyToken, updateCategoryManual);
@@ -44,8 +54,10 @@ router.put('/subcategories/:subcategoryId/status', verifyToken, toggleSubcategor
 router.post('/', verifyToken, uploadProductImages, createProductManual);
 router.post('/:productId/variants', verifyToken, uploadProductImage.single('image'), addVariantManual);
 
-router.put('/:productId', verifyToken, updateProductManual);
-router.put('/:productId/status', verifyToken, toggleLineStatusManual);
+router.put('/:productId', verifyToken, uploadProductImages, updateProductManual);
+router.put('/:productId/status', verifyToken, toggleProductStatusManual);
+router.put('/:productId/stock', verifyToken, adjustProductStockManual);
+router.delete('/:productId/images/:imageId', verifyToken, deleteProductImageManual);
 router.put('/variants/:variantId', verifyToken, updateVariantManual);
 router.put('/variants/:variantId/stock', verifyToken, syncVariantStock);
 

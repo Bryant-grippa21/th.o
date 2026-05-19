@@ -202,9 +202,9 @@ INSERT INTO Company (
 ) VALUES (
     'Admin',
     'J-00000000-0',
-    'admin@example.com',
+    'tho@mail.com',
     '$2b$10$daXc069JWmMgW42CmSuUOuZDdxrdTWoy2n44o0eRq6fxMBV3ooXxW',
     '000-000-0000',
-    'admin@example.com',
+    'Caracas Venezuela',
     1
 );

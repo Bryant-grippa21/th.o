@@ -3487,8 +3487,8 @@ BEGIN
         );
     END WHILE;
 
-    INSERT INTO Line (name, id_subcategory_fk, id_company_fk)
-    SELECT src.canonical_line, s.id_subcategory, 1
+    INSERT INTO Line (name, id_subcategory_fk)
+    SELECT src.canonical_line, s.id_subcategory
     FROM (
         SELECT
             MIN(raw_rows.raw_line) AS canonical_line,
@@ -3507,9 +3507,17 @@ BEGIN
         ON LOWER(TRIM(s.name)) = src.normalized_subcategory
        AND s.id_category_fk = c.id_category
     LEFT JOIN Line l
-        ON l.id_company_fk = 1
-       AND LOWER(TRIM(l.name)) = src.normalized_line
+          ON l.id_subcategory_fk = s.id_subcategory
+         AND LOWER(TRIM(l.name)) = src.normalized_line
     WHERE l.id_line IS NULL;
+
+    UPDATE Line
+    SET name = 'Tapón Antigota Para Brocha'
+    WHERE name = 'Tap?n Antigota Para Brocha';
+
+    UPDATE Line
+    SET name = 'Brocha para impermeabilizante asfáltico'
+    WHERE name = 'Brocha para impermeabilizante asf?ltico';
 
     DROP TEMPORARY TABLE IF EXISTS tmp_master_lines;
 END //

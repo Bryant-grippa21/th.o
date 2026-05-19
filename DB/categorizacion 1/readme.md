@@ -39,11 +39,9 @@ El motivo es que:
 
 ## Regla de ownership
 
-Las lineas se insertan asociadas a la empresa administradora:
+Las lineas ya no pertenecen a una empresa.
 
-- `id_company_fk = 1`
-
-Esto se definio porque en la base actual el company `1` corresponde al usuario/empresa admin sembrado desde los scripts de usuarios.
+Ahora funcionan como catalogo maestro global y la relacion con la empresa se guarda en `Product.id_company_fk`.
 
 ## Logica aplicada en cada archivo
 
@@ -89,8 +87,7 @@ Que hace:
 - trabaja con triples `categoria + subcategoria + linea`
 - relaciona cada linea con su subcategoria real
 - inserta en la tabla `Line`
-- usa `id_company_fk = 1`
-- evita reinsertar lineas ya existentes para el admin
+- evita reinsertar lineas ya existentes dentro de la misma subcategoria
 
 Tambien aplica deduplicacion por la combinacion normalizada de:
 

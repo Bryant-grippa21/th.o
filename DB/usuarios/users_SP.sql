@@ -8,6 +8,8 @@
 
 DELIMITER //
 
+DROP PROCEDURE IF EXISTS sp_register_customer_local //
+
 CREATE PROCEDURE sp_register_customer_local(
     IN p_name VARCHAR(50),
     IN p_email VARCHAR(100),
@@ -54,6 +56,8 @@ DELIMITER ;
 
 DELIMITER //
 
+DROP PROCEDURE IF EXISTS sp_register_customer_google //
+
 CREATE PROCEDURE sp_register_customer_google(
     IN p_name VARCHAR(50),
     IN p_email VARCHAR(100),
@@ -93,6 +97,8 @@ DELIMITER ;
 
 DELIMITER //
 
+DROP PROCEDURE IF EXISTS sp_update_customer //
+
 CREATE PROCEDURE sp_update_customer (
     IN p_id_customer INT,
     IN p_name VARCHAR(50),
@@ -131,6 +137,8 @@ DELIMITER ;
 -- =========================================
 
 DELIMITER //
+
+DROP PROCEDURE IF EXISTS sp_update_cashback //
 
 CREATE PROCEDURE sp_update_cashback (
     IN p_id_customer INT,
@@ -188,6 +196,8 @@ DELIMITER ;
 
 DELIMITER //
 
+DROP PROCEDURE IF EXISTS sp_update_login_failed //
+
 CREATE PROCEDURE sp_update_login_failed (
     IN p_id_customer INT
 )
@@ -212,6 +222,8 @@ DELIMITER ;
 -- =========================================
 
 DELIMITER //
+
+DROP PROCEDURE IF EXISTS sp_reset_login_failed //
 
 CREATE PROCEDURE sp_reset_login_failed (
     IN p_id_customer INT
@@ -238,6 +250,8 @@ DELIMITER ;
 
 DELIMITER //
 
+DROP PROCEDURE IF EXISTS sp_toggle_customer_status //
+
 CREATE PROCEDURE sp_toggle_customer_status (
     IN p_id_customer INT,
     IN p_is_active BOOLEAN
@@ -262,6 +276,8 @@ DELIMITER ;
 -- 🟢 REGISTRO COMPANY
 -- =========================================
 DELIMITER //
+
+DROP PROCEDURE IF EXISTS sp_register_company //
 
 CREATE PROCEDURE sp_register_company (
     IN p_name VARCHAR(255),
@@ -301,6 +317,8 @@ DELIMITER ;
 -- =========================================
 DELIMITER //
 
+DROP PROCEDURE IF EXISTS sp_update_company //
+
 CREATE PROCEDURE sp_update_company (
     IN p_id_company INT,
     IN p_name VARCHAR(255),
@@ -338,6 +356,8 @@ DELIMITER ;
 -- =========================================
 DELIMITER //
 
+DROP PROCEDURE IF EXISTS sp_update_login_failed_company //
+
 CREATE PROCEDURE sp_update_login_failed_company (
     IN p_id_company INT
 )
@@ -359,6 +379,8 @@ DELIMITER ;
 -- 🔄 RESET INTENTOS COMPANY
 -- =========================================
 DELIMITER //
+
+DROP PROCEDURE IF EXISTS sp_reset_login_failed_company //
 
 CREATE PROCEDURE sp_reset_login_failed_company (
     IN p_id_company INT
@@ -382,6 +404,8 @@ DELIMITER ;
 -- ========================================
 DELIMITER //
 
+DROP PROCEDURE IF EXISTS sp_toggle_company_status //
+
 CREATE PROCEDURE sp_toggle_company_status (
     IN p_id_company INT,
     IN p_is_active BOOLEAN
@@ -404,6 +428,8 @@ DELIMITER ;
 -- 💳 ASIGNAR CRÉDITO
 -- ========================================
 DELIMITER //
+
+DROP PROCEDURE IF EXISTS sp_create_credit //
 
 CREATE PROCEDURE sp_create_credit (
     IN p_retailer INT,
@@ -452,6 +478,8 @@ DELIMITER ;
 -- ========================================
 DELIMITER //
 
+DROP PROCEDURE IF EXISTS sp_pay_credit //
+
 CREATE PROCEDURE sp_pay_credit (
     IN p_credit_id INT,
     IN p_amount DECIMAL(10,2)
@@ -498,6 +526,8 @@ DELIMITER ;
 -- 💳 CHECKEAR CRÉDITO POR FECHA LÍMITE
 -- ========================================
 DELIMITER //
+
+DROP PROCEDURE IF EXISTS sp_check_credit_status //
 
 CREATE PROCEDURE sp_check_credit_status()
 BEGIN

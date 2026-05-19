@@ -51,14 +51,18 @@ BEGIN
 
 		INSERT INTO Product (
 			id_line_fk,
+			id_company_fk,
 			sku,
+			name,
 			description,
 			price,
 			attributes
 		)
 		VALUES (
 			v_line_id,
+			1,
 			v_sku,
+			CONCAT(v_line_name, ' A'),
 			CONCAT('Producto de prueba A para subcategoría ', v_subcategory_name, ' asociado a la línea ', v_line_name),
 			v_base_price,
 			JSON_OBJECT(
@@ -74,6 +78,8 @@ BEGIN
 		ON DUPLICATE KEY UPDATE
 			id_product = LAST_INSERT_ID(id_product),
 			id_line_fk = VALUES(id_line_fk),
+			id_company_fk = VALUES(id_company_fk),
+			name = VALUES(name),
 			description = VALUES(description),
 			price = VALUES(price),
 			attributes = VALUES(attributes),
@@ -124,14 +130,18 @@ BEGIN
 
 		INSERT INTO Product (
 			id_line_fk,
+			id_company_fk,
 			sku,
+			name,
 			description,
 			price,
 			attributes
 		)
 		VALUES (
 			v_line_id,
+			1,
 			v_sku,
+			CONCAT(v_line_name, ' B'),
 			CONCAT('Producto de prueba B para subcategoría ', v_subcategory_name, ' asociado a la línea ', v_line_name),
 			v_base_price + 8.50,
 			JSON_OBJECT(
@@ -147,6 +157,8 @@ BEGIN
 		ON DUPLICATE KEY UPDATE
 			id_product = LAST_INSERT_ID(id_product),
 			id_line_fk = VALUES(id_line_fk),
+			id_company_fk = VALUES(id_company_fk),
+			name = VALUES(name),
 			description = VALUES(description),
 			price = VALUES(price),
 			attributes = VALUES(attributes),

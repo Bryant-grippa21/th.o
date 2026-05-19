@@ -10,6 +10,13 @@ const {
   getProfile,
   updateProfile,
   updateCustomerProfileImage,
+  getCustomerFavorites,
+  addCustomerFavorite,
+  removeCustomerFavorite,
+  getCustomerCart,
+  setCustomerCartItem,
+  removeCustomerCartItem,
+  clearCustomerCart,
   getAdminCustomers,
   updateAdminCustomerStatus,
   updateAdminCustomerBasic,
@@ -29,6 +36,13 @@ router.put('/admin/customers/:customerId/password', verifyToken, updateAdminCust
 router.get('/profile', verifyToken, getProfile);
 router.put('/profile', verifyToken, updateProfile);
 router.put('/profile/image', verifyToken, uploadCustomerImage.single('image'), updateCustomerProfileImage);
+router.get('/favorites', verifyToken, getCustomerFavorites);
+router.post('/favorites', verifyToken, addCustomerFavorite);
+router.delete('/favorites/:productId', verifyToken, removeCustomerFavorite);
+router.get('/cart', verifyToken, getCustomerCart);
+router.put('/cart/items', verifyToken, setCustomerCartItem);
+router.delete('/cart/items/:productId', verifyToken, removeCustomerCartItem);
+router.delete('/cart', verifyToken, clearCustomerCart);
 
 router.get('/me', verifyToken, (req, res) => {
   res.json({ user: req.user });

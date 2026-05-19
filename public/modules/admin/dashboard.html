@@ -120,6 +120,80 @@
     <div id="admin-product-pagination">
       <p></p>
     </div>
+
+    <section id="admin-product-editor" hidden>
+      <h3>Gestionar producto</h3>
+      <form id="admin-product-editor-form">
+        <input id="admin-edit-product-id" type="hidden">
+        <input id="admin-edit-product-company-id" type="hidden">
+
+        <label>
+          Nombre
+          <input id="admin-edit-product-name" type="text" required>
+        </label>
+        <label>
+          Marca
+          <input id="admin-edit-product-brand" type="text">
+        </label>
+        <br><br>
+
+        <label>
+          Descripción
+          <textarea id="admin-edit-product-description" rows="4"></textarea>
+        </label>
+        <br><br>
+
+        <label>
+          Precio
+          <input id="admin-edit-product-price" type="number" min="0" step="0.01" required>
+        </label>
+        <label>
+          Stock mínimo
+          <input id="admin-edit-product-min-stock" type="number" min="0" step="1">
+        </label>
+        <br><br>
+
+        <fieldset>
+          <legend>Atributos</legend>
+          <label>Atributo 1 <input id="admin-edit-product-attribute-key-1" type="text"></label>
+          <label>Valor 1 <input id="admin-edit-product-attribute-value-1" type="text"></label>
+          <br><br>
+          <label>Atributo 2 <input id="admin-edit-product-attribute-key-2" type="text"></label>
+          <label>Valor 2 <input id="admin-edit-product-attribute-value-2" type="text"></label>
+          <br><br>
+          <label>Atributo 3 <input id="admin-edit-product-attribute-key-3" type="text"></label>
+          <label>Valor 3 <input id="admin-edit-product-attribute-value-3" type="text"></label>
+          <br><br>
+          <label>Atributo 4 <input id="admin-edit-product-attribute-key-4" type="text"></label>
+          <label>Valor 4 <input id="admin-edit-product-attribute-value-4" type="text"></label>
+        </fieldset>
+        <br><br>
+
+        <div id="admin-edit-product-images"></div>
+        <br>
+
+        <label>
+          Nueva imagen principal
+          <input id="admin-edit-product-main-image" type="file" accept="image/*">
+        </label>
+        <div id="admin-edit-product-main-image-preview"></div>
+        <br>
+
+        <label>
+          Nuevas imágenes secundarias
+          <input id="admin-edit-product-secondary-images" type="file" accept="image/*" multiple>
+        </label>
+        <div id="admin-edit-product-secondary-images-preview"></div>
+        <br><br>
+
+        <button type="submit">Guardar cambios</button>
+        <button id="admin-edit-product-cancel" type="button">Cancelar</button>
+      </form>
+      <p id="admin-product-editor-message"></p>
+
+      <div id="admin-product-stock-history"></div>
+      <div id="admin-product-stock-history-pagination"></div>
+    </section>
   </section>
 </section>
 

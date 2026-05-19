@@ -123,14 +123,14 @@ DB/
 #### Columnas clave — `Line`:
 | Columna | Tipo | Notas |
 |---|---|---|
-| `id_company_fk` | INT FK | → `Company` |
 | `id_subcategory_fk` | INT FK | → `Subcategory` |
 | `is_active` | BOOLEAN | Activar / desactivar línea |
-| `UNIQUE(name, id_company_fk)` | — | Sin duplicados por empresa |
+| `UNIQUE(name, id_subcategory_fk)` | — | Sin duplicados dentro de la subcategoría |
 
 #### Columnas clave — `Product`:
 | Columna | Tipo | Notas |
 |---|---|---|
+| `id_company_fk` | INT FK | → `Company` |
 | `sku` | VARCHAR(50) | UNIQUE global |
 | `attributes` | JSON | Talla, color, etc. |
 | `price` | DECIMAL(10,2) | Precio venta |

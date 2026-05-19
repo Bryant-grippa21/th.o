@@ -1,5 +1,7 @@
 DELIMITER //
 
+DROP PROCEDURE IF EXISTS sp_admin_create_category //
+
 CREATE PROCEDURE sp_admin_create_category (
     IN p_name VARCHAR(100)
 )
@@ -20,6 +22,8 @@ END //
 DELIMITER ;
 
 DELIMITER //
+
+DROP PROCEDURE IF EXISTS sp_update_category //
 
 CREATE PROCEDURE sp_update_category (
     IN p_id_category INT,
@@ -53,6 +57,8 @@ DELIMITER ;
 
 DELIMITER //
 
+DROP PROCEDURE IF EXISTS sp_toggle_category //
+
 CREATE PROCEDURE sp_toggle_category (
     IN p_id_category INT,
     IN p_is_active BOOLEAN
@@ -75,6 +81,8 @@ END //
 DELIMITER ;
 
 DELIMITER //
+
+DROP PROCEDURE IF EXISTS sp_admin_create_subcategory //
 
 CREATE PROCEDURE sp_admin_create_subcategory (
     IN p_name VARCHAR(100),
@@ -105,6 +113,8 @@ END //
 DELIMITER ;
 
 DELIMITER //
+
+DROP PROCEDURE IF EXISTS sp_update_subcategory //
 
 CREATE PROCEDURE sp_update_subcategory (
     IN p_id_subcategory INT,
@@ -161,6 +171,8 @@ DELIMITER ;
 
 DELIMITER //
 
+DROP PROCEDURE IF EXISTS sp_toggle_subcategory //
+
 CREATE PROCEDURE sp_toggle_subcategory (
     IN p_id_subcategory INT,
     IN p_is_active BOOLEAN
@@ -183,6 +195,8 @@ END //
 DELIMITER ;
 
 DELIMITER //
+
+DROP PROCEDURE IF EXISTS sp_create_product_full //
 
 CREATE PROCEDURE sp_create_product_full(
     IN p_name VARCHAR(150),
@@ -223,19 +237,26 @@ BEGIN
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Subcategoría no existe';
     END IF;
 
-    -- ✅ id_user_j_fk → id_company_fk
-    INSERT INTO Line (name, id_subcategory_fk, id_company_fk)
-    VALUES (p_name, p_id_subcategory, p_id_company);
+    SELECT id_line INTO v_line_id
+    FROM Line
+    WHERE name = p_name
+      AND id_subcategory_fk = p_id_subcategory
+    LIMIT 1;
 
-    SET v_line_id = LAST_INSERT_ID();
+    IF v_line_id IS NULL THEN
+        INSERT INTO Line (name, id_subcategory_fk)
+        VALUES (p_name, p_id_subcategory);
+
+        SET v_line_id = LAST_INSERT_ID();
+    END IF;
 
     SET p_sku = IFNULL(p_sku, CONCAT('SKU-', v_line_id));
 
     INSERT INTO Product (
-        id_line_fk, sku, brand, description, price, attributes
+        id_line_fk, id_company_fk, sku, name, brand, description, price, attributes
     )
     VALUES (
-        v_line_id, p_sku, p_brand, p_description, p_price, p_attributes
+        v_line_id, p_id_company, p_sku, p_name, p_brand, p_description, p_price, p_attributes
     );
 
     SET v_product_id = LAST_INSERT_ID();
@@ -256,6 +277,8 @@ DELIMITER ;
 
 
 DELIMITER //
+
+DROP PROCEDURE IF EXISTS sp_update_product //
 
 CREATE PROCEDURE sp_update_product (
     IN p_id_product INT,
@@ -289,6 +312,8 @@ DELIMITER ;
 
 DELIMITER //
 
+DROP PROCEDURE IF EXISTS sp_update_variant //
+
 CREATE PROCEDURE sp_update_variant (
     IN p_id_variant INT,
     IN p_price DECIMAL(10,2),
@@ -316,6 +341,8 @@ DELIMITER ;
 
 DELIMITER //
 
+DROP PROCEDURE IF EXISTS sp_toggle_product //
+
 CREATE PROCEDURE sp_toggle_product (
     IN p_id_product INT,
     IN p_is_active BOOLEAN
@@ -340,6 +367,8 @@ DELIMITER ;
 
 DELIMITER //
 
+DROP PROCEDURE IF EXISTS sp_toggle_variant //
+
 CREATE PROCEDURE sp_toggle_variant (
     IN p_id_variant INT,
     IN p_is_active BOOLEAN
@@ -363,6 +392,8 @@ END //
 DELIMITER ;
 
 DELIMITER //
+
+DROP PROCEDURE IF EXISTS sp_create_product_auto //
 
 CREATE PROCEDURE sp_create_product_auto (
     IN p_categoria VARCHAR(100),
@@ -410,29 +441,38 @@ BEGIN
         SET MESSAGE_TEXT = 'Subcategoría no existe';
     END IF;
 
-    -- ✅ id_user_j_fk → id_company_fk
-    INSERT INTO Line (
-        name,
-        id_subcategory_fk,
-        id_company_fk
-    )
-    VALUES (
-        p_producto,
-        v_subcategory_id,
-        p_id_company
-    );
+    SELECT id_line INTO v_line_id
+    FROM Line
+    WHERE name = p_producto
+      AND id_subcategory_fk = v_subcategory_id
+    LIMIT 1;
 
-    SET v_line_id = LAST_INSERT_ID();
+    IF v_line_id IS NULL THEN
+        INSERT INTO Line (
+            name,
+            id_subcategory_fk
+        )
+        VALUES (
+            p_producto,
+            v_subcategory_id
+        );
+
+        SET v_line_id = LAST_INSERT_ID();
+    END IF;
 
     INSERT INTO Product (
         id_line_fk,
+        id_company_fk,
         sku,
+        name,
         price,
         attributes
     )
     VALUES (
         v_line_id,
+        p_id_company,
         CONCAT('AUTO-', v_line_id),
+        p_producto,
         0,
         JSON_OBJECT('default', 'auto')
     );
@@ -456,10 +496,14 @@ DELIMITER ;
 
 DELIMITER //
 
+DROP PROCEDURE IF EXISTS sp_add_variant //
+
 CREATE PROCEDURE sp_add_variant (
     IN p_id_product INT,
+    IN p_id_company INT,
 
     IN p_sku VARCHAR(50),
+    IN p_name VARCHAR(150),
     IN p_description VARCHAR(255),
     IN p_price DECIMAL(10,2),
     IN p_attributes JSON,
@@ -472,6 +516,13 @@ CREATE PROCEDURE sp_add_variant (
 BEGIN
 
     DECLARE v_product_id INT;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM Company WHERE id_company = p_id_company
+    ) THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Empresa no existe';
+    END IF;
 
     -- validar linea
     IF NOT EXISTS (
@@ -492,14 +543,18 @@ BEGIN
     -- crear producto dentro de la linea
     INSERT INTO Product (
         id_line_fk,
+        id_company_fk,
         sku,
+        name,
         description,
         price,
         attributes
     )
     VALUES (
         p_id_product,
+        p_id_company,
         p_sku,
+        p_name,
         p_description,
         p_price,
         p_attributes
@@ -538,6 +593,8 @@ END //
 DELIMITER ;
 
 DELIMITER //
+
+DROP PROCEDURE IF EXISTS sp_update_stock //
 
 CREATE PROCEDURE sp_update_stock (
     IN p_id_variant INT,
@@ -586,6 +643,8 @@ END //
 DELIMITER ;
 
 DELIMITER //
+
+DROP PROCEDURE IF EXISTS sp_add_stock //
 
 CREATE PROCEDURE sp_add_stock (
     IN p_id_variant INT,
@@ -639,6 +698,8 @@ END //
 DELIMITER ;
 
 DELIMITER //
+
+DROP PROCEDURE IF EXISTS sp_remove_stock //
 
 CREATE PROCEDURE sp_remove_stock (
     IN p_id_variant INT,
@@ -698,9 +759,13 @@ DELIMITER ;
 
 DELIMITER //
 
+DROP PROCEDURE IF EXISTS sp_internal_create_variant //
+
 CREATE PROCEDURE sp_internal_create_variant (
     IN p_id_product INT,
+    IN p_id_company INT,
     IN p_sku VARCHAR(50),
+    IN p_name VARCHAR(150),
     IN p_description VARCHAR(255),
     IN p_price DECIMAL(10,2),
     IN p_attributes JSON,
@@ -708,11 +773,18 @@ CREATE PROCEDURE sp_internal_create_variant (
 )
 BEGIN
 
+    IF NOT EXISTS (
+        SELECT 1 FROM Company WHERE id_company = p_id_company
+    ) THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Empresa no existe';
+    END IF;
+
     INSERT INTO Product (
-        id_line_fk, sku, description, price, attributes
+        id_line_fk, id_company_fk, sku, name, description, price, attributes
     )
     VALUES (
-        p_id_product, p_sku, p_description, p_price, p_attributes
+        p_id_product, p_id_company, p_sku, p_name, p_description, p_price, p_attributes
     );
 
     SET p_product_id = LAST_INSERT_ID();

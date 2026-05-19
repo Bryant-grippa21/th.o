@@ -28,25 +28,26 @@ CREATE TABLE Line (
     name VARCHAR(150) NOT NULL,
 
     id_subcategory_fk INT NOT NULL,
-    id_company_fk INT NOT NULL,             -- ✅ User_J → Company
 
     is_active BOOLEAN DEFAULT TRUE,
 
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 
-    UNIQUE(name, id_company_fk),            -- ✅ User_J → Company
+    UNIQUE(name, id_subcategory_fk),
 
-    FOREIGN KEY (id_subcategory_fk) REFERENCES Subcategory(id_subcategory),
-    FOREIGN KEY (id_company_fk) REFERENCES Company(id_company)  -- ✅ User_J → Company
+    FOREIGN KEY (id_subcategory_fk) REFERENCES Subcategory(id_subcategory)
 );
 
 CREATE TABLE Product (
     id_product INT AUTO_INCREMENT PRIMARY KEY,
 
     id_line_fk INT NOT NULL,
+    id_company_fk INT NOT NULL,             -- ✅ User_J → Company
+
 
     sku VARCHAR(50) UNIQUE, -- identificador público
+    name VARCHAR(100) NOT NULL,
 
     brand VARCHAR(100),
 
@@ -61,6 +62,8 @@ CREATE TABLE Product (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 
+
+    FOREIGN KEY (id_company_fk) REFERENCES Company(id_company),
     FOREIGN KEY (id_line_fk) REFERENCES Line(id_line)
 );
 
@@ -128,7 +131,9 @@ CREATE INDEX idx_image_product_order ON Product_Image(id_product_fk, sort_order)
 
 -- búsquedas reales ecommerce
 CREATE INDEX idx_line_active ON Line(is_active);
+CREATE INDEX idx_line_subcategory ON Line(id_subcategory_fk);
 CREATE INDEX idx_product_active ON Product(is_active);
+CREATE INDEX idx_product_company ON Product(id_company_fk);
 
 -- filtros típicos
 CREATE INDEX idx_product_price ON Product(price);

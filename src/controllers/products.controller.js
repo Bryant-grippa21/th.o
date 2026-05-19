@@ -6,9 +6,13 @@ const {
   listSubcategoriesByCategory,
   listSubcategoriesForManagement,
   listLinesForManagement,
+  listLineReferences,
   listProductsForManagement,
+  getManagedProductById,
+  listManagedProductStockHistory,
   listPublicCatalog,
   getPublicProductDetail,
+  getPublicProductDetailBySku,
   createCategory,
   updateCategory,
   toggleCategory,
@@ -16,11 +20,12 @@ const {
   updateSubcategory,
   toggleSubcategory,
   createProductFull,
+  createProductFromReference,
   addVariant,
-  updateProduct,
-  toggleLine,
-  updateVariant,
-  syncStock
+  updateManagedProduct,
+  toggleManagedProductStatus,
+  adjustManagedProductStock,
+  deleteManagedProductImage
 } = require('../services/products.service');
 
 const requireCompanyToken = (req, res) => {
@@ -96,14 +101,66 @@ const normalizeProductAttributes = (attributes) => {
   return JSON.stringify(parsedAttributes);
 };
 
+const normalizeOptionalAttributesInput = (attributes) => {
+  if (attributes == null) {
+    return null;
+  }
+
+  return typeof attributes === 'string'
+    ? attributes
+    : JSON.stringify(attributes);
+};
+
+const extractUploadedProductImages = (files = {}) => ({
+  mainImage: files?.main_image?.[0]?.filename ?? null,
+  secondaryImages: Array.isArray(files?.secondary_images)
+    ? files.secondary_images.map((file) => file.filename)
+    : []
+});
+
+const resolveManagedCompanyScope = (req, rawCompanyId) => {
+  if (req.user.id_role !== 1) {
+    return req.user.id;
+  }
+
+  return rawCompanyId ? Number(rawCompanyId) : null;
+};
+
 const isProductCreationValidationError = (message) => [
   'attributes debe ser un objeto JSON válido',
   'Debes enviar al menos un atributo',
   'Empresa no existe',
   'Subcategoría no existe',
   'Ya existe una línea o producto con ese nombre para esta empresa',
-  'No se pudo crear el producto porque ya existe un registro duplicado'
+  'No se pudo crear el producto porque ya existe un registro duplicado',
+  'Producto no existe o no pertenece a la empresa',
+  'name es requerido',
+  'quantity inválido',
+  'operation inválida',
+  'Stock insuficiente',
+  'Imagen no existe para este producto'
 ].includes(message);
+
+const buildProductUpdateInput = (req) => {
+  const companyScope = resolveManagedCompanyScope(req, req.body.id_company);
+  const { mainImage, secondaryImages } = extractUploadedProductImages(req.files);
+
+  return {
+    companyScope,
+    files: {
+      mainImage,
+      secondaryImages
+    },
+    updates: {
+      name: req.body.name ?? null,
+      brand: req.body.brand ?? null,
+      description: req.body.description ?? null,
+      price: req.body.price == null || req.body.price === '' ? null : Number(req.body.price),
+      attributes: req.body.attributes == null ? null : normalizeProductAttributes(req.body.attributes),
+      min_stock: req.body.min_stock == null || req.body.min_stock === '' ? null : Number(req.body.min_stock)
+    }
+  };
+};
 
 const getCategories = async (_req, res) => {
   try {
@@ -160,13 +217,8 @@ const getManagedLines = async (req, res) => {
       return;
     }
 
-    const requestedCompanyId = req.query.company_id ? Number(req.query.company_id) : null;
     const categoryId = req.query.category_id ? Number(req.query.category_id) : null;
     const subcategoryId = req.query.subcategory_id ? Number(req.query.subcategory_id) : null;
-
-    if (req.query.company_id && (!Number.isInteger(requestedCompanyId) || requestedCompanyId <= 0)) {
-      return res.status(400).json({ error: 'company_id inválido' });
-    }
 
     if (req.query.category_id && (!Number.isInteger(categoryId) || categoryId <= 0)) {
       return res.status(400).json({ error: 'category_id inválido' });
@@ -176,12 +228,7 @@ const getManagedLines = async (req, res) => {
       return res.status(400).json({ error: 'subcategory_id inválido' });
     }
 
-    const companyId = req.user.id_role === 1
-      ? requestedCompanyId
-      : req.user.id;
-
     const lines = await listLinesForManagement({
-      companyId,
       categoryId,
       subcategoryId
     });
@@ -189,6 +236,21 @@ const getManagedLines = async (req, res) => {
     return res.status(200).json({ lines });
   } catch (error) {
     console.error('❌ ERROR GET MANAGED LINES:', error);
+    return res.status(500).json({ error: error.message });
+  }
+};
+
+const getLineReferences = async (req, res) => {
+  try {
+    if (!requireCompanyToken(req, res)) {
+      return;
+    }
+
+    const lines = await listLineReferences();
+
+    return res.status(200).json({ lines });
+  } catch (error) {
+    console.error('❌ ERROR GET LINE REFERENCES:', error);
     return res.status(500).json({ error: error.message });
   }
 };
@@ -242,6 +304,72 @@ const getManagedProducts = async (req, res) => {
   }
 };
 
+const getManagedProductDetail = async (req, res) => {
+  try {
+    if (!requireCompanyToken(req, res)) {
+      return;
+    }
+
+    const productId = Number(req.params.productId);
+
+    if (!Number.isInteger(productId) || productId <= 0) {
+      return res.status(400).json({ error: 'productId inválido' });
+    }
+
+    const product = await getManagedProductById(productId, req.user.id_role === 1 ? null : req.user.id);
+
+    if (!product) {
+      return res.status(404).json({ error: 'Producto no encontrado' });
+    }
+
+    return res.status(200).json({ product });
+  } catch (error) {
+    console.error('❌ ERROR GET MANAGED PRODUCT DETAIL:', error);
+    return res.status(500).json({ error: error.message });
+  }
+};
+
+const getManagedProductStockHistory = async (req, res) => {
+  try {
+    if (!requireCompanyToken(req, res)) {
+      return;
+    }
+
+    const productId = Number(req.params.productId);
+    const page = req.query.page ? Number(req.query.page) : 1;
+    const limit = req.query.limit ? Number(req.query.limit) : 10;
+    const movementType = String(req.query.movement_type ?? '').trim().toUpperCase();
+
+    if (!Number.isInteger(productId) || productId <= 0) {
+      return res.status(400).json({ error: 'productId inválido' });
+    }
+
+    if (!Number.isInteger(page) || page <= 0) {
+      return res.status(400).json({ error: 'page inválido' });
+    }
+
+    if (!Number.isInteger(limit) || limit <= 0 || limit > 100) {
+      return res.status(400).json({ error: 'limit inválido' });
+    }
+
+    const history = await listManagedProductStockHistory(
+      productId,
+      req.user.id_role === 1 ? null : req.user.id,
+      {
+        page,
+        limit,
+        movementType: movementType || null
+      }
+    );
+
+    return res.status(200).json(history);
+  } catch (error) {
+    console.error('❌ ERROR GET PRODUCT STOCK HISTORY:', error);
+    const statusCode = isProductCreationValidationError(error.message) ? 400 : 500;
+    return res.status(statusCode).json({ error: error.message });
+  }
+};
+
 const getPublicCatalog = async (req, res) => {
   try {
     const limit = req.query.limit ? Number(req.query.limit) : 12;
@@ -271,6 +399,27 @@ const getPublicProduct = async (req, res) => {
     return res.status(200).json({ product });
   } catch (error) {
     console.error('❌ ERROR GET PUBLIC PRODUCT:', error);
+    return res.status(500).json({ error: error.message });
+  }
+};
+
+const getPublicProductBySku = async (req, res) => {
+  try {
+    const sku = String(req.params.sku ?? '').trim();
+
+    if (!sku) {
+      return res.status(400).json({ error: 'sku inválido' });
+    }
+
+    const product = await getPublicProductDetailBySku(sku);
+
+    if (!product) {
+      return res.status(404).json({ error: 'Producto no encontrado' });
+    }
+
+    return res.status(200).json({ product });
+  } catch (error) {
+    console.error('❌ ERROR GET PUBLIC PRODUCT BY SKU:', error);
     return res.status(500).json({ error: error.message });
   }
 };
@@ -452,7 +601,9 @@ const createProductManual = async (req, res) => {
 
     const {
       name,
+      line_name,
       id_subcategory,
+      reference_line_id,
       id_company,
       brand,
       description,
@@ -462,32 +613,50 @@ const createProductManual = async (req, res) => {
       min_stock
     } = req.body;
 
-    if (!name || !id_subcategory || price == null || quantity == null) {
+    if (!name || price == null || quantity == null) {
       return res.status(400).json({
-        error: 'name, id_subcategory, price y quantity son requeridos'
+        error: 'name, price y quantity son requeridos'
       });
     }
 
-    const ownerCompanyId = req.user.id_role === 1 && id_company ? Number(id_company) : req.user.id;
-    const parsedAttributes = normalizeProductAttributes(attributes);
-    const mainImage = req.files?.main_image?.[0]?.filename ?? null;
-    const secondaryImages = Array.isArray(req.files?.secondary_images)
-      ? req.files.secondary_images.map((file) => file.filename)
-      : [];
+    if (!reference_line_id && !id_subcategory) {
+      return res.status(400).json({
+        error: 'id_subcategory es requerido cuando no se usa una línea de referencia'
+      });
+    }
 
-    const product = await createProductFull({
-      name: name.trim(),
-      id_subcategory: Number(id_subcategory),
-      id_company: ownerCompanyId,
-      brand: brand ?? null,
-      description: description ?? null,
-      price: Number(price),
-      attributes: parsedAttributes,
-      quantity: Number(quantity),
-      min_stock: min_stock == null || min_stock === '' ? 0 : Number(min_stock),
-      image_url: mainImage,
-      secondary_images: secondaryImages
-    });
+    const ownerCompanyId = resolveManagedCompanyScope(req, id_company);
+    const parsedAttributes = normalizeProductAttributes(attributes);
+    const { mainImage, secondaryImages } = extractUploadedProductImages(req.files);
+
+    const product = reference_line_id
+      ? await createProductFromReference({
+        name: name.trim(),
+        reference_line_id: Number(reference_line_id),
+        id_company: ownerCompanyId,
+        brand: brand ?? null,
+        description: description ?? null,
+        price: Number(price),
+        attributes: parsedAttributes,
+        quantity: Number(quantity),
+        min_stock: min_stock == null || min_stock === '' ? 0 : Number(min_stock),
+        image_url: mainImage,
+        secondary_images: secondaryImages
+      })
+      : await createProductFull({
+        name: name.trim(),
+        line_name: line_name?.trim() || null,
+        id_subcategory: Number(id_subcategory),
+        id_company: ownerCompanyId,
+        brand: brand ?? null,
+        description: description ?? null,
+        price: Number(price),
+        attributes: parsedAttributes,
+        quantity: Number(quantity),
+        min_stock: min_stock == null || min_stock === '' ? 0 : Number(min_stock),
+        image_url: mainImage,
+        secondary_images: secondaryImages
+      });
 
     return res.status(201).json({
       message: 'Producto creado correctamente',
@@ -514,6 +683,7 @@ const addVariantManual = async (req, res) => {
 
     const productId = Number(req.params.productId);
     const {
+      name,
       description,
       price,
       attributes,
@@ -525,13 +695,16 @@ const addVariantManual = async (req, res) => {
       return res.status(400).json({ error: 'productId inválido' });
     }
 
-    if (price == null || quantity == null) {
-      return res.status(400).json({ error: 'price y quantity son requeridos' });
+    if (!name || price == null || quantity == null) {
+      return res.status(400).json({ error: 'name, price y quantity son requeridos' });
     }
 
     const parsedAttributes = typeof attributes === 'string' ? attributes : JSON.stringify(attributes ?? {});
+    const ownerCompanyId = req.user.id_role === 1 && req.body.id_company ? Number(req.body.id_company) : req.user.id;
     const variant = await addVariant({
       id_product: productId,
+      id_company: ownerCompanyId,
+      name: String(name).trim(),
       description: description ?? null,
       price: Number(price),
       attributes: parsedAttributes,
@@ -557,13 +730,17 @@ const updateProductManual = async (req, res) => {
     }
 
     const productId = Number(req.params.productId);
-    const { name, brand } = req.body;
-
     if (!Number.isInteger(productId) || productId <= 0) {
       return res.status(400).json({ error: 'productId inválido' });
     }
 
-    const product = await updateProduct(productId, name ?? null, brand ?? null);
+    const productUpdateInput = buildProductUpdateInput(req);
+    const product = await updateManagedProduct(
+      productId,
+      productUpdateInput.companyScope,
+      productUpdateInput.updates,
+      productUpdateInput.files
+    );
 
     return res.status(200).json({
       message: 'Producto actualizado correctamente',
@@ -571,18 +748,25 @@ const updateProductManual = async (req, res) => {
     });
   } catch (error) {
     console.error('❌ ERROR UPDATE PRODUCT:', error);
-    return res.status(500).json({ error: error.message });
+
+    if (req.files) {
+      deleteUploadedProductFiles(req.files);
+    }
+
+    const statusCode = isProductCreationValidationError(error.message) ? 400 : 500;
+
+    return res.status(statusCode).json({ error: error.message });
   }
 };
 
-const toggleLineStatusManual = async (req, res) => {
+const toggleProductStatusManual = async (req, res) => {
   try {
     if (!requireCompanyToken(req, res)) {
       return;
     }
 
     const productId = Number(req.params.productId);
-    const { is_active } = req.body;
+    const { is_active, id_company } = req.body;
 
     if (!Number.isInteger(productId) || productId <= 0) {
       return res.status(400).json({ error: 'productId inválido' });
@@ -592,15 +776,20 @@ const toggleLineStatusManual = async (req, res) => {
       return res.status(400).json({ error: 'is_active inválido' });
     }
 
-    const line = await toggleLine(productId, is_active);
+    const product = await toggleManagedProductStatus(
+      productId,
+      resolveManagedCompanyScope(req, id_company),
+      is_active
+    );
 
     return res.status(200).json({
-      message: is_active ? 'Línea activada correctamente' : 'Línea desactivada correctamente',
-      line
+      message: is_active ? 'Producto activado correctamente' : 'Producto desactivado correctamente',
+      product
     });
   } catch (error) {
-    console.error('❌ ERROR TOGGLE LINE:', error);
-    return res.status(500).json({ error: error.message });
+    console.error('❌ ERROR TOGGLE PRODUCT:', error);
+    const statusCode = isProductCreationValidationError(error.message) ? 400 : 500;
+    return res.status(statusCode).json({ error: error.message });
   }
 };
 
@@ -617,18 +806,13 @@ const updateVariantManual = async (req, res) => {
       return res.status(400).json({ error: 'variantId inválido' });
     }
 
-    let parsedAttributes = null;
-
-    if (attributes != null) {
-      parsedAttributes = typeof attributes === 'string'
-        ? attributes
-        : JSON.stringify(attributes);
-    }
-
-    const variant = await updateVariant(
+    const variant = await updateManagedProduct(
       variantId,
-      price == null || price === '' ? null : Number(price),
-      parsedAttributes
+      req.user.id_role === 1 ? null : req.user.id,
+      {
+        price: price == null || price === '' ? null : Number(price),
+        attributes: normalizeOptionalAttributesInput(attributes)
+      }
     );
 
     return res.status(200).json({
@@ -637,7 +821,8 @@ const updateVariantManual = async (req, res) => {
     });
   } catch (error) {
     console.error('❌ ERROR UPDATE VARIANT:', error);
-    return res.status(500).json({ error: error.message });
+    const statusCode = isProductCreationValidationError(error.message) ? 400 : 500;
+    return res.status(statusCode).json({ error: error.message });
   }
 };
 
@@ -658,7 +843,13 @@ const syncVariantStock = async (req, res) => {
       return res.status(400).json({ error: 'quantity es requerido' });
     }
 
-    const stock = await syncStock(variantId, Number(quantity), notes ?? 'Sincronización manual de stock');
+    const stock = await adjustManagedProductStock(
+      variantId,
+      req.user.id_role === 1 ? null : req.user.id,
+      'set',
+      Number(quantity),
+      notes ?? 'Sincronización manual de stock'
+    );
 
     return res.status(200).json({
       message: 'Stock sincronizado correctamente',
@@ -666,7 +857,75 @@ const syncVariantStock = async (req, res) => {
     });
   } catch (error) {
     console.error('❌ ERROR SYNC STOCK:', error);
-    return res.status(500).json({ error: error.message });
+    const statusCode = isProductCreationValidationError(error.message) ? 400 : 500;
+    return res.status(statusCode).json({ error: error.message });
+  }
+};
+
+const adjustProductStockManual = async (req, res) => {
+  try {
+    if (!requireCompanyToken(req, res)) {
+      return;
+    }
+
+    const productId = Number(req.params.productId);
+    const { operation, quantity, notes, id_company } = req.body;
+
+    if (!Number.isInteger(productId) || productId <= 0) {
+      return res.status(400).json({ error: 'productId inválido' });
+    }
+
+    if (quantity == null || Number.isNaN(Number(quantity))) {
+      return res.status(400).json({ error: 'quantity es requerido' });
+    }
+
+    const product = await adjustManagedProductStock(
+      productId,
+      resolveManagedCompanyScope(req, id_company),
+      operation,
+      Number(quantity),
+      notes
+    );
+
+    return res.status(200).json({
+      message: 'Stock actualizado correctamente',
+      product
+    });
+  } catch (error) {
+    console.error('❌ ERROR ADJUST STOCK:', error);
+    const statusCode = isProductCreationValidationError(error.message) ? 400 : 500;
+    return res.status(statusCode).json({ error: error.message });
+  }
+};
+
+const deleteProductImageManual = async (req, res) => {
+  try {
+    if (!requireCompanyToken(req, res)) {
+      return;
+    }
+
+    const productId = Number(req.params.productId);
+    const imageId = Number(req.params.imageId);
+    const companyId = resolveManagedCompanyScope(req, req.body.id_company);
+
+    if (!Number.isInteger(productId) || productId <= 0) {
+      return res.status(400).json({ error: 'productId inválido' });
+    }
+
+    if (!Number.isInteger(imageId) || imageId <= 0) {
+      return res.status(400).json({ error: 'imageId inválido' });
+    }
+
+    const product = await deleteManagedProductImage(productId, imageId, companyId);
+
+    return res.status(200).json({
+      message: 'Imagen eliminada correctamente',
+      product
+    });
+  } catch (error) {
+    console.error('❌ ERROR DELETE PRODUCT IMAGE:', error);
+    const statusCode = isProductCreationValidationError(error.message) ? 400 : 500;
+    return res.status(statusCode).json({ error: error.message });
   }
 };
 
@@ -675,9 +934,13 @@ module.exports = {
   getSubcategoriesByCategory,
   getManagedSubcategories,
   getManagedLines,
+  getLineReferences,
   getManagedProducts,
+  getManagedProductDetail,
+  getManagedProductStockHistory,
   getPublicCatalog,
   getPublicProduct,
+  getPublicProductBySku,
   createCategoryManual,
   updateCategoryManual,
   toggleCategoryStatusManual,
@@ -687,7 +950,9 @@ module.exports = {
   createProductManual,
   addVariantManual,
   updateProductManual,
-  toggleLineStatusManual,
+  toggleProductStatusManual,
+  adjustProductStockManual,
+  deleteProductImageManual,
   updateVariantManual,
   syncVariantStock
 };

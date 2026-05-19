@@ -30,6 +30,30 @@ const resolveProductImageUrl = (imageUrl) => {
   return `/uploads/products/${normalizedImageName}`;
 };
 
+const resolveProductImageFilePath = (imageUrl) => {
+  if (!imageUrl) {
+    return null;
+  }
+
+  const normalizedImageName = path.basename(String(imageUrl).trim());
+
+  if (!normalizedImageName) {
+    return null;
+  }
+
+  return path.join(productUploadsDir, normalizedImageName);
+};
+
+const deleteProductImageFiles = (imageUrls = []) => {
+  imageUrls.forEach((imageUrl) => {
+    const imagePath = resolveProductImageFilePath(imageUrl);
+
+    if (imagePath && fs.existsSync(imagePath)) {
+      fs.unlinkSync(imagePath);
+    }
+  });
+};
+
 const mapProductImageFields = (row) => {
   if (!row) {
     return row;
@@ -40,6 +64,77 @@ const mapProductImageFields = (row) => {
     image_url: resolveProductImageUrl(row.image_url),
     main_image_url: resolveProductImageUrl(row.main_image_url)
   };
+};
+
+const normalizeProductName = (product, fallbackName = null) => {
+  if (!product) {
+    return product;
+  }
+
+  const resolvedName = String(product.name || '').trim();
+  const resolvedFallbackName = String(fallbackName || '').trim();
+
+  return {
+    ...product,
+    name: resolvedName || resolvedFallbackName || null
+  };
+};
+
+const listImagesByProductIds = async (productIds, connection = pool) => {
+  if (!Array.isArray(productIds) || productIds.length === 0) {
+    return new Map();
+  }
+
+  const placeholders = productIds.map(() => '?').join(', ');
+  const [rows] = await connection.query(
+    `SELECT id_image, id_product_fk, image_url, is_main, sort_order
+     FROM Product_Image
+     WHERE id_product_fk IN (${placeholders})
+     ORDER BY is_main DESC, sort_order ASC, id_product_fk ASC`,
+    productIds
+  );
+
+  return rows.reduce((imagesByProductId, row) => {
+    const productId = row.id_product_fk;
+    const currentImages = imagesByProductId.get(productId) ?? [];
+    const resolvedImageUrl = resolveProductImageUrl(row.image_url);
+
+    if (resolvedImageUrl) {
+      currentImages.push({
+        id_image: row.id_image,
+        image_url: resolvedImageUrl,
+        is_main: Boolean(row.is_main),
+        sort_order: row.sort_order
+      });
+      imagesByProductId.set(productId, currentImages);
+    }
+
+    return imagesByProductId;
+  }, new Map());
+};
+
+const attachProductGalleries = async (products, connection = pool) => {
+  if (!Array.isArray(products) || products.length === 0) {
+    return [];
+  }
+
+  const productIds = products
+    .map((product) => product.id_product)
+    .filter((productId) => Number.isInteger(productId) && productId > 0);
+
+  const imagesByProductId = await listImagesByProductIds(productIds, connection);
+
+  return products.map((product) => {
+    const gallery = imagesByProductId.get(product.id_product) ?? [];
+
+    return {
+      ...product,
+      images: gallery,
+      secondary_images: gallery
+        .filter((image) => !image.is_main)
+        .map((image) => image.image_url)
+    };
+  });
 };
 
 const generateRandomSkuCandidate = () => {
@@ -109,11 +204,6 @@ const listLinesForManagement = async (filters = {}) => {
   const conditions = [];
   const values = [];
 
-  if (Number.isInteger(filters.companyId) && filters.companyId > 0) {
-    conditions.push('l.id_company_fk = ?');
-    values.push(filters.companyId);
-  }
-
   if (Number.isInteger(filters.categoryId) && filters.categoryId > 0) {
     conditions.push('c.id_category = ?');
     values.push(filters.categoryId);
@@ -132,35 +222,50 @@ const listLinesForManagement = async (filters = {}) => {
        l.name,
        MIN(p.brand) AS brand,
        l.id_subcategory_fk,
-       l.id_company_fk,
        l.is_active,
        l.created_at,
        l.updated_at,
        sc.name AS subcategory_name,
        c.id_category,
        c.name AS category_name,
-       co.name AS company_name,
        COUNT(DISTINCT p.id_product) AS products_count
      FROM Line l
      INNER JOIN Subcategory sc ON sc.id_subcategory = l.id_subcategory_fk
      INNER JOIN Category c ON c.id_category = sc.id_category_fk
-     INNER JOIN Company co ON co.id_company = l.id_company_fk
      LEFT JOIN Product p ON p.id_line_fk = l.id_line
      ${whereClause}
      GROUP BY
        l.id_line,
        l.name,
        l.id_subcategory_fk,
-       l.id_company_fk,
        l.is_active,
        l.created_at,
        l.updated_at,
        sc.name,
        c.id_category,
-       c.name,
-       co.name
+       c.name
      ORDER BY c.name ASC, sc.name ASC, l.name ASC`,
     values
+  );
+
+  return rows;
+};
+
+const listLineReferences = async () => {
+  const [rows] = await pool.query(
+    `SELECT
+       MIN(l.id_line) AS id_line,
+       l.name,
+       l.id_subcategory_fk,
+       sc.name AS subcategory_name,
+       c.id_category,
+       c.name AS category_name,
+       COUNT(*) AS references_count
+     FROM Line l
+     INNER JOIN Subcategory sc ON sc.id_subcategory = l.id_subcategory_fk
+     INNER JOIN Category c ON c.id_category = sc.id_category_fk
+     GROUP BY l.name, l.id_subcategory_fk, sc.name, c.id_category, c.name
+     ORDER BY c.name ASC, sc.name ASC, l.name ASC`
   );
 
   return rows;
@@ -182,6 +287,15 @@ const appendLikeFilter = (conditions, values, value, clause) => {
 
   conditions.push(clause);
   values.push(`%${value}%`);
+};
+
+const buildOwnedProductCondition = (companyId, values, productAlias = 'p') => {
+  if (Number.isInteger(companyId) && companyId > 0) {
+    values.push(companyId);
+    return ` AND ${productAlias}.id_company_fk = ?`;
+  }
+
+  return '';
 };
 
 const ensureCompanyExists = async (companyId, connection = pool) => {
@@ -206,23 +320,96 @@ const ensureSubcategoryExists = async (subcategoryId, connection = pool) => {
   }
 };
 
-const ensureLineNameAvailable = async (name, companyId, connection = pool) => {
+const findLineByNameAndSubcategory = async (name, subcategoryId, connection = pool) => {
   const [rows] = await connection.query(
-    'SELECT id_line FROM Line WHERE name = ? AND id_company_fk = ? LIMIT 1',
-    [name, companyId]
+    'SELECT id_line FROM Line WHERE name = ? AND id_subcategory_fk = ? LIMIT 1',
+    [name, subcategoryId]
   );
 
-  if (rows.length) {
-    throw new Error('Ya existe una línea o producto con ese nombre para esta empresa');
+  return rows[0] ?? null;
+};
+
+const findLineReferenceById = async (lineId, connection = pool) => {
+  const [rows] = await connection.query(
+    `SELECT
+       l.id_line,
+       l.name,
+       l.id_subcategory_fk,
+       sc.name AS subcategory_name,
+       c.id_category,
+       c.name AS category_name
+     FROM Line l
+     INNER JOIN Subcategory sc ON sc.id_subcategory = l.id_subcategory_fk
+     INNER JOIN Category c ON c.id_category = sc.id_category_fk
+     WHERE l.id_line = ?
+     LIMIT 1`,
+    [lineId]
+  );
+
+  return rows[0] ?? null;
+};
+
+const insertProductImages = async (connection, productId, imageUrl, secondaryImages = []) => {
+  const productImages = [];
+
+  if (imageUrl) {
+    productImages.push([productId, imageUrl, true, 0]);
   }
+
+  secondaryImages.forEach((secondaryImage, index) => {
+    productImages.push([productId, secondaryImage, false, index + 1]);
+  });
+
+  if (productImages.length) {
+    await connection.query(
+      'INSERT INTO Product_Image (id_product_fk, image_url, is_main, sort_order) VALUES ?',
+      [productImages]
+    );
+  }
+};
+
+const insertProductOnLine = async (connection, productData) => {
+  const resolvedSku = await ensureUniqueSku();
+  const {
+    lineId,
+    companyId,
+    name,
+    brand,
+    description,
+    price,
+    attributes,
+    quantity,
+    min_stock,
+    image_url,
+    secondary_images = []
+  } = productData;
+
+  const [productResult] = await connection.query(
+    `INSERT INTO Product (
+       id_line_fk, id_company_fk, sku, name, brand, description, price, attributes
+     )
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    [lineId, companyId, resolvedSku, name, brand, description, price, attributes]
+  );
+
+  const productId = productResult.insertId;
+
+  await connection.query(
+    'INSERT INTO Stock (id_product_fk, quantity, min_stock) VALUES (?, ?, ?)',
+    [productId, quantity, min_stock]
+  );
+
+  await insertProductImages(connection, productId, image_url, secondary_images);
+
+  return productId;
 };
 
 const listProductsForManagement = async (filters = {}) => {
   const conditions = [];
   const values = [];
 
-  appendExactFilter(conditions, values, Number.isInteger(filters.companyId) && filters.companyId > 0, 'l.id_company_fk = ?', filters.companyId);
-  appendLikeFilter(conditions, values, filters.name, 'l.name LIKE ?');
+  appendExactFilter(conditions, values, Number.isInteger(filters.companyId) && filters.companyId > 0, 'p.id_company_fk = ?', filters.companyId);
+  appendLikeFilter(conditions, values, filters.name, 'p.name LIKE ?');
   appendLikeFilter(conditions, values, filters.company, 'co.name LIKE ?');
   appendExactFilter(conditions, values, Number.isInteger(filters.categoryId) && filters.categoryId > 0, 'c.id_category = ?', filters.categoryId);
   appendLikeFilter(conditions, values, filters.category, 'c.name LIKE ?');
@@ -242,7 +429,7 @@ const listProductsForManagement = async (filters = {}) => {
      INNER JOIN Line l ON l.id_line = p.id_line_fk
      INNER JOIN Subcategory sc ON sc.id_subcategory = l.id_subcategory_fk
      INNER JOIN Category c ON c.id_category = sc.id_category_fk
-     INNER JOIN Company co ON co.id_company = l.id_company_fk
+     INNER JOIN Company co ON co.id_company = p.id_company_fk
      ${whereClause}`,
     values
   );
@@ -252,11 +439,14 @@ const listProductsForManagement = async (filters = {}) => {
        p.id_product,
        p.id_line_fk,
        p.sku,
+       p.name,
        p.brand,
        p.description,
        p.price,
+       p.attributes,
        p.is_active,
        p.created_at,
+       p.updated_at,
        l.id_line,
        l.name AS line_name,
        l.is_active AS line_is_active,
@@ -264,15 +454,18 @@ const listProductsForManagement = async (filters = {}) => {
        sc.name AS subcategory_name,
        c.id_category,
        c.name AS category_name,
-       co.id_company,
+       p.id_company_fk AS id_company,
        co.name AS company_name,
        co.id_role_fk AS company_role_id,
+       s.quantity,
+       s.min_stock,
        pi.image_url AS main_image_url
      FROM Product p
      INNER JOIN Line l ON l.id_line = p.id_line_fk
      INNER JOIN Subcategory sc ON sc.id_subcategory = l.id_subcategory_fk
      INNER JOIN Category c ON c.id_category = sc.id_category_fk
-     INNER JOIN Company co ON co.id_company = l.id_company_fk
+     INNER JOIN Company co ON co.id_company = p.id_company_fk
+     INNER JOIN Stock s ON s.id_product_fk = p.id_product
      LEFT JOIN Product_Image pi ON pi.id_product_fk = p.id_product AND pi.is_main = TRUE
      ${whereClause}
      ORDER BY p.created_at DESC, p.id_product DESC
@@ -280,8 +473,14 @@ const listProductsForManagement = async (filters = {}) => {
     [...values, limit, offset]
   );
 
+  const mappedProducts = await attachProductGalleries(
+    rows
+      .map(mapProductImageFields)
+      .map((product) => normalizeProductName(product, product.line_name))
+  );
+
   return {
-    products: rows.map(mapProductImageFields),
+    products: mappedProducts,
     pagination: {
       page,
       limit,
@@ -291,32 +490,46 @@ const listProductsForManagement = async (filters = {}) => {
   };
 };
 
+const listProductImageRowsByProductId = async (productId, connection = pool) => {
+  const [rows] = await connection.query(
+    `SELECT id_image, id_product_fk, image_url, is_main, sort_order
+     FROM Product_Image
+     WHERE id_product_fk = ?
+     ORDER BY is_main DESC, sort_order ASC, id_image ASC`,
+    [productId]
+  );
+
+  return rows;
+};
+
 const listPublicCatalog = async (limit = 12) => {
   const safeLimit = Number.isInteger(limit) && limit > 0 ? limit : 12;
 
   const [rows] = await pool.query(
     `SELECT
+       p.id_product,
+       p.sku,
+       p.name,
+       p.brand,
+       p.price,
        l.id_line,
-       l.name,
-       MIN(p.brand) AS brand,
-       MIN(p.id_product) AS id_product,
-       MIN(p.sku) AS sku,
-       MIN(p.price) AS price,
-       MIN(pi.image_url) AS image_url
-     FROM Line l
-     INNER JOIN Product p ON p.id_line_fk = l.id_line
+       l.name AS line_name,
+       pi.image_url AS image_url
+     FROM Product p
+     INNER JOIN Line l ON l.id_line = p.id_line_fk
      INNER JOIN Stock s ON s.id_product_fk = p.id_product
      LEFT JOIN Product_Image pi ON pi.id_product_fk = p.id_product AND pi.is_main = TRUE
      WHERE l.is_active = TRUE
        AND p.is_active = TRUE
        AND s.quantity > 0
-     GROUP BY l.id_line, l.name
-     ORDER BY l.created_at DESC
+     ORDER BY p.created_at DESC, p.id_product DESC
      LIMIT ?`,
     [safeLimit]
   );
 
-  return rows.map(mapProductImageFields);
+  return rows
+    .map(mapProductImageFields)
+    .map((product) => normalizeProductName(product, product.line_name));
 };
 
 const getPublicProductDetail = async (productId) => {
@@ -346,6 +559,7 @@ const getPublicProductDetail = async (productId) => {
     `SELECT
        p.id_product,
        p.sku,
+       p.name,
        p.brand,
        p.description,
        p.price,
@@ -363,11 +577,169 @@ const getPublicProductDetail = async (productId) => {
     [productId]
   );
 
+  const mappedProducts = await attachProductGalleries(
+    productRows
+      .map(mapProductImageFields)
+      .map((product) => normalizeProductName(product, lineRows[0]?.name))
+  );
+
   return {
     ...lineRows[0],
-    brand: productRows[0]?.brand ?? null,
-    products: productRows.map(mapProductImageFields)
+    brand: mappedProducts[0]?.brand ?? null,
+    products: mappedProducts
   };
+};
+
+const getPublicProductDetailBySku = async (sku) => {
+  const normalizedSku = String(sku || '').trim();
+
+  if (!normalizedSku) {
+    return null;
+  }
+
+  const [rows] = await pool.query(
+    `SELECT p.id_line_fk
+     FROM Product p
+     INNER JOIN Line l ON l.id_line = p.id_line_fk
+     WHERE p.sku = ?
+       AND p.is_active = TRUE
+       AND l.is_active = TRUE
+     LIMIT 1`,
+    [normalizedSku]
+  );
+
+  if (!rows.length) {
+    return null;
+  }
+
+  const detail = await getPublicProductDetail(rows[0].id_line_fk);
+
+  if (!detail) {
+    return null;
+  }
+
+  const selectedProducts = detail.products.filter((product) => product.sku === normalizedSku);
+  const remainingProducts = detail.products.filter((product) => product.sku !== normalizedSku);
+
+  return {
+    ...detail,
+    products: selectedProducts.concat(remainingProducts)
+  };
+};
+
+const listStockHistoryByProductId = async (productId, filters = {}, connection = pool) => {
+  const safeLimit = Number.isInteger(filters.limit) && filters.limit > 0 ? filters.limit : 10;
+  const safePage = Number.isInteger(filters.page) && filters.page > 0 ? filters.page : 1;
+  const offset = (safePage - 1) * safeLimit;
+  const conditions = ['s.id_product_fk = ?'];
+  const values = [productId];
+
+  if (filters.movementType) {
+    conditions.push('sh.movement_type = ?');
+    values.push(filters.movementType);
+  }
+
+  const whereClause = `WHERE ${conditions.join(' AND ')}`;
+  const [countRows] = await connection.query(
+    `SELECT COUNT(*) AS total
+     FROM Stock_History sh
+     INNER JOIN Stock s ON s.id_stock = sh.id_stock_fk
+     ${whereClause}`,
+    values
+  );
+  const [rows] = await connection.query(
+    `SELECT
+       sh.id_stock_history,
+       sh.quantity_change,
+       sh.previous_quantity,
+       sh.new_quantity,
+       sh.movement_type,
+       sh.notes,
+       sh.created_at
+     FROM Stock_History sh
+     INNER JOIN Stock s ON s.id_stock = sh.id_stock_fk
+     ${whereClause}
+     ORDER BY sh.created_at DESC, sh.id_stock_history DESC
+     LIMIT ? OFFSET ?`,
+    [...values, safeLimit, offset]
+  );
+
+  return {
+    entries: rows,
+    pagination: {
+      page: safePage,
+      limit: safeLimit,
+      total: countRows[0]?.total ?? 0,
+      total_pages: Math.max(1, Math.ceil((countRows[0]?.total ?? 0) / safeLimit))
+    }
+  };
+};
+
+const getManagedProductById = async (productId, companyId = null, connection = pool) => {
+  const values = [productId];
+  const ownershipCondition = buildOwnedProductCondition(companyId, values);
+  const [rows] = await connection.query(
+    `SELECT
+       p.id_product,
+       p.id_line_fk,
+       p.id_company_fk AS id_company,
+       p.sku,
+       p.name,
+       p.brand,
+       p.description,
+       p.price,
+       p.attributes,
+       p.is_active,
+       p.created_at,
+       p.updated_at,
+       l.id_line,
+       l.name AS line_name,
+       l.is_active AS line_is_active,
+       sc.id_subcategory,
+       sc.name AS subcategory_name,
+       c.id_category,
+       c.name AS category_name,
+       co.name AS company_name,
+       s.quantity,
+       s.min_stock,
+       pi.image_url AS main_image_url
+     FROM Product p
+     INNER JOIN Line l ON l.id_line = p.id_line_fk
+     INNER JOIN Subcategory sc ON sc.id_subcategory = l.id_subcategory_fk
+     INNER JOIN Category c ON c.id_category = sc.id_category_fk
+     INNER JOIN Company co ON co.id_company = p.id_company_fk
+     INNER JOIN Stock s ON s.id_product_fk = p.id_product
+     LEFT JOIN Product_Image pi ON pi.id_product_fk = p.id_product AND pi.is_main = TRUE
+     WHERE p.id_product = ?${ownershipCondition}
+     LIMIT 1`,
+    values
+  );
+
+  if (!rows.length) {
+    return null;
+  }
+
+  const [product] = await attachProductGalleries(
+    rows
+      .map(mapProductImageFields)
+      .map((row) => normalizeProductName(row, row.line_name)),
+    connection
+  );
+
+  return {
+    ...product,
+    stock_history: (await listStockHistoryByProductId(productId, { page: 1, limit: 5 }, connection)).entries
+  };
+};
+
+const listManagedProductStockHistory = async (productId, companyId = null, filters = {}, connection = pool) => {
+  const product = await getManagedProductById(productId, companyId, connection);
+
+  if (!product) {
+    throw new Error('Producto no existe o no pertenece a la empresa');
+  }
+
+  return listStockHistoryByProductId(productId, filters, connection);
 };
 
 const createCategory = async (name) => {
@@ -459,6 +831,7 @@ const toggleSubcategory = async (subcategoryId, isActive) => {
 const createProductFull = async (productData) => {
   const {
     name,
+    line_name,
     id_subcategory,
     id_company,
     brand,
@@ -473,52 +846,38 @@ const createProductFull = async (productData) => {
 
   await ensureCompanyExists(id_company);
   await ensureSubcategoryExists(id_subcategory);
-  await ensureLineNameAvailable(name, id_company);
 
-  const resolvedSku = await ensureUniqueSku();
   const connection = await pool.getConnection();
 
   try {
     await connection.beginTransaction();
 
-    const [lineResult] = await connection.query(
-      'INSERT INTO Line (name, id_subcategory_fk, id_company_fk) VALUES (?, ?, ?)',
-      [name, id_subcategory, id_company]
-    );
+    const resolvedLineName = String(line_name || name || '').trim();
 
-    const lineId = lineResult.insertId;
+    let lineId = (await findLineByNameAndSubcategory(resolvedLineName, id_subcategory, connection))?.id_line ?? null;
 
-    const [productResult] = await connection.query(
-      `INSERT INTO Product (
-         id_line_fk, sku, brand, description, price, attributes
-       )
-       VALUES (?, ?, ?, ?, ?, ?)`,
-      [lineId, resolvedSku, brand, description, price, attributes]
-    );
-
-    const productId = productResult.insertId;
-
-    await connection.query(
-      'INSERT INTO Stock (id_product_fk, quantity, min_stock) VALUES (?, ?, ?)',
-      [productId, quantity, min_stock]
-    );
-
-    const productImages = [];
-
-    if (image_url) {
-      productImages.push([productId, image_url, true, 0]);
-    }
-
-    secondary_images.forEach((secondaryImage, index) => {
-      productImages.push([productId, secondaryImage, false, index + 1]);
-    });
-
-    if (productImages.length) {
-      await connection.query(
-        'INSERT INTO Product_Image (id_product_fk, image_url, is_main, sort_order) VALUES ?',
-        [productImages]
+    if (!lineId) {
+      const [lineResult] = await connection.query(
+        'INSERT INTO Line (name, id_subcategory_fk) VALUES (?, ?)',
+        [resolvedLineName, id_subcategory]
       );
+
+      lineId = lineResult.insertId;
     }
+
+    await insertProductOnLine(connection, {
+      lineId,
+      companyId: id_company,
+      name,
+      brand,
+      description,
+      price,
+      attributes,
+      quantity,
+      min_stock,
+      image_url,
+      secondary_images
+    });
 
     await connection.commit();
   } catch (error) {
@@ -538,10 +897,11 @@ const createProductFull = async (productData) => {
        l.id_line,
        l.name,
        l.id_subcategory_fk,
-       l.id_company_fk,
        p.id_product,
+       p.id_company_fk,
        p.brand,
        p.sku,
+      p.name,
        p.description,
        p.price,
        p.attributes,
@@ -552,10 +912,12 @@ const createProductFull = async (productData) => {
      INNER JOIN Product p ON p.id_line_fk = l.id_line
      INNER JOIN Stock s ON s.id_product_fk = p.id_product
      LEFT JOIN Product_Image pi ON pi.id_product_fk = p.id_product AND pi.is_main = TRUE
-     WHERE l.id_company_fk = ? AND l.name = ?
-     ORDER BY l.id_line DESC, p.id_product DESC
+     WHERE p.id_company_fk = ?
+       AND p.name = ?
+       AND l.id_subcategory_fk = ?
+     ORDER BY p.id_product DESC
      LIMIT 1`,
-    [id_company, name]
+    [id_company, name, id_subcategory]
   );
 
   const product = rows[0] ?? null;
@@ -570,9 +932,95 @@ const createProductFull = async (productData) => {
   };
 };
 
+const createProductFromReference = async (productData) => {
+  const {
+    reference_line_id,
+    id_company,
+    name,
+    brand,
+    description,
+    price,
+    attributes,
+    quantity,
+    min_stock,
+    image_url,
+    secondary_images = []
+  } = productData;
+
+  await ensureCompanyExists(id_company);
+
+  const referenceLine = await findLineReferenceById(reference_line_id);
+
+  if (!referenceLine) {
+    throw new Error('La línea de referencia no existe');
+  }
+
+  const connection = await pool.getConnection();
+
+  try {
+    await connection.beginTransaction();
+
+    await insertProductOnLine(connection, {
+      lineId: referenceLine.id_line,
+      companyId: id_company,
+      name,
+      brand,
+      description,
+      price,
+      attributes,
+      quantity,
+      min_stock,
+      image_url,
+      secondary_images
+    });
+
+    await connection.commit();
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally {
+    connection.release();
+  }
+
+  const [rows] = await pool.query(
+    `SELECT
+       l.id_line,
+       l.name,
+       l.id_subcategory_fk,
+       p.id_product,
+       p.id_company_fk,
+       p.brand,
+       p.sku,
+      p.name,
+       p.description,
+       p.price,
+       p.attributes,
+       s.quantity,
+       s.min_stock,
+       pi.image_url
+     FROM Line l
+     INNER JOIN Product p ON p.id_line_fk = l.id_line
+     INNER JOIN Stock s ON s.id_product_fk = p.id_product
+     LEFT JOIN Product_Image pi ON pi.id_product_fk = p.id_product AND pi.is_main = TRUE
+     WHERE l.id_line = ?
+       AND p.id_company_fk = ?
+       AND p.name = ?
+     ORDER BY p.id_product DESC
+     LIMIT 1`,
+    [referenceLine.id_line, id_company, name]
+  );
+
+  return {
+    ...mapProductImageFields(rows[0] ?? null),
+    secondary_images
+  };
+};
+
 const addVariant = async (variantData) => {
   const {
     id_product,
+    id_company,
+    name,
     description,
     price,
     attributes,
@@ -584,15 +1032,17 @@ const addVariant = async (variantData) => {
   const resolvedSku = await ensureUniqueSku();
 
   await pool.query(
-    'CALL sp_add_variant(?, ?, ?, ?, ?, ?, ?, ?)',
-    [id_product, resolvedSku, description, price, attributes, quantity, min_stock, image_url]
+    'CALL sp_add_variant(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    [id_product, id_company, resolvedSku, name, description, price, attributes, quantity, min_stock, image_url]
   );
 
   const [rows] = await pool.query(
     `SELECT
        p.id_product,
        p.id_line_fk,
+      p.id_company_fk,
        p.sku,
+      p.name,
        p.description,
        p.price,
        p.attributes,
@@ -610,81 +1060,186 @@ const addVariant = async (variantData) => {
   return mapProductImageFields(rows[0] ?? null);
 };
 
-const updateProduct = async (productId, name, brand) => {
-  await pool.query('CALL sp_update_product(?, ?, ?)', [productId, name, brand]);
+const updateManagedProduct = async (productId, companyId, updates = {}, files = {}) => {
+  const connection = await pool.getConnection();
+  const imageUrlsToDelete = [];
 
-  const [rows] = await pool.query(
-    `SELECT
-       l.id_line,
-       l.name,
-       l.id_subcategory_fk,
-       l.id_company_fk,
-       MIN(p.brand) AS brand,
-       l.is_active,
-       l.created_at,
-       l.updated_at
-     FROM Line l
-     LEFT JOIN Product p ON p.id_line_fk = l.id_line
-     WHERE l.id_line = ?
-     GROUP BY l.id_line, l.name, l.id_subcategory_fk, l.id_company_fk, l.is_active, l.created_at, l.updated_at
-     LIMIT 1`,
-    [productId]
-  );
+  try {
+    await connection.beginTransaction();
 
-  return rows[0] ?? null;
+    const existingProduct = await getManagedProductById(productId, companyId, connection);
+
+    if (!existingProduct) {
+      throw new Error('Producto no existe o no pertenece a la empresa');
+    }
+
+    const resolvedName = updates.name == null
+      ? existingProduct.name
+      : String(updates.name).trim();
+
+    if (!resolvedName) {
+      throw new Error('name es requerido');
+    }
+
+    const resolvedBrand = updates.brand == null ? existingProduct.brand : String(updates.brand).trim() || null;
+    const resolvedDescription = updates.description == null ? existingProduct.description : String(updates.description).trim() || null;
+    const resolvedPrice = updates.price == null ? existingProduct.price : updates.price;
+    const resolvedAttributes = updates.attributes == null ? existingProduct.attributes : updates.attributes;
+    const resolvedMinStock = updates.min_stock == null ? existingProduct.min_stock : updates.min_stock;
+
+    await connection.query(
+      `UPDATE Product
+       SET name = ?,
+           brand = ?,
+           description = ?,
+           price = ?,
+           attributes = ?,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id_product = ?`,
+      [resolvedName, resolvedBrand, resolvedDescription, resolvedPrice, resolvedAttributes, productId]
+    );
+
+    await connection.query(
+      `UPDATE Stock
+       SET min_stock = ?,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id_product_fk = ?`,
+      [resolvedMinStock, productId]
+    );
+
+    let nextSortOrder = existingProduct.images.reduce(
+      (highestSortOrder, image) => Math.max(highestSortOrder, Number(image.sort_order) || 0),
+      0
+    );
+
+    if (files.mainImage) {
+      const existingImages = await listProductImageRowsByProductId(productId, connection);
+      const currentMainImage = existingImages.find((image) => Boolean(image.is_main));
+
+      if (currentMainImage) {
+        await connection.query(
+          'DELETE FROM Product_Image WHERE id_image = ? LIMIT 1',
+          [currentMainImage.id_image]
+        );
+        imageUrlsToDelete.push(currentMainImage.image_url);
+      }
+
+      await connection.query(
+        'INSERT INTO Product_Image (id_product_fk, image_url, is_main, sort_order) VALUES (?, ?, TRUE, 0)',
+        [productId, files.mainImage]
+      );
+    }
+
+    if (Array.isArray(files.secondaryImages) && files.secondaryImages.length) {
+      const secondaryRows = files.secondaryImages.map((imageUrl, index) => [productId, imageUrl, false, nextSortOrder + index + 1]);
+
+      await connection.query(
+        'INSERT INTO Product_Image (id_product_fk, image_url, is_main, sort_order) VALUES ?',
+        [secondaryRows]
+      );
+    }
+
+    await connection.commit();
+    deleteProductImageFiles(imageUrlsToDelete);
+
+    return getManagedProductById(productId, companyId);
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally {
+    connection.release();
+  }
 };
 
-const toggleLine = async (productId, isActive) => {
-  await pool.query('CALL sp_toggle_product(?, ?)', [productId, isActive]);
+const toggleManagedProductStatus = async (productId, companyId, isActive) => {
+  const existingProduct = await getManagedProductById(productId, companyId);
 
-  const [rows] = await pool.query(
-    `SELECT
-       l.id_line,
-       l.name,
-       MIN(p.brand) AS brand,
-       l.id_subcategory_fk,
-       l.id_company_fk,
-       l.is_active,
-       l.created_at,
-       l.updated_at,
-       sc.name AS subcategory_name,
-       c.id_category,
-       c.name AS category_name,
-       co.name AS company_name
-     FROM Line l
-     INNER JOIN Subcategory sc ON sc.id_subcategory = l.id_subcategory_fk
-     INNER JOIN Category c ON c.id_category = sc.id_category_fk
-     INNER JOIN Company co ON co.id_company = l.id_company_fk
-     LEFT JOIN Product p ON p.id_line_fk = l.id_line
-     WHERE l.id_line = ?
-     GROUP BY l.id_line, l.name, l.id_subcategory_fk, l.id_company_fk, l.is_active, l.created_at, l.updated_at, sc.name, c.id_category, c.name, co.name
-     LIMIT 1`,
-    [productId]
-  );
+  if (!existingProduct) {
+    throw new Error('Producto no existe o no pertenece a la empresa');
+  }
 
-  return rows[0] ?? null;
+  await pool.query('CALL sp_toggle_variant(?, ?)', [productId, isActive]);
+
+  return getManagedProductById(productId, companyId);
 };
 
-const updateVariant = async (variantId, price, attributes) => {
-  await pool.query('CALL sp_update_variant(?, ?, ?)', [variantId, price, attributes]);
+const deleteManagedProductImage = async (productId, imageId, companyId = null) => {
+  const connection = await pool.getConnection();
 
-  const [rows] = await pool.query(
-    'SELECT id_product, id_line_fk, sku, description, price, attributes, is_active, created_at, updated_at FROM Product WHERE id_product = ? LIMIT 1',
-    [variantId]
-  );
+  try {
+    await connection.beginTransaction();
 
-  return rows[0] ?? null;
+    const product = await getManagedProductById(productId, companyId, connection);
+
+    if (!product) {
+      throw new Error('Producto no existe o no pertenece a la empresa');
+    }
+
+    const imageRows = await listProductImageRowsByProductId(productId, connection);
+    const imageRow = imageRows.find((image) => image.id_image === imageId);
+
+    if (!imageRow) {
+      throw new Error('Imagen no existe para este producto');
+    }
+
+    await connection.query('DELETE FROM Product_Image WHERE id_image = ? LIMIT 1', [imageId]);
+
+    if (imageRow.is_main) {
+      const remainingImages = imageRows.filter((image) => image.id_image !== imageId);
+      const nextMainImage = remainingImages.sort((left, right) => {
+        const leftSort = Number(left.sort_order) || 0;
+        const rightSort = Number(right.sort_order) || 0;
+        return leftSort - rightSort || left.id_image - right.id_image;
+      })[0] ?? null;
+
+      if (nextMainImage) {
+        await connection.query(
+          `UPDATE Product_Image
+           SET is_main = CASE WHEN id_image = ? THEN TRUE ELSE FALSE END,
+               sort_order = CASE WHEN id_image = ? THEN 0 ELSE sort_order END
+           WHERE id_product_fk = ?`,
+          [nextMainImage.id_image, nextMainImage.id_image, productId]
+        );
+      }
+    }
+
+    await connection.commit();
+    deleteProductImageFiles([imageRow.image_url]);
+
+    return getManagedProductById(productId, companyId);
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally {
+    connection.release();
+  }
 };
 
-const syncStock = async (variantId, quantity, notes) => {
-  await pool.query('CALL sp_update_stock(?, ?, ?, ?)', [variantId, quantity, 'ADJUSTMENT', notes]);
+const adjustManagedProductStock = async (productId, companyId, operation, quantity, notes) => {
+  const existingProduct = await getManagedProductById(productId, companyId);
 
-  const [rows] = await pool.query(
-    'SELECT id_stock, id_product_fk, quantity, min_stock, created_at, updated_at FROM Stock WHERE id_product_fk = ? LIMIT 1',
-    [variantId]
-  );
+  if (!existingProduct) {
+    throw new Error('Producto no existe o no pertenece a la empresa');
+  }
 
-  return rows[0] ?? null;
+  if (!Number.isInteger(quantity) || quantity < 0) {
+    throw new Error('quantity inválido');
+  }
+
+  const normalizedOperation = String(operation || 'set').trim().toLowerCase();
+  const resolvedNotes = String(notes || '').trim();
+
+  if (normalizedOperation === 'increase') {
+    await pool.query('CALL sp_add_stock(?, ?, ?, ?)', [productId, quantity, 'ADJUSTMENT', resolvedNotes || 'Aumento manual de stock']);
+  } else if (normalizedOperation === 'decrease') {
+    await pool.query('CALL sp_remove_stock(?, ?, ?, ?)', [productId, quantity, 'ADJUSTMENT', resolvedNotes || 'Disminución manual de stock']);
+  } else if (normalizedOperation === 'set') {
+    await pool.query('CALL sp_update_stock(?, ?, ?, ?)', [productId, quantity, 'ADJUSTMENT', resolvedNotes || 'Ajuste manual de stock']);
+  } else {
+    throw new Error('operation inválida');
+  }
+
+  return getManagedProductById(productId, companyId);
 };
 
 module.exports = {
@@ -692,9 +1247,13 @@ module.exports = {
   listSubcategoriesByCategory,
   listSubcategoriesForManagement,
   listLinesForManagement,
+  listLineReferences,
   listProductsForManagement,
+  getManagedProductById,
+  listManagedProductStockHistory,
   listPublicCatalog,
   getPublicProductDetail,
+  getPublicProductDetailBySku,
   createCategory,
   updateCategory,
   toggleCategory,
@@ -702,9 +1261,10 @@ module.exports = {
   updateSubcategory,
   toggleSubcategory,
   createProductFull,
+  createProductFromReference,
   addVariant,
-  updateProduct,
-  toggleLine,
-  updateVariant,
-  syncStock
+  updateManagedProduct,
+  toggleManagedProductStatus,
+  adjustManagedProductStock,
+  deleteManagedProductImage
 };

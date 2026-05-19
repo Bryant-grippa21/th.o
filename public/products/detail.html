@@ -13,13 +13,187 @@
   <p>Cargando linea...</p>
 </div>
 
+<script src="/assets/js/utils/auth.js"></script>
 <script>
   const params = new URLSearchParams(location.search);
+  const sku = params.get('sku');
   const lineId = params.get('lineId');
   const detailContainer = document.getElementById('product-detail');
+  const state = {
+    session: null,
+    product: null,
+    favoriteIds: new Set(),
+    cartByProductId: new Map()
+  };
 
-  if (lineId) {
-    fetch(`http://localhost:3000/api/products/catalog/${lineId}`)
+  const requestCustomerJson = async (url, options = {}) => {
+    const response = await fetch(url, {
+      ...options,
+      headers: {
+        ...options.headers,
+        ...getAuthHeaders()
+      }
+    });
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || 'Error en la solicitud');
+    }
+
+    return data;
+  };
+
+  const isCustomerSession = () => getAuthEntity() === 'customer';
+
+  const syncFavoritesState = (favorites) => {
+    state.favoriteIds = new Set((favorites?.items || []).map((item) => Number(item.id_product)));
+  };
+
+  const syncCartState = (cart) => {
+    state.cartByProductId = new Map((cart?.items || []).map((item) => [Number(item.id_product), Number(item.quantity || 0)]));
+  };
+
+  const parseAttributes = (attributes) => {
+    if (!attributes) {
+      return [];
+    }
+
+    try {
+      const parsed = typeof attributes === 'string' ? JSON.parse(attributes) : attributes;
+
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        return [];
+      }
+
+      return Object.entries(parsed).filter(([key, value]) => key && value);
+    } catch {
+      return [];
+    }
+  };
+
+  const renderAttributes = (attributes) => {
+    const entries = parseAttributes(attributes);
+
+    if (!entries.length) {
+      return '<p>Atributos: Sin atributos registrados</p>';
+    }
+
+    return `
+      <div>
+        <p><b>Atributos:</b></p>
+        <ul>
+          ${entries.map(([key, value]) => `<li><b>${key}:</b> ${value}</li>`).join('')}
+        </ul>
+      </div>
+    `;
+  };
+
+  const renderGallery = (images, fallbackAlt) => {
+    if (!Array.isArray(images) || !images.length) {
+      return '';
+    }
+
+    return `
+      <div style="display:flex; gap:12px; flex-wrap:wrap; margin:16px 0;">
+        ${images.map((image, index) => `
+          <img
+            src="${image.image_url}"
+            alt="${fallbackAlt} ${index + 1}"
+            style="width:220px; height:220px; object-fit:cover; border:1px solid #ccc; display:block;"
+          >
+        `).join('')}
+      </div>
+    `;
+  };
+
+  const renderCustomerActions = (item) => {
+    if (!isLogged()) {
+      return '<p>Inicia sesión como cliente para usar favoritos y carrito.</p>';
+    }
+
+    if (!isCustomerSession()) {
+      return '<p>Estas acciones solo están disponibles para clientes.</p>';
+    }
+
+    const isFavorite = state.favoriteIds.has(Number(item.id_product));
+    const quantity = state.cartByProductId.get(Number(item.id_product)) || 1;
+
+    return `
+      <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-top:12px;">
+        <button type="button" onclick="toggleFavorite(${item.id_product})">${isFavorite ? 'Quitar de favoritos' : 'Agregar a favoritos'}</button>
+        <span>Cantidad</span>
+        <button type="button" onclick="changeDetailCartQuantity(${item.id_product}, -1)">-</button>
+        <input id="cart-quantity-${item.id_product}" type="number" min="1" step="1" value="${quantity}" style="width:72px;">
+        <button type="button" onclick="changeDetailCartQuantity(${item.id_product}, 1)">+</button>
+        <button type="button" onclick="addToCart(${item.id_product})">Guardar en carrito</button>
+        <a href="/modules/customer/favorites.html">Ver favoritos</a>
+        <a href="/modules/customer/cart.html">Ver carrito</a>
+      </div>
+    `;
+  };
+
+  const renderProductDetail = (product) => {
+    const mainBrand = product.brand || product.products.find((item) => item.brand)?.brand || null;
+
+    detailContainer.innerHTML = `
+      <p><b>Linea:</b> ${product.name}</p>
+      <p><b>Marca:</b> ${mainBrand || 'Sin marca'}</p>
+      <p><b>Categoría:</b> ${product.category_name}</p>
+      <p><b>Subcategoría:</b> ${product.subcategory_name}</p>
+      <p><b>Productos activos:</b> ${product.products.length}</p>
+      <div>
+        ${product.products.map((item, index) => `
+          <div style="border-top:1px solid #ccc; padding-top:12px; margin-top:12px;">
+            <p><b>Producto ${index + 1}:</b> ${item.name || 'Sin nombre'}</p>
+            <p><b>SKU:</b> ${item.sku}</p>
+            <p><b>Precio:</b> ${item.price}</p>
+            <p><b>Stock disponible:</b> ${item.quantity ?? 0}</p>
+            <p><b>Descripción:</b> ${item.description || 'Sin descripción'}</p>
+            ${renderGallery(item.images, product.name)}
+            ${renderAttributes(item.attributes)}
+            ${renderCustomerActions(item)}
+          </div>
+        `).join('')}
+      </div>
+    `;
+  };
+
+  const loadCustomerCollections = async () => {
+    if (!isLogged()) {
+      return;
+    }
+
+    try {
+      const session = await fetchCurrentSession();
+      state.session = session;
+
+      if (getAuthEntity() !== 'customer') {
+        return;
+      }
+
+      const [favoritesData, cartData] = await Promise.all([
+        requestCustomerJson(`${API_BASE_URL}/api/auth/favorites`),
+        requestCustomerJson(`${API_BASE_URL}/api/auth/cart`)
+      ]);
+
+      syncFavoritesState(favoritesData.favorites);
+      syncCartState(cartData.cart);
+    } catch {
+      state.session = null;
+    }
+  };
+
+  let detailEndpoint = null;
+
+  if (sku) {
+    detailEndpoint = `${API_BASE_URL}/api/products/catalog/sku/${encodeURIComponent(sku)}`;
+  } else if (lineId) {
+    detailEndpoint = `${API_BASE_URL}/api/products/catalog/${lineId}`;
+  }
+
+  if (detailEndpoint) {
+    Promise.all([
+      fetch(detailEndpoint)
       .then(async (res) => {
         const data = await res.json();
 
@@ -28,24 +202,83 @@
         }
 
         return data;
-      })
-      .then(({ product }) => {
-        const mainBrand = product.brand || product.products.find((item) => item.brand)?.brand || null;
-        detailContainer.innerHTML = `
-          <p><b>Linea:</b> ${product.name}</p>
-          <p><b>Marca:</b> ${mainBrand || 'Sin marca'}</p>
-          <p><b>Categoría:</b> ${product.category_name}</p>
-          <p><b>Subcategoría:</b> ${product.subcategory_name}</p>
-          <p><b>Productos activos:</b> ${product.products.length}</p>
-          <p>Vista de detalle completa pendiente de implementación.</p>
-        `;
+      }),
+      loadCustomerCollections()
+    ])
+      .then(([{ product }]) => {
+        state.product = product;
+        renderProductDetail(product);
       })
       .catch((error) => {
         detailContainer.innerHTML = `<p>${error.message}</p>`;
       });
   } else {
-    detailContainer.innerHTML = '<p>Linea no especificada.</p>';
+    detailContainer.innerHTML = '<p>Producto no especificado.</p>';
   }
+
+  async function toggleFavorite(productId) {
+    try {
+      if (!isCustomerSession()) {
+        redirectToLogin();
+        return;
+      }
+
+      const request = state.favoriteIds.has(Number(productId))
+        ? requestCustomerJson(`${API_BASE_URL}/api/auth/favorites/${productId}`, { method: 'DELETE' })
+        : requestCustomerJson(`${API_BASE_URL}/api/auth/favorites`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ id_product: productId })
+        });
+
+      const data = await request;
+      syncFavoritesState(data.favorites);
+      renderProductDetail(state.product);
+    } catch (error) {
+      alert(error.message);
+    }
+  }
+
+  async function addToCart(productId) {
+    try {
+      if (!isCustomerSession()) {
+        redirectToLogin();
+        return;
+      }
+
+      const quantity = Number(document.getElementById(`cart-quantity-${productId}`).value);
+      const data = await requestCustomerJson(`${API_BASE_URL}/api/auth/cart/items`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ id_product: productId, quantity })
+      });
+
+      syncCartState(data.cart);
+      renderProductDetail(state.product);
+    } catch (error) {
+      alert(error.message);
+    }
+  }
+
+  function changeDetailCartQuantity(productId, delta) {
+    const input = document.getElementById(`cart-quantity-${productId}`);
+
+    if (!input) {
+      return;
+    }
+
+    const currentValue = Number(input.value || 1);
+    const nextValue = Math.max(1, currentValue + Number(delta || 0));
+    input.value = String(nextValue);
+  }
+
+  globalThis.toggleFavorite = toggleFavorite;
+  globalThis.addToCart = addToCart;
+  globalThis.changeDetailCartQuantity = changeDetailCartQuantity;
 </script>
 
 </body>

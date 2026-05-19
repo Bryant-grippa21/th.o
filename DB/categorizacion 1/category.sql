@@ -69,4 +69,4 @@ END //
 DELIMITER ;
 
 -- Ejecutar con:
--- CALL sp_seed_master_categories();
+CALL sp_seed_master_categories();

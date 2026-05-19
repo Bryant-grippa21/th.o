@@ -5,6 +5,24 @@ const adminCompanyList = document.getElementById('admin-company-list');
 const adminProductSummary = document.getElementById('admin-product-summary');
 const adminProductList = document.getElementById('admin-product-list');
 const adminProductPagination = document.getElementById('admin-product-pagination');
+const adminProductEditor = document.getElementById('admin-product-editor');
+const adminProductEditorForm = document.getElementById('admin-product-editor-form');
+const adminProductEditorMessage = document.getElementById('admin-product-editor-message');
+const adminEditProductId = document.getElementById('admin-edit-product-id');
+const adminEditProductCompanyId = document.getElementById('admin-edit-product-company-id');
+const adminEditProductName = document.getElementById('admin-edit-product-name');
+const adminEditProductBrand = document.getElementById('admin-edit-product-brand');
+const adminEditProductDescription = document.getElementById('admin-edit-product-description');
+const adminEditProductPrice = document.getElementById('admin-edit-product-price');
+const adminEditProductMinStock = document.getElementById('admin-edit-product-min-stock');
+const adminEditProductImages = document.getElementById('admin-edit-product-images');
+const adminEditProductMainImage = document.getElementById('admin-edit-product-main-image');
+const adminEditProductMainImagePreview = document.getElementById('admin-edit-product-main-image-preview');
+const adminEditProductSecondaryImages = document.getElementById('admin-edit-product-secondary-images');
+const adminEditProductSecondaryImagesPreview = document.getElementById('admin-edit-product-secondary-images-preview');
+const adminEditProductCancel = document.getElementById('admin-edit-product-cancel');
+const adminProductStockHistory = document.getElementById('admin-product-stock-history');
+const adminProductStockHistoryPagination = document.getElementById('admin-product-stock-history-pagination');
 const productFilterCategory = document.getElementById('product-filter-category');
 const productFilterSubcategory = document.getElementById('product-filter-subcategory');
 const productFilterLine = document.getElementById('product-filter-line');
@@ -31,7 +49,93 @@ const state = {
     limit: 20,
     total: 0,
     total_pages: 1
+  },
+  productEditor: {
+    product: null,
+    mainPreviewUrl: null,
+    secondaryPreviewUrls: [],
+    stockHistoryPagination: {
+      page: 1,
+      limit: 10,
+      total: 0,
+      total_pages: 1
+    }
   }
+};
+
+const requestJson = async (url, options = {}) => {
+  const response = await fetch(url, {
+    ...options,
+    headers: {
+      ...options.headers,
+      ...getAuthHeaders()
+    }
+  });
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data.error || 'Error en la solicitud');
+  }
+
+  return data;
+};
+
+const parseAttributesObject = (attributes) => {
+  if (!attributes) {
+    return {};
+  }
+
+  try {
+    const parsed = typeof attributes === 'string' ? JSON.parse(attributes) : attributes;
+    return !parsed || typeof parsed !== 'object' || Array.isArray(parsed) ? {} : parsed;
+  } catch {
+    return {};
+  }
+};
+
+const populateAdminAttributeInputs = (attributes) => {
+  const entries = Object.entries(parseAttributesObject(attributes)).slice(0, 4);
+
+  for (let index = 1; index <= 4; index += 1) {
+    const [key, value] = entries[index - 1] || ['', ''];
+    document.getElementById(`admin-edit-product-attribute-key-${index}`).value = key || '';
+    document.getElementById(`admin-edit-product-attribute-value-${index}`).value = value || '';
+  }
+};
+
+const buildAdminAttributesValue = () => {
+  const attributes = {};
+
+  for (let index = 1; index <= 4; index += 1) {
+    const key = document.getElementById(`admin-edit-product-attribute-key-${index}`).value.trim();
+    const value = document.getElementById(`admin-edit-product-attribute-value-${index}`).value.trim();
+
+    if (!key && !value) {
+      continue;
+    }
+
+    if (!key || !value) {
+      throw new Error(`Debes completar nombre y valor del atributo ${index}`);
+    }
+
+    attributes[key] = value;
+  }
+
+  if (!Object.keys(attributes).length) {
+    throw new Error('Debes ingresar al menos un atributo');
+  }
+
+  return JSON.stringify(attributes);
+};
+
+const revokeAdminPreviewUrls = () => {
+  if (state.productEditor.mainPreviewUrl) {
+    URL.revokeObjectURL(state.productEditor.mainPreviewUrl);
+    state.productEditor.mainPreviewUrl = null;
+  }
+
+  state.productEditor.secondaryPreviewUrls.forEach((previewUrl) => URL.revokeObjectURL(previewUrl));
+  state.productEditor.secondaryPreviewUrls = [];
 };
 
 const normalizeFilterValue = (value) => String(value || '').trim().toLowerCase();
@@ -300,11 +404,11 @@ const renderProducts = (products) => {
     <div style="display:flex; gap:16px; align-items:flex-start; margin-bottom:16px; border-bottom:1px solid #ccc; padding-bottom:16px;">
       <div>
         ${product.main_image_url
-    ? `<img src="${product.main_image_url}" alt="${product.line_name}" style="width:96px; height:96px; object-fit:cover; border:1px solid #ccc;">`
+      ? `<img src="${product.main_image_url}" alt="${product.line_name}" style="width:96px; height:96px; object-fit:cover; border:1px solid #ccc;">`
     : '<div style="width:96px; height:96px; border:1px solid #ccc; display:flex; align-items:center; justify-content:center;">Sin imagen</div>'}
       </div>
       <div>
-        <p><b>${product.line_name}</b></p>
+        <p><b>${product.name || 'Sin nombre'}</b></p>
         <p>SKU: ${product.sku}</p>
         <p>Empresa: ${product.company_name}</p>
         <p>Categoria: ${product.category_name}</p>
@@ -314,9 +418,166 @@ const renderProducts = (products) => {
         <p>Precio: ${product.price}</p>
         <p>Estado producto: ${product.is_active ? 'Activo' : 'Inactivo'}</p>
         <p>Estado linea: ${product.line_is_active ? 'Activa' : 'Inactiva'}</p>
+        <p>Stock actual: ${product.quantity ?? 0}</p>
+        <p>Stock mínimo: ${product.min_stock ?? 0}</p>
+        <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:12px;">
+          <button type="button" onclick="editAdminProduct(${product.id_product})">Editar</button>
+          <button type="button" onclick="toggleAdminProductStatus(${product.id_product}, ${product.id_company}, ${product.is_active})">${product.is_active ? 'Desactivar' : 'Activar'}</button>
+          <button type="button" onclick="adjustAdminProductStock(${product.id_product}, ${product.id_company}, 'increase')">+ Stock</button>
+          <button type="button" onclick="adjustAdminProductStock(${product.id_product}, ${product.id_company}, 'decrease')">- Stock</button>
+          <button type="button" onclick="adjustAdminProductStock(${product.id_product}, ${product.id_company}, 'set')">Sincronizar stock</button>
+        </div>
       </div>
     </div>
   `).join('');
+};
+
+const renderAdminCurrentImages = (product) => {
+  const images = Array.isArray(product.images) ? product.images : [];
+
+  if (!images.length) {
+    adminEditProductImages.innerHTML = '<p>Sin imágenes guardadas.</p>';
+    return;
+  }
+
+  adminEditProductImages.innerHTML = `
+    <p><b>Imágenes guardadas</b></p>
+    <div style="display:flex; gap:12px; flex-wrap:wrap;">
+      ${images.map((image, index) => `
+        <div style="display:flex; flex-direction:column; gap:6px; max-width:160px;">
+          <img src="${image.image_url}" alt="${product.name} imagen ${index + 1}" style="width:120px; height:120px; object-fit:cover; border:1px solid #ccc;">
+          <span>${image.is_main ? 'Principal' : 'Secundaria'}</span>
+          <button type="button" onclick="deleteAdminProductImage(${product.id_product}, ${product.id_company}, ${image.id_image})">Eliminar</button>
+        </div>
+      `).join('')}
+    </div>
+  `;
+};
+
+const renderAdminStockHistory = (entries = [], pagination = null) => {
+  if (!entries.length) {
+    adminProductStockHistory.innerHTML = '<p>Sin movimientos de stock.</p>';
+    adminProductStockHistoryPagination.innerHTML = '';
+    return;
+  }
+
+  adminProductStockHistory.innerHTML = `
+    <ul>
+      ${entries.map((entry) => `
+        <li>
+          ${entry.created_at ? new Date(entry.created_at).toLocaleString() : 'Sin fecha'} |
+          ${entry.movement_type} |
+          ${entry.previous_quantity} -> ${entry.new_quantity}
+          ${entry.notes ? `| ${entry.notes}` : ''}
+        </li>
+      `).join('')}
+    </ul>
+  `;
+
+  if (!pagination || pagination.total_pages <= 1) {
+    adminProductStockHistoryPagination.innerHTML = '';
+    return;
+  }
+
+  adminProductStockHistoryPagination.innerHTML = `
+    <button type="button" onclick="goToAdminProductHistoryPage(${pagination.page - 1})" ${pagination.page <= 1 ? 'disabled' : ''}>&lt;-</button>
+    <span>${pagination.page} de ${pagination.total_pages}</span>
+    <button type="button" onclick="goToAdminProductHistoryPage(${pagination.page + 1})" ${pagination.page >= pagination.total_pages ? 'disabled' : ''}>-&gt;</button>
+  `;
+};
+
+const renderAdminMainPreview = () => {
+  const file = adminEditProductMainImage.files[0];
+
+  if (state.productEditor.mainPreviewUrl) {
+    URL.revokeObjectURL(state.productEditor.mainPreviewUrl);
+    state.productEditor.mainPreviewUrl = null;
+  }
+
+  if (!file) {
+    adminEditProductMainImagePreview.innerHTML = '<p>No has seleccionado nueva imagen principal.</p>';
+    return;
+  }
+
+  state.productEditor.mainPreviewUrl = URL.createObjectURL(file);
+  adminEditProductMainImagePreview.innerHTML = `<img src="${state.productEditor.mainPreviewUrl}" alt="preview" style="width:140px; height:140px; object-fit:cover; border:1px solid #ccc;">`;
+};
+
+const renderAdminSecondaryPreview = () => {
+  state.productEditor.secondaryPreviewUrls.forEach((previewUrl) => URL.revokeObjectURL(previewUrl));
+  state.productEditor.secondaryPreviewUrls = [];
+
+  const files = Array.from(adminEditProductSecondaryImages.files || []);
+
+  if (!files.length) {
+    adminEditProductSecondaryImagesPreview.innerHTML = '<p>No has seleccionado nuevas imágenes secundarias.</p>';
+    return;
+  }
+
+  state.productEditor.secondaryPreviewUrls = files.map((file) => URL.createObjectURL(file));
+  adminEditProductSecondaryImagesPreview.innerHTML = files.map((file, index) => `
+    <img src="${state.productEditor.secondaryPreviewUrls[index]}" alt="${file.name}" style="width:80px; height:80px; object-fit:cover; border:1px solid #ccc; margin-right:8px;">
+  `).join('');
+};
+
+const hideAdminProductEditor = () => {
+  state.productEditor.product = null;
+  state.productEditor.stockHistoryPagination = {
+    page: 1,
+    limit: 10,
+    total: 0,
+    total_pages: 1
+  };
+  adminProductEditor.hidden = true;
+  adminProductEditorForm.reset();
+  adminProductEditorMessage.innerText = '';
+  adminEditProductImages.innerHTML = '';
+  adminProductStockHistory.innerHTML = '';
+  adminProductStockHistoryPagination.innerHTML = '';
+  populateAdminAttributeInputs({});
+  revokeAdminPreviewUrls();
+  renderAdminMainPreview();
+  renderAdminSecondaryPreview();
+};
+
+const showAdminProductEditor = (product) => {
+  state.productEditor.product = product;
+  adminProductEditor.hidden = false;
+  adminEditProductId.value = String(product.id_product);
+  adminEditProductCompanyId.value = String(product.id_company);
+  adminEditProductName.value = product.name || '';
+  adminEditProductBrand.value = product.brand || '';
+  adminEditProductDescription.value = product.description || '';
+  adminEditProductPrice.value = product.price ?? '';
+  adminEditProductMinStock.value = product.min_stock ?? 0;
+  populateAdminAttributeInputs(product.attributes);
+  renderAdminCurrentImages(product);
+  renderAdminStockHistory(product.stock_history || []);
+  adminProductEditorMessage.innerText = '';
+  adminEditProductMainImage.value = '';
+  adminEditProductSecondaryImages.value = '';
+  revokeAdminPreviewUrls();
+  renderAdminMainPreview();
+  renderAdminSecondaryPreview();
+};
+
+const loadAdminProductDetail = async (productId) => {
+  const data = await requestJson(`${API_BASE_URL}/api/products/management/products/${productId}`);
+  showAdminProductEditor(data.product);
+};
+
+const loadAdminProductHistory = async (page = 1) => {
+  if (!state.productEditor.product) {
+    return;
+  }
+
+  const params = new URLSearchParams();
+  params.set('page', String(page));
+  params.set('limit', String(state.productEditor.stockHistoryPagination.limit));
+
+  const data = await requestJson(`${API_BASE_URL}/api/products/management/products/${state.productEditor.product.id_product}/stock-history?${params.toString()}`);
+  state.productEditor.stockHistoryPagination = data.pagination || state.productEditor.stockHistoryPagination;
+  renderAdminStockHistory(data.entries || [], state.productEditor.stockHistoryPagination);
 };
 
 const renderProductPagination = (pagination) => {
@@ -471,6 +732,113 @@ function goToProductPage(page) {
   }
 
   loadProducts(page);
+}
+
+function goToAdminProductHistoryPage(page) {
+  if (page < 1 || page > state.productEditor.stockHistoryPagination.total_pages) {
+    return;
+  }
+
+  loadAdminProductHistory(page).catch((error) => {
+    adminProductEditorMessage.innerText = error.message;
+  });
+}
+
+async function editAdminProduct(productId) {
+  try {
+    await loadAdminProductDetail(productId);
+    await loadAdminProductHistory(1);
+    adminProductEditor.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  } catch (error) {
+    alert(error.message);
+  }
+}
+
+async function toggleAdminProductStatus(productId, companyId, isActive) {
+  try {
+    const data = await requestJson(`${API_BASE_URL}/api/products/${productId}/status`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        id_company: companyId,
+        is_active: !isActive
+      })
+    });
+
+    alert(data.message);
+    loadProducts(state.productPagination.page);
+    if (state.productEditor.product?.id_product === productId) {
+      await loadAdminProductDetail(productId);
+      await loadAdminProductHistory(state.productEditor.stockHistoryPagination.page);
+    }
+  } catch (error) {
+    alert(error.message);
+  }
+}
+
+async function adjustAdminProductStock(productId, companyId, operation) {
+  try {
+    const quantityValue = prompt(operation === 'set' ? 'Indica el stock final:' : 'Indica la cantidad:', '1');
+
+    if (quantityValue == null) {
+      return;
+    }
+
+    const quantity = Number(quantityValue);
+
+    if (!Number.isInteger(quantity) || quantity < 0) {
+      throw new Error('La cantidad debe ser un entero mayor o igual a 0');
+    }
+
+    const notes = prompt('Nota del movimiento (opcional):', '') || '';
+    const data = await requestJson(`${API_BASE_URL}/api/products/${productId}/stock`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        id_company: companyId,
+        operation,
+        quantity,
+        notes
+      })
+    });
+
+    alert(data.message);
+    loadProducts(state.productPagination.page);
+    if (state.productEditor.product?.id_product === productId) {
+      await loadAdminProductDetail(productId);
+      await loadAdminProductHistory(1);
+    }
+  } catch (error) {
+    alert(error.message);
+  }
+}
+
+async function deleteAdminProductImage(productId, companyId, imageId) {
+  try {
+    if (!confirm('¿Deseas eliminar esta imagen?')) {
+      return;
+    }
+
+    const data = await requestJson(`${API_BASE_URL}/api/products/${productId}/images/${imageId}`, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        id_company: companyId
+      })
+    });
+
+    adminProductEditorMessage.innerText = data.message;
+    loadProducts(state.productPagination.page);
+    await loadAdminProductDetail(productId);
+  } catch (error) {
+    adminProductEditorMessage.innerText = error.message;
+  }
 }
 
 const loadCustomers = () => {
@@ -786,6 +1154,61 @@ function updateCompanyPassword(companyId) {
     });
 }
 
+async function handleAdminProductEditorSubmit(event) {
+  event.preventDefault();
+
+  try {
+    const productId = Number(adminEditProductId.value || 0);
+    const companyId = Number(adminEditProductCompanyId.value || 0);
+
+    if (!productId || !companyId) {
+      throw new Error('Producto o empresa inválidos');
+    }
+
+    const formData = new FormData();
+    formData.set('id_company', String(companyId));
+    formData.set('name', adminEditProductName.value.trim());
+    formData.set('brand', adminEditProductBrand.value.trim());
+    formData.set('description', adminEditProductDescription.value.trim());
+    formData.set('price', adminEditProductPrice.value);
+    formData.set('min_stock', adminEditProductMinStock.value || '0');
+    formData.set('attributes', buildAdminAttributesValue());
+
+    const mainImage = adminEditProductMainImage.files[0];
+    if (mainImage) {
+      formData.append('main_image', mainImage);
+    }
+
+    Array.from(adminEditProductSecondaryImages.files || []).forEach((file) => {
+      formData.append('secondary_images', file);
+    });
+
+    const response = await fetch(`${API_BASE_URL}/api/products/${productId}`, {
+      method: 'PUT',
+      headers: getAuthHeaders(),
+      body: formData
+    });
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || 'No se pudo actualizar el producto');
+    }
+
+    adminProductEditorMessage.innerText = data.message;
+    loadProducts(state.productPagination.page);
+    await loadAdminProductDetail(productId);
+    await loadAdminProductHistory(state.productEditor.stockHistoryPagination.page);
+  } catch (error) {
+    adminProductEditorMessage.innerText = error.message;
+  }
+}
+
+adminProductEditorForm.addEventListener('submit', handleAdminProductEditorSubmit);
+adminEditProductCancel.addEventListener('click', hideAdminProductEditor);
+adminEditProductMainImage.addEventListener('change', renderAdminMainPreview);
+adminEditProductSecondaryImages.addEventListener('change', renderAdminSecondaryPreview);
+window.addEventListener('beforeunload', revokeAdminPreviewUrls);
+
 fetch(`${API_BASE_URL}/api/company-auth/me`, {
   headers: getAuthHeaders()
 })
@@ -804,6 +1227,7 @@ fetch(`${API_BASE_URL}/api/company-auth/me`, {
   .then(async () => {
     showAdminModule(state.activeModule);
     showProductSubmenu(state.activeProductSubmenu);
+    hideAdminProductEditor();
     await loadCompanyRoles();
     await loadProductFilters();
     loadCustomers();

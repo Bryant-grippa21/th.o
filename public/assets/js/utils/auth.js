@@ -2,7 +2,39 @@ const API_BASE_URL = 'http://localhost:3000';
 
 const getToken = () => localStorage.getItem('token');
 
-const getAuthEntity = () => localStorage.getItem('auth_entity');
+const decodeTokenPayload = (token) => {
+  try {
+    const payloadPart = String(token || '').split('.')[1] || '';
+
+    if (!payloadPart) {
+      return null;
+    }
+
+    const normalizedBase64 = payloadPart
+      .replaceAll('-', '+')
+      .replaceAll('_', '/');
+    const paddedBase64 = normalizedBase64.padEnd(Math.ceil(normalizedBase64.length / 4) * 4, '=');
+    const jsonPayload = globalThis.atob(paddedBase64);
+
+    return JSON.parse(jsonPayload);
+  } catch {
+    return null;
+  }
+};
+
+const getTokenEntity = () => decodeTokenPayload(getToken())?.entity || null;
+
+const getAuthEntity = () => {
+  const storedEntity = localStorage.getItem('auth_entity');
+  const tokenEntity = getTokenEntity();
+
+  if (tokenEntity && storedEntity !== tokenEntity) {
+    localStorage.setItem('auth_entity', tokenEntity);
+    return tokenEntity;
+  }
+
+  return storedEntity || tokenEntity;
+};
 
 const setSession = (token, entity) => {
   localStorage.setItem('token', token);
@@ -24,8 +56,28 @@ const clearSession = () => {
   localStorage.removeItem('auth_entity');
 };
 
+const syncStoredEntityFromToken = () => {
+  const token = getToken();
+
+  if (!token) {
+    return;
+  }
+
+  const tokenEntity = getTokenEntity();
+
+  if (tokenEntity) {
+    localStorage.setItem('auth_entity', tokenEntity);
+  }
+};
+
+syncStoredEntityFromToken();
+
 const redirectToLogin = () => {
   location.href = '/auth/login.html';
+};
+
+const redirectToLanding = () => {
+  location.href = '/index.html';
 };
 
 const getMeEndpointByEntity = (entity) => {
@@ -133,5 +185,5 @@ const redirectToDashboard = async () => {
 
 const logout = () => {
   clearSession();
-  redirectToLogin();
+  redirectToLanding();
 };

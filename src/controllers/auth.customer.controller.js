@@ -19,6 +19,15 @@ const {
   toggleUserActive,
   updateCustomerImage
 } = require('../services/auth.customer.service');
+const {
+  getFavorites,
+  addFavorite,
+  removeFavorite,
+  getCart,
+  setCartItem,
+  removeCartItem,
+  clearCart
+} = require('../services/customer.collections.service');
 
 const requireAdminCompany = (req, res) => {
   if (req.user?.entity !== 'company') {
@@ -28,6 +37,20 @@ const requireAdminCompany = (req, res) => {
 
   if (req.user.id_role !== 1) {
     res.status(403).json({ error: 'Solo el admin puede realizar esta acción' });
+    return false;
+  }
+
+  return true;
+};
+
+const requireCustomer = (req, res) => {
+  if (req.user?.entity && req.user.entity !== 'customer') {
+    res.status(403).json({ error: 'Token no válido para customer' });
+    return false;
+  }
+
+  if (!Number.isInteger(Number(req.user?.id)) || Number(req.user.id) <= 0) {
+    res.status(401).json({ error: 'Token inválido' });
     return false;
   }
 
@@ -292,6 +315,123 @@ const updateCustomerProfileImage = async (req, res) => {
   }
 };
 
+const getCustomerFavorites = async (req, res) => {
+  try {
+    if (!requireCustomer(req, res)) {
+      return;
+    }
+
+    const favorites = await getFavorites(Number(req.user.id));
+
+    return res.status(200).json({ favorites });
+  } catch (error) {
+    console.error('❌ ERROR GET FAVORITES:', error);
+    return res.status(500).json({ error: error.message });
+  }
+};
+
+const addCustomerFavorite = async (req, res) => {
+  try {
+    if (!requireCustomer(req, res)) {
+      return;
+    }
+
+    const favorites = await addFavorite(Number(req.user.id), req.body.id_product);
+
+    return res.status(200).json({
+      message: 'Producto agregado a favoritos',
+      favorites
+    });
+  } catch (error) {
+    const statusCode = ['id_product inválido', 'Producto no existe'].includes(error.message) ? 400 : 500;
+    return res.status(statusCode).json({ error: error.message });
+  }
+};
+
+const removeCustomerFavorite = async (req, res) => {
+  try {
+    if (!requireCustomer(req, res)) {
+      return;
+    }
+
+    const favorites = await removeFavorite(Number(req.user.id), req.params.productId);
+
+    return res.status(200).json({
+      message: 'Producto eliminado de favoritos',
+      favorites
+    });
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+};
+
+const getCustomerCart = async (req, res) => {
+  try {
+    if (!requireCustomer(req, res)) {
+      return;
+    }
+
+    const cart = await getCart(Number(req.user.id));
+
+    return res.status(200).json({ cart });
+  } catch (error) {
+    console.error('❌ ERROR GET CART:', error);
+    return res.status(500).json({ error: error.message });
+  }
+};
+
+const setCustomerCartItem = async (req, res) => {
+  try {
+    if (!requireCustomer(req, res)) {
+      return;
+    }
+
+    const cart = await setCartItem(Number(req.user.id), req.body.id_product, req.body.quantity);
+
+    return res.status(200).json({
+      message: 'Carrito actualizado correctamente',
+      cart
+    });
+  } catch (error) {
+    const statusCode = ['id_product inválido', 'Producto no existe', 'quantity inválida'].includes(error.message) ? 400 : 500;
+    return res.status(statusCode).json({ error: error.message });
+  }
+};
+
+const removeCustomerCartItem = async (req, res) => {
+  try {
+    if (!requireCustomer(req, res)) {
+      return;
+    }
+
+    const cart = await removeCartItem(Number(req.user.id), req.params.productId);
+
+    return res.status(200).json({
+      message: 'Producto eliminado del carrito',
+      cart
+    });
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+};
+
+const clearCustomerCart = async (req, res) => {
+  try {
+    if (!requireCustomer(req, res)) {
+      return;
+    }
+
+    const cart = await clearCart(Number(req.user.id));
+
+    return res.status(200).json({
+      message: 'Carrito vaciado correctamente',
+      cart
+    });
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+};
+
 const getAdminCustomers = async (req, res) => {
   try {
     if (!requireAdminCompany(req, res)) {
@@ -473,6 +613,13 @@ module.exports = {
   getProfile,
   updateProfile,
   updateCustomerProfileImage,
+  getCustomerFavorites,
+  addCustomerFavorite,
+  removeCustomerFavorite,
+  getCustomerCart,
+  setCustomerCartItem,
+  removeCustomerCartItem,
+  clearCustomerCart,
   getAdminCustomers,
   updateAdminCustomerStatus,
   updateAdminCustomerBasic,

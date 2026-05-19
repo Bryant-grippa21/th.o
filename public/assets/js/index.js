@@ -8,7 +8,19 @@ const renderProductList = (products) => {
   }
 
   productList.innerHTML = products
-    .map((line) => `<a href="/products/detail.html?lineId=${line.id_line}">${line.name}</a><br>`)
+    .map((product) => `
+      <div style="display:inline-flex; flex-direction:column; align-items:center; width:180px; margin:0 16px 24px 0; vertical-align:top;">
+        <a href="/products/detail.html?sku=${encodeURIComponent(product.sku)}" style="text-decoration:none; color:inherit;">
+          ${product.image_url
+        ? `<img src="${product.image_url}" alt="${product.name}" style="width:160px; height:160px; object-fit:cover; border:1px solid #ccc; display:block;">`
+    : '<div style="width:160px; height:160px; border:1px solid #ccc; display:flex; align-items:center; justify-content:center;">Sin imagen</div>'}
+        </a>
+        <a href="/products/detail.html?sku=${encodeURIComponent(product.sku)}" style="margin-top:10px; text-align:center; text-decoration:none; color:inherit;">
+          ${product.name}
+        </a>
+        <span style="margin-top:6px; font-size:12px; color:#666; text-align:center;">${product.line_name || ''}</span>
+      </div>
+    `)
     .join('');
 };
 
