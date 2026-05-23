@@ -1,455 +1,339 @@
-# 🔧 TUHERRAMIENTA.ONLINE
+# TUHERRAMIENTA.ONLINE
 
-Plataforma e-commerce/marketplace orientada a la venta de herramientas, con soporte para clientes finales (B2C) y empresas detallistas/mayoristas (B2B). Incluye autenticación separada para `Customer` y `Company`, panel administrativo, perfiles con imagen, catálogo por jerarquía `Category -> Subcategory -> Line -> Product`, variantes/stock y un frontend HTML/JS temporal para validar contratos del backend.
+Plataforma tipo marketplace enfocada en herramientas, ferreteria y operaciones B2C/B2B. El sistema separa clientes finales (`Customer`) y empresas (`Company`), con roles administrativos y flujos propios para catalogo, compras, pagos, tasa de cambio y cashback.
 
----
-
-## 📌 Estado del Proyecto
-
-> ⚠️ **Proyecto en desarrollo activo.**
-> El backend principal ya opera sobre entidades separadas para clientes y empresas.
-> El frontend en `public/` sigue siendo un prototipo operativo para validar flujos mientras se sigue iterando el producto.
-
-### Estado actual resumido
-- Auth local y Google para `Customer`.
-- Auth local para `Company`.
-- Registro público de empresas forzado a rol `DETALLISTA`.
-- Panel admin separado por módulos de clientes, jurídicos y productos.
-- Perfil de empresa restringido: no puede editar `nombre`, `RIF` ni `correo` por autoservicio.
-- Gestión administrativa de clientes y empresas con bloqueo/desbloqueo, reinicio de intentos y reseteo de contraseña.
-- Listado administrativo de productos con filtros y paginación de 20 elementos.
-- Módulo público de catálogo y detalle de producto activo.
-- Módulo de taxonomía/gestión de líneas para empresas deshabilitado temporalmente en frontend.
+El frontend ubicado en `public/` sigue siendo un prototipo funcional en HTML/JS para validar contratos del backend mientras se consolida el producto.
 
 ---
 
-## 🧱 Stack Tecnológico
+## Estado actual
 
-| Capa | Tecnología |
+Proyecto en desarrollo activo.
+
+### Modulos operativos
+- Autenticacion local y Google para `Customer`.
+- Autenticacion local para `Company`.
+- Registro publico de empresas con rol inicial `DETALLISTA`.
+- Dashboard admin con modulos de clientes, juridicos, productos y tasa.
+- Gestion de perfiles con imagen para customer y company.
+- Catalogo publico y detalle de producto.
+- Gestion de productos para empresas y admin.
+- Carrito y favoritos persistidos en JSON por customer.
+- Tasa de cambio con administracion e historial.
+- Checkout agrupado por proveedor.
+- Evidencias de pago por grupo de compra.
+- Revision de compras por empresa.
+- Cashback para customers con historial y vista dedicada.
+
+### Modulos en ajuste
+- Checkout con cashback y redencion.
+- Estados derivados de compras cuando el total queda cubierto por cashback.
+
+### Modulos en analisis
+- Prestamos monetarios B2B entre mayorista y detallista.
+- Restricciones operativas por mora sin bloquear completamente la administracion del negocio.
+
+---
+
+## Stack tecnologico
+
+| Capa | Tecnologia |
 |---|---|
 | Runtime | Node.js |
-| Framework | Express.js |
-| Base de datos | MySQL + mysql2/promise |
+| Framework | Express |
+| Base de datos | MySQL / MariaDB con `mysql2/promise` |
 | Auth | JWT + bcrypt |
 | OAuth | Google Identity Services |
 | Uploads | multer |
-| Variables de entorno | dotenv |
-| Dev | nodemon |
+| Config | dotenv |
+| Desarrollo | nodemon |
 
 ---
 
-## 📁 Estructura del Proyecto
+## Estructura principal
 
 ```text
 TUHERRAMIENTA.ONLINE/
-├── package.json
-├── README.md
+├── DB/
+│   ├── databasefor0test.sql
+│   ├── compras/
+│   ├── dashboards/
+│   ├── exchange/
+│   ├── productos/
+│   └── usuarios/
 ├── ideas/
-├── auth/
-│   ├── login.html
-│   └── register.html
-├── modules/
-│   ├── admin/
-│   │   └── dashboard.html
-│   ├── company/
-│   │   ├── catalog-management.html
-│   │   ├── dashboard.html
-│   │   └── profile.html
-│   └── customer/
-│       ├── dashboard.html
-│       └── profile.html
-├── products/
-│   └── detail.html
 ├── public/
 │   ├── index.html
-│   ├── readme.md
+│   ├── auth/
+│   ├── modules/
+│   │   ├── admin/
+│   │   ├── company/
+│   │   └── customer/
+│   ├── products/
 │   ├── assets/
 │   │   ├── css/
-│   │   │   └── styles.css
 │   │   └── js/
-│   │       ├── admin/
-│   │       │   └── dashboard.js
-│   │       ├── auth/
-│   │       │   ├── google.js
-│   │       │   ├── login.js
-│   │       │   └── register.js
-│   │       ├── company/
-│   │       │   ├── catalog-management.js
-│   │       │   ├── dashboard.js
-│   │       │   └── profile.js
-│   │       ├── customer/
-│   │       │   ├── dashboard.js
-│   │       │   └── profile.js
-│   │       ├── products/
-│   │       └── utils/
-│   │           └── auth.js
 │   └── uploads/
-│       ├── products/
-│       └── profiles/
-│           ├── customers/
-│           └── companies/
 ├── src/
 │   ├── app.js
 │   ├── config/
-│   │   ├── db.js
-│   │   └── google.js
 │   ├── controllers/
-│   │   ├── auth.customer.controller.js
-│   │   ├── auth.company.controller.js
-│   │   └── products.controller.js
 │   ├── middlewares/
-│   │   ├── auth.middleware.js
-│   │   └── upload.middleware.js
 │   ├── routes/
-│   │   ├── auth.customer.routes.js
-│   │   ├── auth.company.routes.js
-│   │   └── products.routes.js
 │   ├── services/
-│   │   ├── auth.customer.service.js
-│   │   ├── auth.company.service.js
-│   │   └── products.service.js
+│   ├── storage/
 │   └── utils/
-│       ├── hash.js
-│       └── jwt.js
-└── DB/
-    ├── README.md
-    ├── categorizacion 1/
-    │   ├── catalog_cleanup.sql
-    │   ├── category.sql
-    │   ├── line.sql
-    │   ├── prod.sql
-    │   ├── readme.md
-    │   ├── subcategory.sql
-    │   └── tuherramientaonline (1).sql
-    ├── dashboards/
-    │   ├── company_admin_dashboard.sql
-    │   ├── customer_admin_dashboard.sql
-    │   └── readme.md
-    ├── postman/
-    ├── productos/
-    │   ├── product.md
-    │   ├── product2.md
-    │   ├── products_sp_manual.sql
-    │   └── products_tables.sql
-    ├── usuarios/
-    │   ├── users_tables.sql
-    │   └── users_SP.sql
+├── package.json
+└── README.md
 ```
 
 ---
 
-## ✅ Funcionalidades implementadas
+## Funcionalidades implementadas
 
 ### Customer
-- Registro local
-- Login local
-- Login con Google
-- Transición automática a `both` cuando combina login local y Google
-- `/me`
-- `GET /profile`
-- `PUT /profile`
-- `PUT /profile/image`
-- Dashboard customer
-- Perfil customer
-- Módulo admin para listar customers, actualizar nombre/correo, bloquear, reiniciar intentos y resetear contraseña
+- Registro local.
+- Login local.
+- Login y vinculacion con Google.
+- Perfil y subida de imagen.
+- Dashboard customer.
+- Favoritos y carrito por archivos JSON.
+- Checkout propio y vista de compras.
+- Carga de evidencias de pago.
+- Consulta de cashback e historial.
 
 ### Company
-- Registro local
-- Login local
-- `/me`
-- `GET /profile`
-- `PUT /profile`
-- `PUT /profile/image`
-- Dashboard company
-- Perfil company con edición limitada a `phone`, `address` y `password`
-- Registro público con rol fijo `DETALLISTA`
-- Normalización de RIF: el frontend pide números y backend almacena `J-<digits>`
-- Panel admin para empresas con cambio de rol entre `DETALLISTA` y `MAYORISTA`, bloqueo, reinicio de intentos y reset de contraseña
-- Empresas no admin solo pueden consultar/gestionar sus propios productos cuando usan endpoints protegidos de catálogo
+- Registro local.
+- Login local.
+- Dashboard company.
+- Perfil e imagen.
+- Gestion de productos propios.
+- Gestion de compras recibidas por proveedor.
+- Registro de metodos de pago.
+- Revision de evidencias y aprobacion/rechazo/expiracion de grupos.
 
-### Productos
-- `GET /catalog`
-- `GET /catalog/:productId`
-- `GET /categories`
-- `GET /categories/:categoryId/subcategories`
-- `GET /management/subcategories`
-- `GET /management/lines`
-- `GET /management/products`
-- `POST /categories`
-- `PUT /categories/:categoryId`
-- `PUT /categories/:categoryId/status`
-- `POST /subcategories`
-- `PUT /subcategories/:subcategoryId`
-- `PUT /subcategories/:subcategoryId/status`
-- `POST /api/products`
-- `POST /api/products/:productId/variants`
-- `PUT /api/products/:productId`
-- `PUT /api/products/:productId/status`
-- `PUT /api/products/variants/:variantId`
-- `PUT /api/products/variants/:variantId/stock`
-- SKU autogenerado por backend para productos y variantes
-- Listado administrativo paginado con 20 productos por página, filtros por nombre, empresa, categoría, subcategoría y línea, e imagen principal
+### Admin
+- Dashboard modular.
+- Gestion de customers.
+- Gestion de companies y roles.
+- Gestion/listado de productos.
+- Gestion de tasa de cambio.
 
-### Seguridad
-- JWT
-- bcrypt
-- bloqueo por intentos fallidos
-- variables sensibles en `.env`
+### Catalogo y stock
+- Jerarquia `Category -> Subcategory -> Line -> Product`.
+- Imagen principal y secundarias por producto.
+- Stock e historial de stock.
+- Filtros administrativos y paginacion.
+
+### Compras y pagos
+- Checkout separado por proveedor.
+- Reserva de stock al crear checkout.
+- Evidencias por grupo de compra.
+- Fechas limite de pago.
+- Liberacion de stock en rechazo/expiracion.
+- Historial de compras del customer y gestion para company.
+
+### Cashback
+- Acumulacion por compras aprobadas.
+- Historial de movimientos.
+- Vista separada para customer.
+- Base para redencion sobre checkout, aun en ajuste funcional.
 
 ---
 
-## 🔐 Endpoints disponibles
+## Endpoints por area
 
-### Customer → `/api/auth`
+El backend se organiza por familias de rutas:
 
-| Método | Ruta | Descripción |
-|---|---|---|
-| POST | `/register` | Registro local |
-| POST | `/login` | Login local |
-| POST | `/google` | Login/registro con Google |
-| GET | `/me` | Sesión actual |
-| GET | `/profile` | Obtener perfil |
-| PUT | `/profile` | Actualizar perfil |
-| PUT | `/profile/image` | Subir imagen de perfil |
-| GET | `/admin/customers` | Listado administrativo de customers |
-| PUT | `/admin/customers/:customerId/basic` | Actualizar nombre/correo de customer |
-| PUT | `/admin/customers/:customerId/status` | Bloquear o desbloquear customer |
-| PUT | `/admin/customers/:customerId/attempts/reset` | Reiniciar intentos fallidos |
-| PUT | `/admin/customers/:customerId/password` | Reset administrativo de contraseña |
+- `/api/auth`
+    Customer auth, perfil, favoritos, carrito, cashback y utilidades de customer.
 
-### Company → `/api/company-auth`
+- `/api/company-auth`
+    Auth, perfil y administracion de empresas.
 
-| Método | Ruta | Descripción |
-|---|---|---|
-| POST | `/register` | Registro empresa |
-| POST | `/login` | Login empresa |
-| GET | `/me` | Sesión actual empresa |
-| GET | `/profile` | Obtener perfil empresa |
-| PUT | `/profile` | Actualizar teléfono, dirección o contraseña |
-| PUT | `/profile/image` | Subir imagen de perfil empresa |
-| GET | `/admin/companies` | Listado administrativo de empresas |
-| GET | `/admin/company-roles` | Roles válidos para empresas |
-| PUT | `/admin/companies/:companyId/role` | Cambiar rol entre `DETALLISTA` y `MAYORISTA` |
-| PUT | `/admin/companies/:companyId/status` | Activar o desactivar empresa |
-| PUT | `/admin/companies/:companyId/attempts/reset` | Reiniciar intentos fallidos |
-| PUT | `/admin/companies/:companyId/password` | Reset administrativo de contraseña |
+- `/api/products`
+    Catalogo publico, categorias, lineas, productos y gestion administrativa/empresarial.
 
-### Productos → `/api/products`
+- `/api/exchange-rate`
+    Consulta y administracion de tasa de cambio.
 
-| Método | Ruta | Descripción |
-|---|---|---|
-| GET | `/catalog` | Listado público simple para homepage |
-| GET | `/catalog/:productId` | Detalle público básico de producto |
-| GET | `/categories` | Listar categorías |
-| GET | `/categories/:categoryId/subcategories` | Listar subcategorías por categoría |
-| GET | `/management/subcategories` | Listar subcategorías para gestión |
-| GET | `/management/lines` | Listar líneas filtrables por empresa/categoría/subcategoría |
-| GET | `/management/products` | Listar productos paginados y filtrables para admin o empresa |
-| POST | `/categories` | Crear categoría manualmente |
-| PUT | `/categories/:categoryId` | Actualizar categoría |
-| PUT | `/categories/:categoryId/status` | Activar o desactivar categoría |
-| POST | `/subcategories` | Crear subcategoría manualmente |
-| PUT | `/subcategories/:subcategoryId` | Actualizar subcategoría |
-| PUT | `/subcategories/:subcategoryId/status` | Activar o desactivar subcategoría |
-| POST | `/` | Crear producto completo manualmente |
-| POST | `/:productId/variants` | Agregar variante a un producto |
-| PUT | `/:productId` | Actualizar producto |
-| PUT | `/:productId/status` | Activar o desactivar línea/producto lógico |
-| PUT | `/variants/:variantId` | Actualizar variante |
-| PUT | `/variants/:variantId/stock` | Sincronizar stock |
+- `/api/purchases`
+    Checkout, historial de compras, evidencias, metodos de pago y revision empresarial.
+
+El detalle fino de contratos se valida actualmente desde el frontend prototipo en `public/assets/js/`.
 
 ---
 
-## 🖼️ Gestión de imágenes
+## Base de datos
 
-Las imágenes se guardan en disco y el backend almacena solo el nombre del archivo en la base de datos.
+### Script recomendado
+Para levantar una base nueva, el punto de partida mas directo es:
 
-En el módulo de productos, el `sku` no se envía manualmente: el backend genera automáticamente un código numérico único de `7` dígitos, sin cero inicial y distinto de `9999999`.
+`DB/databasefor0test.sql`
 
-El homepage público ya puede consumir un catálogo básico desde backend y enlazar a una vista placeholder de detalle por producto.
+Ese archivo concentra:
+- customers y companies
+- roles
+- cashback
+- creditos base heredados
+- taxonomia y productos
+- stock e imagenes
+- tasa de cambio
+- compras y evidencias
+- stored procedures principales
 
-La vista administrativa de productos usa `Product_Image.is_main = TRUE` para mostrar la imagen principal en el listado.
+### Scripts modulares
+Tambien existen carpetas por dominio dentro de `DB/` para trabajo incremental o referencia:
+- `DB/usuarios/`
+- `DB/productos/`
+- `DB/exchange/`
+- `DB/compras/`
+- `DB/dashboards/`
 
-### Rutas de almacenamiento
-- `public/uploads/profiles/customers/`
-- `public/uploads/profiles/companies/`
-- `public/uploads/products/`
+### Tablas clave del sistema actual
+- `Customer`
+- `Company`
+- `Role`
+- `Cashback`
+- `Cashback_History`
+- `Category`
+- `Subcategory`
+- `Line`
+- `Product`
+- `Product_Image`
+- `Stock`
+- `Stock_History`
+- `Exchange_Rate`
+- `Purchase_Checkout`
+- `Purchase_Group`
+- `Purchase_Item`
+- `Purchase_Evidence`
+- `Company_Payment_Method`
 
-### Acceso público
-- `/uploads/profiles/customers/<archivo>`
-- `/uploads/profiles/companies/<archivo>`
-- `/uploads/products/<archivo>`
+### Creditos B2B
+El script consolidado ya contiene `Credit_Limit` y `Credit_History` como base heredada de credito entre empresas.
 
-> Por ahora, las imágenes anteriores **no se eliminan** automáticamente.
+Hoy esas tablas se toman como referencia para el siguiente modulo, pero el producto de prestamos monetarios B2B no esta cerrado ni implementado de punta a punta.
+
+La decision actual de analisis es:
+- no tratarlo todavia como parte del checkout normal
+- no asumir que `Credit_Limit` por si sola resuelve prestamos puntuales multiples
+- evaluar el modulo como cartera/prestamos B2B con pagos por evidencia y reglas de mora separadas
 
 ---
 
-## ⚙️ Instalación
+## Instalacion y arranque
 
-### 1. Clonar
-```bash
-git clone https://github.com/Bryant-grippa21/th.o.git
-cd th.o
-```
+### 1. Instalar dependencias
 
-### 2. Instalar dependencias
 ```bash
 npm install
 ```
 
-### 3. Crear `.env`
+### 2. Crear `.env`
+
 ```env
 PORT=3000
 DB_HOST=localhost
 DB_USER=root
 DB_PASSWORD=password
 DB_NAME=tuherramientaonline
-JWT_SECRET=tu_clave_secreta_aqui
-GOOGLE_CLIENT_ID=tu_google_client_id_aqui
+JWT_SECRET=tu_clave_secreta
+GOOGLE_CLIENT_ID=tu_google_client_id
 ```
 
-### 4. Inicializar base de datos
+### 3. Inicializar base de datos
+
+Opcion recomendada:
+
 ```bash
-mysql -u root -p < DB/usuarios/users_tables.sql
-mysql -u root -p < DB/usuarios/users_SP.sql
-mysql -u root -p tuherramientaonline < DB/productos/products_tables.sql
-mysql -u root -p tuherramientaonline < DB/productos/products_sp_manual.sql
-mysql -u root -p tuherramientaonline < "DB/categorizacion 1/category.sql"
-mysql -u root -p tuherramientaonline < "DB/categorizacion 1/subcategory.sql"
-mysql -u root -p tuherramientaonline < "DB/categorizacion 1/line.sql"
+mysql -u root -p < DB/databasefor0test.sql
 ```
 
-### 5. Levantar servidor
+### 4. Levantar servidor
+
+```bash
+node src/app.js
+```
+
+En desarrollo:
+
 ```bash
 npx nodemon src/app.js
 ```
 
----
-
-## 🧩 Base de datos
-
-### Modelo actual de catálogo
-- `Category`
-- `Subcategory`
-- `Line`
-- `Product`
-- `Product_Image`
-- `Stock`
-- `Stock_History`
-
-`brand` vive en `Product`, no en `Line`.
-
-### Tablas principales
-- `Customer`
-- `Company`
-- `Role`
-- `Cashback`
-- `Cashback_History`
-- `Credit_Limit`
-- `Credit_History`
-- `Category`
-- `Subcategory`
-- `Line`
-- `Product`
-- `Stock`
-- `Stock_History`
-- `Product_Image`
-
-### SPs principales
-- `sp_register_customer_local`
-- `sp_register_customer_google`
-- `sp_update_customer`
-- `sp_register_company`
-- `sp_update_company`
-- `sp_admin_create_category`
-- `sp_admin_create_subcategory`
-- `sp_create_product_full`
-- `sp_add_variant`
-- `sp_update_product`
-- `sp_toggle_product`
-- `sp_update_variant`
-- `sp_update_stock`
-- `sp_update_login_failed`
-- `sp_reset_login_failed`
-- `sp_toggle_customer_status`
-- `sp_update_login_failed_company`
-- `sp_reset_login_failed_company`
-- `sp_toggle_company_status`
+La aplicacion expone por defecto `http://localhost:3000`.
 
 ---
 
-## 🧪 Datos y limpieza de catálogo
+## Frontend prototipo
 
-La carpeta `DB/categorizacion 1/` contiene scripts de carga y limpieza para revisar jerarquías, corregir mojibake y ajustar datos heredados.
+El frontend en `public/` existe para validar contratos y flujos del backend.
 
-### Archivos relevantes
-- `DB/categorizacion 1/catalog_cleanup.sql`
-- `DB/categorizacion 1/category.sql`
-- `DB/categorizacion 1/subcategory.sql`
-- `DB/categorizacion 1/line.sql`
-- `DB/categorizacion 1/prod.sql`
+Hoy permite:
+- autenticacion y manejo de sesion por entidad
+- dashboards de customer, company y admin
+- catalogo y detalle publico
+- carrito, favoritos y compras customer
+- productos y compras company
+- tasa y modulos admin basicos
 
-### Nota operativa
-- `DB/usuarios/users_tables.sql` siembra la empresa admin base con `id_company = 1` y rol `ADMIN`.
-- Los scripts de dashboards en `DB/dashboards/` documentan consultas auxiliares para paneles de customers y companies.
-
----
-
-## 🌐 Frontend público temporal
-
-La carpeta `public/` sigue siendo un prototipo HTML/JS simple para validar contratos del backend mientras el frontend React definitivo avanza por separado.
-
-Hoy ese prototipo ya permite:
-
-- login local customer
-- login con Google
-- registro local customer
-- registro/login company
-- lectura de sesión por entidad
-- dashboard y perfil de customer
-- dashboard y perfil de company
-- dashboard admin con módulos separados: clientes, jurídicos y productos
-- listado administrativo de productos con filtros y paginación
-- listado público de productos en homepage
-- enlace a detalle público de producto
-
-La guía específica del prototipo está en `public/readme.md`.
+No debe leerse todavia como UI final del producto.
 
 ---
 
-## 🗺️ Siguiente a realizar
+## Estado del modulo de prestamos B2B
 
-- carrito de compras del lado del cliente
-- checkout unificado para customer y company
-- historial de compras / órdenes
-- gestión de ventas y pagos para empresas detallistas/mayoristas
-- gestión de cashback y créditos
-- cashback para customers
-- crédito B2B para companies
-- profundizar el módulo de productos del admin más allá del listado actual
-- habilitar nuevamente gestión de catálogo empresarial cuando se redefina su alcance
-- panel de cliente para gestión de compras, cashback y records
-- integración frontend
-- estrategia de eliminación/versionado de imágenes
-- validaciones más estrictas para uploads
-- CORS para producción
-- tests automáticos
+Este modulo esta en fase de analisis funcional.
+
+### Lo que si esta claro
+- el cliente de negocio quiere prestamos monetarios entre mayorista y detallista
+- el desembolso del dinero ocurre fuera de la plataforma
+- la plataforma solo registraria solicitud, aprobacion, deuda, pagos y mora
+- puede haber multiples prestamos con multiples mayoristas
+
+### Riesgos detectados
+- ambiguedad entre prestamo monetario y credito comercial
+- dificultad para amarrar el dinero a una compra real
+- bloqueo total del detallista puede afectar clientes finales y pedidos activos
+- `Credit_Limit` no parece suficiente por si sola para modelar prestamos puntuales multiples
+
+### Criterio actual de producto
+- no bloquear por completo la administracion del detallista en caso de mora
+- restringir nuevas operaciones de crecimiento antes que romper operaciones existentes
+- separar convenio de credito, prestamo puntual y pagos/evidencias
+
+Mientras no se cierre esta definicion con negocio, el README lo documenta como modulo en analisis y no como feature implementada.
 
 ---
 
-## 👤 Autor
+## Notas operativas
 
-**Bryant Grippa**  
+- El frontend actual es transicional.
+- El arbol de taxonomia y reglas de producto siguen evolucionando.
+- Las imagenes se almacenan en disco bajo `public/uploads/`.
+- Los carritos y favoritos de customers se almacenan en `src/storage/customers/`.
+- El proyecto puede tener cambios experimentales en curso; conviene revisar el estado real de `DB/` y `src/services/` antes de introducir migraciones nuevas.
+
+---
+
+## Pendientes de alto nivel
+
+- estabilizar completamente checkout con cashback/redencion
+- consolidar reglas finales del modulo de prestamos B2B
+- definir restricciones por mora sin romper operaciones activas
+- mejorar endurecimiento de validaciones y errores de negocio
+- ampliar pruebas automatizadas
+- seguir desacoplando el frontend prototipo del backend definitivo
+
+---
+
+## Autor
+
+Bryant Grippa
+
 GitHub: [@Bryant-grippa21](https://github.com/Bryant-grippa21)
 
 ---
 
-## 🔄 Notas de evolución
-
-- El proyecto ya migró de una estructura de prueba a un modelo con `Customer` y `Company` separados.
-- El frontend HTML actual sigue siendo transicional y prioriza validación funcional sobre diseño final.
-- La taxonomía y las reglas de producto aún están cambiando, así que conviene revisar `DB/categorizacion 1/` y `DB/productos/` antes de introducir seeds o migraciones nuevas.
-
----
-
-*Última actualización: Mayo 2026*
+Ultima actualizacion: Mayo 2026

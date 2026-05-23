@@ -2,6 +2,11 @@ const adminCustomerSummary = document.getElementById('admin-customer-summary');
 const adminCustomerList = document.getElementById('admin-customer-list');
 const adminCompanySummary = document.getElementById('admin-company-summary');
 const adminCompanyList = document.getElementById('admin-company-list');
+const adminExchangeSummary = document.getElementById('admin-exchange-summary');
+const adminExchangeForm = document.getElementById('admin-exchange-form');
+const adminExchangeRateInput = document.getElementById('admin-exchange-rate-input');
+const adminExchangeMessage = document.getElementById('admin-exchange-message');
+const adminExchangeList = document.getElementById('admin-exchange-list');
 const adminProductSummary = document.getElementById('admin-product-summary');
 const adminProductList = document.getElementById('admin-product-list');
 const adminProductPagination = document.getElementById('admin-product-pagination');
@@ -29,6 +34,7 @@ const productFilterLine = document.getElementById('product-filter-line');
 const adminModules = {
   customers: document.getElementById('admin-module-customers'),
   companies: document.getElementById('admin-module-companies'),
+  exchange: document.getElementById('admin-module-exchange'),
   products: document.getElementById('admin-module-products')
 };
 const adminProductSubmenus = {
@@ -38,6 +44,7 @@ const state = {
   companyRoles: [],
   customers: [],
   companies: [],
+  exchangeRates: [],
   activeModule: 'customers',
   activeProductSubmenu: 'list',
   products: [],
@@ -392,6 +399,64 @@ const summarizeProducts = (pagination) => {
     <p>Pagina actual: <b>${pagination.page}</b> de <b>${pagination.total_pages}</b></p>
     <p>Mostrando hasta <b>${pagination.limit}</b> productos por pagina.</p>
   `;
+};
+
+const formatExchangeRate = (value) => Number(value || 0).toLocaleString('es-VE', {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 4
+});
+
+const formatExchangeDate = (value) => {
+  if (!value) {
+    return 'Sin fecha';
+  }
+
+  return new Date(value).toLocaleString('es-VE');
+};
+
+const renderExchangeSummary = (exchangeRates) => {
+  const latestRate = exchangeRates[0] || null;
+
+  if (!latestRate) {
+    adminExchangeSummary.innerHTML = '<p>No hay tasas registradas todavía.</p>';
+    return;
+  }
+
+  adminExchangeSummary.innerHTML = `
+    <p>Tasa vigente: <b>Bs.S ${formatExchangeRate(latestRate.rate_bs_per_usd)}</b></p>
+    <p>Último registro: <b>${formatExchangeDate(latestRate.created_at)}</b></p>
+  `;
+};
+
+const renderExchangeList = (exchangeRates) => {
+  if (!exchangeRates.length) {
+    adminExchangeList.innerHTML = '<p>No hay historial de tasas.</p>';
+    return;
+  }
+
+  adminExchangeList.innerHTML = `
+    <h3>Historial de tasas</h3>
+    <ul>
+      ${exchangeRates.map((exchangeRate) => `
+        <li>
+          Bs.S ${formatExchangeRate(exchangeRate.rate_bs_per_usd)} |
+          ${formatExchangeDate(exchangeRate.created_at)}
+        </li>
+      `).join('')}
+    </ul>
+  `;
+};
+
+const loadExchangeRates = async () => {
+  try {
+    const data = await requestJson(`${API_BASE_URL}/api/exchange-rate`);
+    state.exchangeRates = data.exchange_rates || [];
+    renderExchangeSummary(state.exchangeRates);
+    renderExchangeList(state.exchangeRates);
+  } catch (error) {
+    adminExchangeSummary.innerHTML = `<p>${error.message}</p>`;
+    adminExchangeList.innerHTML = `<p>${error.message}</p>`;
+  }
 };
 
 const renderProducts = (products) => {
@@ -1203,6 +1268,29 @@ async function handleAdminProductEditorSubmit(event) {
   }
 }
 
+async function handleAdminExchangeSubmit(event) {
+  event.preventDefault();
+
+  try {
+    const rate_bs_per_usd = Number(adminExchangeRateInput.value);
+
+    const data = await requestJson(`${API_BASE_URL}/api/exchange-rate`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ rate_bs_per_usd })
+    });
+
+    adminExchangeMessage.innerText = data.message;
+    adminExchangeForm.reset();
+    await loadExchangeRates();
+  } catch (error) {
+    adminExchangeMessage.innerText = error.message;
+  }
+}
+
+adminExchangeForm.addEventListener('submit', handleAdminExchangeSubmit);
 adminProductEditorForm.addEventListener('submit', handleAdminProductEditorSubmit);
 adminEditProductCancel.addEventListener('click', hideAdminProductEditor);
 adminEditProductMainImage.addEventListener('change', renderAdminMainPreview);
@@ -1229,6 +1317,7 @@ fetch(`${API_BASE_URL}/api/company-auth/me`, {
     showProductSubmenu(state.activeProductSubmenu);
     hideAdminProductEditor();
     await loadCompanyRoles();
+    await loadExchangeRates();
     await loadProductFilters();
     loadCustomers();
     loadCompanies();

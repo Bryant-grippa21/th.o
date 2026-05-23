@@ -17,6 +17,7 @@ const {
   setCustomerCartItem,
   removeCustomerCartItem,
   clearCustomerCart,
+  getCustomerCashback,
   getAdminCustomers,
   updateAdminCustomerStatus,
   updateAdminCustomerBasic,
@@ -43,6 +44,7 @@ router.get('/cart', verifyToken, getCustomerCart);
 router.put('/cart/items', verifyToken, setCustomerCartItem);
 router.delete('/cart/items/:productId', verifyToken, removeCustomerCartItem);
 router.delete('/cart', verifyToken, clearCustomerCart);
+router.get('/cashback', verifyToken, getCustomerCashback);
 
 router.get('/me', verifyToken, (req, res) => {
   res.json({ user: req.user });

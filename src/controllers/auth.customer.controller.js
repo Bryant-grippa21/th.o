@@ -7,6 +7,7 @@ const {
   registerGoogleUser,
   findUserByEmail,
   findUserById,
+  getCustomerCashbackOverview,
   listCustomersForAdmin,
   updateCustomerBasicByAdmin,
   updateCustomerPasswordByAdmin,
@@ -432,6 +433,21 @@ const clearCustomerCart = async (req, res) => {
   }
 };
 
+const getCustomerCashback = async (req, res) => {
+  try {
+    if (!requireCustomer(req, res)) {
+      return;
+    }
+
+    const cashback = await getCustomerCashbackOverview(Number(req.user.id));
+
+    return res.status(200).json(cashback);
+  } catch (error) {
+    console.error('❌ ERROR GET CUSTOMER CASHBACK:', error);
+    return res.status(500).json({ error: error.message });
+  }
+};
+
 const getAdminCustomers = async (req, res) => {
   try {
     if (!requireAdminCompany(req, res)) {
@@ -620,6 +636,7 @@ module.exports = {
   setCustomerCartItem,
   removeCustomerCartItem,
   clearCustomerCart,
+  getCustomerCashback,
   getAdminCustomers,
   updateAdminCustomerStatus,
   updateAdminCustomerBasic,

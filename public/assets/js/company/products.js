@@ -279,34 +279,33 @@ const renderProducts = (products) => {
   }
 
   companyProductsList.innerHTML = products.map((product) => `
-    <div style="display:flex; gap:16px; align-items:flex-start; margin-bottom:16px; border-bottom:1px solid #ccc; padding-bottom:16px; opacity:${product.is_active ? '1' : '0.6'};">
-      <div>
-        ${product.main_image_url
+    <details style="margin-bottom:16px; border-bottom:1px solid #ccc; padding-bottom:16px; opacity:${product.is_active ? '1' : '0.6'};">
+      <summary><b>${product.name || 'Sin nombre'}</b> | SKU ${product.sku} | Precio ${product.price} | Stock ${product.quantity ?? 0}</summary>
+      <div style="display:flex; gap:16px; align-items:flex-start; margin-top:12px;">
+        <div>
+          ${product.main_image_url
     ? `<img src="${product.main_image_url}" alt="${product.line_name}" style="width:96px; height:96px; object-fit:cover; border:1px solid #ccc;">`
     : '<div style="width:96px; height:96px; border:1px solid #ccc; display:flex; align-items:center; justify-content:center;">Sin imagen</div>'}
-      </div>
-      <div>
-        <p><b>${product.name || 'Sin nombre'}</b></p>
-        <p>SKU: ${product.sku}</p>
-        <p>Empresa: ${state.session?.data?.company?.name || 'Mi empresa'}</p>
-        <p>Categoría: ${product.category_name}</p>
-        <p>Subcategoría: ${product.subcategory_name}</p>
-        <p>Línea: ${product.line_name}</p>
-        <p>Marca: ${product.brand || 'Sin marca'}</p>
-        <p>Precio: ${product.price}</p>
-        <p>Estado producto: ${product.is_active ? 'Activo' : 'Inactivo'}</p>
-        <p>Estado línea: ${product.line_is_active ? 'Activa' : 'Inactiva'}</p>
-        <p>Stock actual: ${product.quantity ?? 0}</p>
-        <p>Stock mínimo: ${product.min_stock ?? 0}</p>
-        <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:12px;">
-          <button type="button" onclick="editManagedProduct(${product.id_product})">Editar</button>
-          <button type="button" onclick="toggleManagedProductStatus(${product.id_product}, ${product.is_active})">${product.is_active ? 'Desactivar' : 'Activar'}</button>
-          <button type="button" onclick="adjustManagedProductStock(${product.id_product}, 'increase')">+ Stock</button>
-          <button type="button" onclick="adjustManagedProductStock(${product.id_product}, 'decrease')">- Stock</button>
-          <button type="button" onclick="adjustManagedProductStock(${product.id_product}, 'set')">Sincronizar stock</button>
+        </div>
+        <div>
+          <p>Empresa: ${state.session?.data?.company?.name || 'Mi empresa'}</p>
+          <p>Categoría: ${product.category_name}</p>
+          <p>Subcategoría: ${product.subcategory_name}</p>
+          <p>Línea: ${product.line_name}</p>
+          <p>Marca: ${product.brand || 'Sin marca'}</p>
+          <p>Estado producto: ${product.is_active ? 'Activo' : 'Inactivo'}</p>
+          <p>Estado línea: ${product.line_is_active ? 'Activa' : 'Inactiva'}</p>
+          <p>Stock mínimo: ${product.min_stock ?? 0}</p>
+          <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:12px;">
+            <button type="button" onclick="editManagedProduct(${product.id_product})">Editar</button>
+            <button type="button" onclick="toggleManagedProductStatus(${product.id_product}, ${product.is_active})">${product.is_active ? 'Desactivar' : 'Activar'}</button>
+            <button type="button" onclick="adjustManagedProductStock(${product.id_product}, 'increase')">+ Stock</button>
+            <button type="button" onclick="adjustManagedProductStock(${product.id_product}, 'decrease')">- Stock</button>
+            <button type="button" onclick="adjustManagedProductStock(${product.id_product}, 'set')">Sincronizar stock</button>
+          </div>
         </div>
       </div>
-    </div>
+    </details>
   `).join('');
 };
 

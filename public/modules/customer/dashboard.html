@@ -1,11 +1,12 @@
 <!DOCTYPE html>
 <html lang="es" xml:lang="es">
 <head>
+  <meta charset="UTF-8">
   <title>Dashboard</title>
 </head>
 <body>
 
-<h1>Dashboard</h1>
+<h1>Dashboard cliente</h1>
 <a href="/index.html">Volver al inicio</a><br><br>
 
 <p id="welcome"></p>
@@ -13,11 +14,10 @@
 
 <br><br>
 
-<a href="/modules/customer/profile.html">Editar perfil</a>
-<br><br>
-<a href="/modules/customer/favorites.html">Mis favoritos</a>
-<br>
-<a href="/modules/customer/cart.html">Mi carrito</a>
+<h2>Modulos</h2>
+<div id="customer-modules">
+  <p>Cargando modulos...</p>
+</div>
 
 <script src="/assets/js/utils/auth.js"></script>
 <script src="/assets/js/customer/dashboard.js"></script>

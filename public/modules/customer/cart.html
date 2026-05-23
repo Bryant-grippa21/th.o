@@ -13,7 +13,16 @@
 <button onclick="logout()">Cerrar sesión</button>
 
 <p id="cart-summary">Cargando carrito...</p>
-<button id="cart-clear-button" type="button">Vaciar carrito</button>
+<label>
+  <input id="cart-use-cashback" type="checkbox">
+  Usar cashback disponible en esta compra
+</label>
+<p id="cart-cashback-summary">Cargando cashback...</p>
+<div id="cart-actions">
+  <button id="cart-checkout-button" type="button">Finalizar compra</button>
+  <button id="cart-clear-button" type="button">Vaciar carrito</button>
+</div>
+<p id="cart-feedback"></p>
 <div id="cart-list">
   <p>Cargando productos...</p>
 </div>

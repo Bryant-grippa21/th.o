@@ -1,5 +1,25 @@
 const container = globalThis.document.getElementById('auth-buttons');
 const productList = globalThis.document.getElementById('product-list');
+const exchangeRateCard = globalThis.document.getElementById('exchange-rate-card');
+
+const formatExchangeRate = (value) => Number(value || 0).toLocaleString('es-VE', {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 4
+});
+
+const renderExchangeRate = (exchangeRate) => {
+  if (!exchangeRate) {
+    exchangeRateCard.innerHTML = '';
+    return;
+  }
+
+  exchangeRateCard.innerHTML = `
+    <div style="display:inline-flex; flex-direction:column; gap:6px; padding:14px 16px; margin-bottom:18px; border-radius:14px; background:linear-gradient(180deg, #0f2741 0%, #0a1a2c 100%); color:#fff; min-width:140px; box-shadow:0 10px 24px rgba(3, 16, 30, 0.22);">
+      <span style="font-size:12px; color:#b7c9dd;">Tasa del día</span>
+      <strong style="font-size:24px; line-height:1.1;">Bs.S ${formatExchangeRate(exchangeRate.rate_bs_per_usd)}</strong>
+    </div>
+  `;
+};
 
 const renderProductList = (products) => {
   if (!products.length) {
@@ -40,6 +60,25 @@ const loadPublicCatalog = () => {
     })
     .catch(() => {
       productList.innerHTML = '<p>No se pudo cargar el catálogo.</p>';
+    });
+};
+
+const loadLatestExchangeRate = () => {
+  globalThis.fetch(`${API_BASE_URL}/api/exchange-rate/latest`)
+    .then(async (res) => {
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || 'No se pudo cargar la tasa');
+      }
+
+      return data;
+    })
+    .then((data) => {
+      renderExchangeRate(data.exchange_rate || null);
+    })
+    .catch(() => {
+      exchangeRateCard.innerHTML = '';
     });
 };
 
@@ -86,3 +125,4 @@ function goDashboard() {
 }
 
 loadPublicCatalog();
+loadLatestExchangeRate();

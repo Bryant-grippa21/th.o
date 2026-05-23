@@ -4,6 +4,12 @@
 
 ```
 DB/
+├── compras/
+│   ├── purchase_tables.sql
+│   └── purchase_sp.sql
+├── exchange/
+│   ├── exchange_rate_tables.sql
+│   └── exchange_rate_sp.sql
 ├── usuarios/
 │   ├── users_tables.sql
 │   └── users_SP.sql
@@ -12,6 +18,83 @@ DB/
 │   └── products_sp_manual.sql
 └── README.md
 ```
+
+---
+
+## 💱 Módulo de Tasa de Cambio
+
+### `exchange_rate_tables.sql`
+
+#### Tablas:
+| Tabla | Descripción |
+|---|---|
+| `Exchange_Rate` | Historial manual de tasa Bs/USD registrada por admin |
+
+#### Columnas clave — `Exchange_Rate`:
+| Columna | Tipo | Notas |
+|---|---|---|
+| `id_exchange_rate` | INT PK | Auto increment |
+| `rate_bs_per_usd` | DECIMAL(12,4) | Tasa registrada manualmente |
+| `created_at` | TIMESTAMP | Fecha de registro |
+
+#### Reglas:
+- La tasa vigente es siempre la última registrada
+- No se requiere fuente ni `is_active`
+- La tasa debe ser mayor a 0
+
+---
+
+### `exchange_rate_sp.sql`
+
+#### Stored Procedures:
+| SP | Parámetros clave | Descripción |
+|---|---|---|
+| `sp_create_exchange_rate` | `p_rate_bs_per_usd` | Inserta una nueva tasa manual |
+| `sp_get_latest_exchange_rate` | _(sin params)_ | Devuelve la última tasa registrada |
+| `sp_list_exchange_rates` | _(sin params)_ | Lista el historial de tasas |
+
+#### Comportamientos importantes:
+- `sp_create_exchange_rate` valida que la tasa sea mayor a 0
+- `sp_get_latest_exchange_rate` siempre toma la última por `created_at` e `id_exchange_rate`
+- `sp_list_exchange_rates` ordena del registro más reciente al más antiguo
+
+---
+
+## 🛒 Módulo de Compras
+
+### `purchase_tables.sql`
+
+#### Tablas:
+| Tabla | Descripción |
+|---|---|
+| `Company_Payment_Method` | Métodos de pago manuales por empresa |
+| `Purchase_Checkout` | Cabecera global de compra por cliente |
+| `Purchase_Group` | Grupo de compra dividido por proveedor |
+| `Purchase_Item` | Items congelados por grupo |
+| `Purchase_Evidence` | Evidencias de pago subidas por el cliente |
+
+#### Ajustes adicionales:
+- Amplía `Stock_History.movement_type` con `RESERVATION` y `RESERVATION_RELEASE`
+- Las compras se persisten con snapshot de tasa, precio USD y precio Bs
+
+### `purchase_sp.sql`
+
+#### Stored Procedures:
+| SP | Parámetros clave | Descripción |
+|---|---|---|
+| `sp_create_company_payment_method` | `p_id_company, p_method_type, p_label` | Crea método de pago por empresa |
+| `sp_create_purchase_checkout` | `p_id_customer, p_id_exchange_rate, p_total_usd, p_total_bs` | Crea cabecera de checkout |
+| `sp_create_purchase_group` | `p_id_checkout, p_id_company, p_subtotal_usd, p_subtotal_bs` | Crea grupo por proveedor |
+| `sp_create_purchase_item` | `p_id_purchase_group, p_id_product, p_quantity` | Inserta item congelado |
+| `sp_submit_purchase_evidence` | `p_id_purchase_group, p_file_url` | Registra evidencia y pasa a `PAYMENT_SUBMITTED` |
+| `sp_approve_purchase_group` | `p_id_purchase_group` | Pasa grupo a `APPROVED` |
+| `sp_reject_purchase_group` | `p_id_purchase_group` | Pasa grupo a `REJECTED` |
+| `sp_expire_purchase_group` | `p_id_purchase_group` | Pasa grupo a `EXPIRED` |
+
+#### Comportamientos importantes:
+- Los grupos son la unidad real de pago por proveedor
+- Las evidencias se suben por grupo, no por checkout global
+- Las reservas y liberaciones de stock deben registrarse en `Stock_History`
 
 ---
 

@@ -1,4 +1,2618 @@
-﻿DELIMITER //
+-- =========================================
+-- 🗄️ BASE DE DATOS
+-- =========================================
+
+DROP DATABASE IF EXISTS tuherramientaonline;
+CREATE DATABASE tuherramientaonline;
+USE tuherramientaonline;
+
+CREATE TABLE Customer (
+
+    -- 🔑 datos personales
+    id_customer INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(50) NOT NULL,
+    email VARCHAR(100) NOT NULL UNIQUE,
+
+    -- 🔐 autenticación
+    auth_provider ENUM('local', 'google','both') DEFAULT 'local',
+    provider_id VARCHAR(100) DEFAULT NULL,
+    password_hash VARCHAR(255) DEFAULT NULL,
+    is_verified BOOLEAN DEFAULT FALSE,
+
+    -- 📞 contacto
+    cell_phone VARCHAR(15),
+    mail_address VARCHAR(255),
+
+    -- 👤 estado / perfil
+    is_active BOOLEAN DEFAULT TRUE,
+    is_new BOOLEAN DEFAULT TRUE,
+    img_profile VARCHAR(255) NOT NULL DEFAULT 'default_profile.png',
+
+    -- 🔒 seguridad
+    attempts INT DEFAULT 0,
+
+    -- 🕒 auditoría
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+-- =========================================
+-- 💰 CASHBACK
+-- =========================================
+
+CREATE TABLE Cashback (
+    id_cashback INT AUTO_INCREMENT PRIMARY KEY,
+    id_customer_fk INT NOT NULL,
+    value DECIMAL(10,2) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+-- =========================================
+-- 📜 HISTORIAL CASHBACK
+-- =========================================
+
+CREATE TABLE Cashback_History (
+
+    id_cashback_history INT AUTO_INCREMENT PRIMARY KEY,
+
+    -- 🔗 relaciones
+    id_cashback_fk INT,
+    id_transaction_fk INT NOT NULL,
+
+    -- 💵 datos
+    value DECIMAL(10,2) NOT NULL,
+    transaction_type ENUM('acumulate', 'redemption') NOT NULL,
+
+    -- 🕒 auditoría
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- =========================================
+-- 👑 ROLES
+-- =========================================
+
+CREATE TABLE Role (
+    id_role INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(50) UNIQUE NOT NULL
+);
+
+-- =========================================
+-- 🏢 EMPRESAS
+-- =========================================
+
+CREATE TABLE Company (
+
+    -- 🔑 identificación
+    id_company INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    rif VARCHAR(20) NOT NULL UNIQUE,
+
+    -- 🔐 autenticación
+    email VARCHAR(255) NOT NULL UNIQUE,
+    password_hash VARCHAR(255) NOT NULL,
+
+    -- 📞 contacto
+    cell_phone VARCHAR(20),
+    mail_address VARCHAR(255),
+    img_profile VARCHAR(255) DEFAULT 'default_company.png',
+
+    -- 👑 rol
+    id_role_fk INT NOT NULL,
+
+    -- 🔒 seguridad
+    attempts INT DEFAULT 0,
+    is_active BOOLEAN DEFAULT TRUE,
+    can_buy BOOLEAN DEFAULT TRUE,
+    can_sell BOOLEAN DEFAULT TRUE,
+
+    -- 🕒 auditoría
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+-- =========================================
+-- 💳 LÍMITE DE CRÉDITO
+-- (un detallista puede tener múltiples créditos)
+-- =========================================
+
+CREATE TABLE Credit_Limit (
+
+    id_credit_limit INT AUTO_INCREMENT PRIMARY KEY,
+
+    id_retailer_fk INT NOT NULL,
+    id_wholesaler_fk INT NOT NULL,
+
+    credit DECIMAL(10,2) NOT NULL,
+    remaining_amount DECIMAL(10,2) NOT NULL,
+
+    start_date DATE NOT NULL,
+    due_date DATE NOT NULL,
+
+    status ENUM('ACTIVE', 'PAID', 'LATE') DEFAULT 'ACTIVE',
+
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+-- =========================================
+-- 📜 HISTORIAL DE CRÉDITO
+-- =========================================
+
+CREATE TABLE Credit_History (
+
+    id_credit_history INT AUTO_INCREMENT PRIMARY KEY,
+
+    id_credit_limit_fk INT NOT NULL,
+
+    amount DECIMAL(10,2) NOT NULL,
+    type ENUM('ASSIGN', 'PAYMENT') NOT NULL,
+
+    previous_balance DECIMAL(10,2),
+    new_balance DECIMAL(10,2),
+
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+
+-- =========================================
+-- 🔗 FOREIGN KEYS
+-- =========================================
+
+ALTER TABLE Company
+ADD CONSTRAINT fk_company_role
+FOREIGN KEY (id_role_fk) REFERENCES Role(id_role);
+
+ALTER TABLE Credit_Limit
+ADD CONSTRAINT fk_credit_limit_retailer
+FOREIGN KEY (id_retailer_fk) REFERENCES Company(id_company);
+
+ALTER TABLE Credit_Limit
+ADD CONSTRAINT fk_credit_limit_wholesaler
+FOREIGN KEY (id_wholesaler_fk) REFERENCES Company(id_company);
+
+ALTER TABLE Credit_History
+ADD CONSTRAINT fk_credit_history_credit_limit
+FOREIGN KEY (id_credit_limit_fk) REFERENCES Credit_Limit(id_credit_limit);
+
+ALTER TABLE Cashback
+ADD CONSTRAINT fk_cashback_customer
+FOREIGN KEY (id_customer_fk) REFERENCES Customer(id_customer);
+
+ALTER TABLE Cashback_History
+ADD CONSTRAINT fk_cashback_history_cashback
+FOREIGN KEY (id_cashback_fk) REFERENCES Cashback(id_cashback);
+
+-- =========================================
+-- 👑 ADMIN Y ROLES POR DEFECTO
+-- =========================================
+INSERT INTO Role (name) VALUES
+('ADMIN'),
+('MAYORISTA'),
+('DETALLISTA');
+
+INSERT INTO Company (
+    name,
+    rif,
+    email,
+    password_hash,
+    cell_phone,
+    mail_address,
+    id_role_fk
+) VALUES (
+    'Admin',
+    'J-00000000-0',
+    'tho@mail.com',
+    '$2b$10$daXc069JWmMgW42CmSuUOuZDdxrdTWoy2n44o0eRq6fxMBV3ooXxW',
+    '000-000-0000',
+    'Caracas Venezuela',
+    1
+);
+
+-- =========================================
+-- 🧠 STORED PROCEDURES
+-- =========================================
+
+-- =========================================
+-- 🟢 REGISTRO LOCAL
+-- =========================================
+
+DELIMITER //
+
+DROP PROCEDURE IF EXISTS sp_register_customer_local //
+
+CREATE PROCEDURE sp_register_customer_local(
+    IN p_name VARCHAR(50),
+    IN p_email VARCHAR(100),
+    IN p_password_hash VARCHAR(255),
+    IN p_DOB DATE,
+    IN p_cell_phone VARCHAR(15),
+    IN p_mail_address VARCHAR(255)
+)
+BEGIN
+
+    IF EXISTS (SELECT 1 FROM Customer WHERE email = p_email) THEN
+        SIGNAL SQLSTATE '45000' 
+        SET MESSAGE_TEXT = 'ERROR: El correo electrónico ya está registrado';
+    END IF;
+
+    IF p_password_hash IS NULL THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'ERROR: La contraseña no puede ser nula';
+    END IF;
+
+    INSERT INTO Customer (
+        name, email, password_hash, DOB,
+        cell_phone, mail_address,
+        auth_provider, is_new, is_verified
+    )
+    VALUES (
+        p_name, p_email, p_password_hash, p_DOB,
+        p_cell_phone, p_mail_address,
+        'local', TRUE, FALSE
+    );
+
+    SET @new_customer_id = LAST_INSERT_ID();
+
+    INSERT INTO Cashback (id_customer_fk, value)
+    VALUES (@new_customer_id, 0);
+
+END //
+
+DELIMITER ;
+
+-- =========================================
+-- 🔵 REGISTRO GOOGLE
+-- =========================================
+
+DELIMITER //
+
+DROP PROCEDURE IF EXISTS sp_register_customer_google //
+
+CREATE PROCEDURE sp_register_customer_google(
+    IN p_name VARCHAR(50),
+    IN p_email VARCHAR(100),
+    IN p_provider_id VARCHAR(100),
+    IN p_DOB DATE,
+    IN p_cell_phone VARCHAR(15),
+    IN p_mail_address VARCHAR(255)
+)
+BEGIN
+
+    IF EXISTS (SELECT 1 FROM Customer WHERE email = p_email) THEN
+        SIGNAL SQLSTATE '45000' 
+        SET MESSAGE_TEXT = 'ERROR: El correo electrónico ya está registrado';
+    END IF;
+
+    INSERT INTO Customer (
+        name, email, auth_provider, provider_id, DOB,
+        cell_phone, mail_address, is_new, is_verified
+    )
+    VALUES (
+        p_name, p_email, 'google', p_provider_id, p_DOB,
+        p_cell_phone, p_mail_address, FALSE, TRUE
+    );
+
+    SET @new_customer_id = LAST_INSERT_ID();
+
+    INSERT INTO Cashback (id_customer_fk, value)
+    VALUES (@new_customer_id, 0);
+
+END //
+
+DELIMITER ;
+
+-- =========================================
+-- ✏️ UPDATE CUSTOMER
+-- =========================================
+
+DELIMITER //
+
+DROP PROCEDURE IF EXISTS sp_update_customer //
+
+CREATE PROCEDURE sp_update_customer (
+    IN p_id_customer INT,
+    IN p_name VARCHAR(50),
+    IN p_email VARCHAR(100),
+    IN p_password_hash VARCHAR(255),
+    IN p_DOB DATE,
+    IN p_cell_phone VARCHAR(15),
+    IN p_mail_address VARCHAR(255),
+    IN p_img_profile VARCHAR(255)
+)
+BEGIN
+
+    IF NOT EXISTS (SELECT 1 FROM Customer WHERE id_customer = p_id_customer) THEN
+        SIGNAL SQLSTATE '45000' 
+        SET MESSAGE_TEXT = 'ERROR: El usuario no existe';
+    END IF;
+
+    UPDATE Customer
+    SET
+        name = COALESCE(p_name, name),
+        email = COALESCE(p_email, email),
+        password_hash = COALESCE(p_password_hash, password_hash),
+        DOB = COALESCE(p_DOB, DOB),
+        cell_phone = COALESCE(p_cell_phone, cell_phone),
+        mail_address = COALESCE(p_mail_address, mail_address),
+        img_profile = COALESCE(p_img_profile, img_profile),
+        updated_at = CURRENT_TIMESTAMP
+    WHERE id_customer = p_id_customer;
+
+END //
+
+DELIMITER ;
+
+-- =========================================
+-- 💰 UPDATE CASHBACK
+-- =========================================
+
+DELIMITER //
+
+DROP PROCEDURE IF EXISTS sp_update_cashback //
+
+CREATE PROCEDURE sp_update_cashback (
+    IN p_id_customer INT,
+    IN p_value DECIMAL(10,2),
+    IN p_transaction_type VARCHAR(20),
+    IN p_id_transaction_fk INT
+)
+BEGIN
+
+    DECLARE v_cashback_id INT;
+    DECLARE v_current_cashback DECIMAL(10,2);
+
+    IF NOT EXISTS (SELECT 1 FROM Customer WHERE id_customer = p_id_customer) THEN
+        SIGNAL SQLSTATE '45000' 
+        SET MESSAGE_TEXT = 'ERROR: El usuario no existe';
+    END IF;
+
+    SELECT id_cashback, value INTO v_cashback_id, v_current_cashback
+    FROM Cashback WHERE id_customer_fk = p_id_customer;
+
+    IF p_transaction_type = 'acumulate' THEN
+        SET v_current_cashback = v_current_cashback + p_value;
+    ELSEIF p_transaction_type = 'redemption' THEN
+        IF v_current_cashback < p_value THEN
+            SIGNAL SQLSTATE '45000'
+            SET MESSAGE_TEXT = 'Saldo insuficiente para redención';
+        END IF;
+        SET v_current_cashback = v_current_cashback - p_value;
+    ELSE
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'ERROR: Tipo de transacción inválido';
+    END IF;
+
+    UPDATE Cashback
+    SET value = v_current_cashback,
+        updated_at = CURRENT_TIMESTAMP
+    WHERE id_customer_fk = p_id_customer;
+
+    INSERT INTO Cashback_History (
+        id_cashback_fk, value, transaction_type,
+        created_at, id_transaction_fk
+    )
+    VALUES (
+        v_cashback_id, p_value, p_transaction_type,
+        CURRENT_TIMESTAMP, p_id_transaction_fk
+    );
+
+END //
+
+DELIMITER ;
+
+-- =========================================
+-- 🔒 SEGURIDAD LOGIN CUSTOMER
+-- =========================================
+
+DELIMITER //
+
+DROP PROCEDURE IF EXISTS sp_update_login_failed //
+
+CREATE PROCEDURE sp_update_login_failed (
+    IN p_id_customer INT
+)
+BEGIN
+
+    IF NOT EXISTS (SELECT 1 FROM Customer WHERE id_customer = p_id_customer) THEN
+        SIGNAL SQLSTATE '45000' 
+        SET MESSAGE_TEXT = 'ERROR: El usuario no existe';
+    END IF;
+
+    UPDATE Customer
+    SET attempts = attempts + 1,
+        updated_at = CURRENT_TIMESTAMP
+    WHERE id_customer = p_id_customer;
+
+END //
+
+DELIMITER ;
+
+-- =========================================
+-- 🔄 RESET INTENTOS CUSTOMER
+-- =========================================
+
+DELIMITER //
+
+DROP PROCEDURE IF EXISTS sp_reset_login_failed //
+
+CREATE PROCEDURE sp_reset_login_failed (
+    IN p_id_customer INT
+)
+BEGIN
+
+    IF NOT EXISTS (SELECT 1 FROM Customer WHERE id_customer = p_id_customer) THEN
+        SIGNAL SQLSTATE '45000' 
+        SET MESSAGE_TEXT = 'ERROR: El usuario no existe';
+    END IF;
+
+    UPDATE Customer
+    SET attempts = 0,
+        updated_at = CURRENT_TIMESTAMP
+    WHERE id_customer = p_id_customer;
+
+END //
+
+DELIMITER ;
+
+-- =========================================
+-- 🔒 BLOQUEAR / DESBLOQUEAR CUSTOMER
+-- =========================================
+
+DELIMITER //
+
+DROP PROCEDURE IF EXISTS sp_toggle_customer_status //
+
+CREATE PROCEDURE sp_toggle_customer_status (
+    IN p_id_customer INT,
+    IN p_is_active BOOLEAN
+)
+BEGIN
+
+    IF NOT EXISTS (SELECT 1 FROM Customer WHERE id_customer = p_id_customer) THEN
+        SIGNAL SQLSTATE '45000' 
+        SET MESSAGE_TEXT = 'ERROR: El usuario no existe';
+    END IF;
+
+    UPDATE Customer
+    SET is_active = p_is_active,
+        updated_at = CURRENT_TIMESTAMP
+    WHERE id_customer = p_id_customer;
+
+END //
+
+DELIMITER ;
+
+-- ========================================
+-- 🟢 REGISTRO COMPANY
+-- =========================================
+DELIMITER //
+
+DROP PROCEDURE IF EXISTS sp_register_company //
+
+CREATE PROCEDURE sp_register_company (
+    IN p_name VARCHAR(255),
+    IN p_rif VARCHAR(20),
+    IN p_email VARCHAR(255),
+    IN p_password_hash VARCHAR(255),
+    IN p_cell_phone VARCHAR(20),
+    IN p_mail_address VARCHAR(255),
+    IN p_id_role_fk INT
+)
+BEGIN
+
+    IF EXISTS (SELECT 1 FROM Company WHERE email = p_email) THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Correo ya registrado';
+    END IF;
+
+    IF EXISTS (SELECT 1 FROM Company WHERE rif = p_rif) THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'RIF ya registrado';
+    END IF;
+
+    INSERT INTO Company (
+        name, rif, email, password_hash,
+        cell_phone, mail_address, id_role_fk
+    )
+    VALUES (
+        p_name, p_rif, p_email, p_password_hash,
+        p_cell_phone, p_mail_address, p_id_role_fk
+    );
+
+
+END //
+
+DELIMITER ;
+
+-- ========================================
+-- ✏️ UPDATE COMPANY
+-- =========================================
+DELIMITER //
+
+DROP PROCEDURE IF EXISTS sp_update_company //
+
+CREATE PROCEDURE sp_update_company (
+    IN p_id_company INT,
+    IN p_name VARCHAR(255),
+    IN p_rif VARCHAR(20),
+    IN p_email VARCHAR(255),
+    IN p_password_hash VARCHAR(255),
+    IN p_cell_phone VARCHAR(20),
+    IN p_mail_address VARCHAR(255),
+    IN p_id_role_fk INT
+)
+BEGIN
+
+    IF NOT EXISTS (SELECT 1 FROM Company WHERE id_company = p_id_company) THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Empresa no existe';
+    END IF;
+
+    UPDATE Company
+    SET
+        name = COALESCE(p_name, name),
+        rif = COALESCE(p_rif, rif),
+        email = COALESCE(p_email, email),
+        password_hash = COALESCE(p_password_hash, password_hash),
+        cell_phone = COALESCE(p_cell_phone, cell_phone),
+        mail_address = COALESCE(p_mail_address, mail_address),
+        id_role_fk = COALESCE(p_id_role_fk, id_role_fk),
+        updated_at = CURRENT_TIMESTAMP
+    WHERE id_company = p_id_company;
+
+END //
+
+DELIMITER ;
+
+-- =========================================
+-- 🔒 SEGURIDAD LOGIN COMPANY
+-- =========================================
+DELIMITER //
+
+DROP PROCEDURE IF EXISTS sp_update_login_failed_company //
+
+CREATE PROCEDURE sp_update_login_failed_company (
+    IN p_id_company INT
+)
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM Company WHERE id_company = p_id_company) THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'ERROR: La empresa no existe';
+    END IF;
+
+    UPDATE Company
+    SET attempts = attempts + 1,
+        updated_at = CURRENT_TIMESTAMP
+    WHERE id_company = p_id_company;
+END //
+
+DELIMITER ;
+
+-- =========================================
+-- 🔄 RESET INTENTOS COMPANY
+-- =========================================
+DELIMITER //
+
+DROP PROCEDURE IF EXISTS sp_reset_login_failed_company //
+
+CREATE PROCEDURE sp_reset_login_failed_company (
+    IN p_id_company INT
+)
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM Company WHERE id_company = p_id_company) THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'ERROR: La empresa no existe';
+    END IF;
+
+    UPDATE Company
+    SET attempts = 0,
+        updated_at = CURRENT_TIMESTAMP
+    WHERE id_company = p_id_company;
+END //
+
+DELIMITER ;
+
+-- ========================================
+-- 🔒 BLOQUEAR / DESBLOQUEAR COMPANY
+-- ========================================
+DELIMITER //
+
+DROP PROCEDURE IF EXISTS sp_toggle_company_status //
+
+CREATE PROCEDURE sp_toggle_company_status (
+    IN p_id_company INT,
+    IN p_is_active BOOLEAN
+)
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM Company WHERE id_company = p_id_company) THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'ERROR: La empresa no existe';
+    END IF;
+
+    UPDATE Company
+    SET is_active = p_is_active,
+        updated_at = CURRENT_TIMESTAMP
+    WHERE id_company = p_id_company;
+END //
+
+DELIMITER ;
+
+-- ========================================
+-- 💳 ASIGNAR CRÉDITO
+-- ========================================
+DELIMITER //
+
+DROP PROCEDURE IF EXISTS sp_create_credit //
+
+CREATE PROCEDURE sp_create_credit (
+    IN p_retailer INT,
+    IN p_wholesaler INT,
+    IN p_amount DECIMAL(10,2)
+)
+BEGIN
+
+    DECLARE v_id_credit INT;
+
+    IF NOT EXISTS (SELECT 1 FROM Company WHERE id_company = p_retailer) THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Detallista no existe';
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM Company WHERE id_company = p_wholesaler) THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Mayorista no existe';
+    END IF;
+
+    INSERT INTO Credit_Limit (
+        id_retailer_fk, id_wholesaler_fk,
+        credit, remaining_amount,
+        start_date, due_date
+    )
+    VALUES (
+        p_retailer, p_wholesaler,
+        p_amount, p_amount,
+        CURDATE(), DATE_ADD(CURDATE(), INTERVAL 30 DAY)
+    );
+
+    SET v_id_credit = LAST_INSERT_ID();
+
+    INSERT INTO Credit_History (
+        id_credit_limit_fk, amount, type,
+        previous_balance, new_balance
+    )
+    VALUES (
+        v_id_credit, p_amount, 'ASSIGN', 0, p_amount
+    );
+
+END //
+
+DELIMITER ;
+
+-- ========================================
+-- 💳 PAGAR CRÉDITO
+-- ========================================
+DELIMITER //
+
+DROP PROCEDURE IF EXISTS sp_pay_credit //
+
+CREATE PROCEDURE sp_pay_credit (
+    IN p_credit_id INT,
+    IN p_amount DECIMAL(10,2)
+)
+BEGIN
+
+    DECLARE v_remaining DECIMAL(10,2);
+
+    IF NOT EXISTS (
+        SELECT 1 FROM Credit_Limit WHERE id_credit_limit = p_credit_id
+    ) THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Crédito no existe';
+    END IF;
+
+    SELECT remaining_amount INTO v_remaining
+    FROM Credit_Limit WHERE id_credit_limit = p_credit_id;
+
+    IF v_remaining < p_amount THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Pago excede deuda';
+    END IF;
+
+    UPDATE Credit_Limit
+    SET remaining_amount = remaining_amount - p_amount,
+        status = IF(remaining_amount - p_amount < 0.01, 'PAID', 'ACTIVE'),
+        updated_at = CURRENT_TIMESTAMP
+    WHERE id_credit_limit = p_credit_id;
+
+    INSERT INTO Credit_History (
+        id_credit_limit_fk, amount, type,
+        previous_balance, new_balance
+    )
+    VALUES (
+        p_credit_id, p_amount, 'PAYMENT',
+        v_remaining, v_remaining - p_amount
+    );
+
+END //
+
+DELIMITER ;
+
+-- ========================================
+-- 💳 CHECKEAR CRÉDITO POR FECHA LÍMITE
+-- ========================================
+DELIMITER //
+
+DROP PROCEDURE IF EXISTS sp_check_credit_status //
+
+CREATE PROCEDURE sp_check_credit_status()
+BEGIN
+
+    DECLARE EXIT HANDLER FOR SQLEXCEPTION
+    BEGIN
+        ROLLBACK;
+        RESIGNAL;
+    END;
+
+    START TRANSACTION;
+
+        UPDATE Credit_Limit
+        SET status = 'LATE'
+        WHERE due_date < CURDATE()
+        AND remaining_amount > 0;
+
+        UPDATE Company
+        SET can_buy = FALSE,
+            can_sell = FALSE,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id_company IN (
+            SELECT id_retailer_fk
+            FROM Credit_Limit
+            WHERE status = 'LATE'
+        );
+
+    COMMIT;
+
+END //
+
+DELIMITER ;
+
+CREATE TABLE Category (
+    id_category INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    UNIQUE(name)
+);
+
+CREATE TABLE Subcategory (
+    id_subcategory INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+
+    id_category_fk INT NOT NULL,
+
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    UNIQUE(name, id_category_fk),
+
+    FOREIGN KEY (id_category_fk) REFERENCES Category(id_category)
+);
+
+CREATE TABLE Line (
+    id_line INT AUTO_INCREMENT PRIMARY KEY,
+
+    name VARCHAR(150) NOT NULL,
+
+    id_subcategory_fk INT NOT NULL,
+
+    is_active BOOLEAN DEFAULT TRUE,
+
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+    UNIQUE(name, id_subcategory_fk),
+
+    FOREIGN KEY (id_subcategory_fk) REFERENCES Subcategory(id_subcategory)
+);
+
+CREATE TABLE Product (
+    id_product INT AUTO_INCREMENT PRIMARY KEY,
+
+    id_line_fk INT NOT NULL,
+    id_company_fk INT NOT NULL,             -- ✅ User_J → Company
+
+
+    sku VARCHAR(50) UNIQUE, -- identificador público
+    name VARCHAR(100) NOT NULL,
+
+    brand VARCHAR(100),
+
+    description VARCHAR(255),
+
+    price DECIMAL(10,2) NOT NULL,
+
+    attributes JSON,
+
+    is_active BOOLEAN DEFAULT TRUE,
+
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+
+    FOREIGN KEY (id_company_fk) REFERENCES Company(id_company),
+    FOREIGN KEY (id_line_fk) REFERENCES Line(id_line)
+);
+
+CREATE TABLE Stock (
+    id_stock INT AUTO_INCREMENT PRIMARY KEY,
+
+    id_product_fk INT NOT NULL,
+
+    quantity INT NOT NULL DEFAULT 0 CHECK (quantity >= 0),      -- ✅ FIX
+    min_stock INT DEFAULT 0 CHECK (min_stock >= 0),             -- ✅ FIX
+
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,             -- ✅ FIX agregado
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+    FOREIGN KEY (id_product_fk) REFERENCES Product(id_product)
+);
+
+-- ✅ FIX: Tabla de historial de stock agregada
+CREATE TABLE Stock_History (
+    id_stock_history INT AUTO_INCREMENT PRIMARY KEY,
+
+    id_stock_fk INT NOT NULL,
+
+    -- 📦 movimiento
+    quantity_change INT NOT NULL,           -- positivo = entrada, negativo = salida
+    previous_quantity INT NOT NULL,
+    new_quantity INT NOT NULL,
+
+    movement_type ENUM(
+        'PURCHASE',     -- compra/reposición
+        'SALE',         -- venta
+        'ADJUSTMENT',   -- ajuste manual
+        'RETURN'        -- devolución
+    ) NOT NULL,
+
+    notes VARCHAR(255),
+
+    -- 🕒 auditoría
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    FOREIGN KEY (id_stock_fk) REFERENCES Stock(id_stock)
+);
+
+CREATE TABLE Product_Image (
+    id_image INT AUTO_INCREMENT PRIMARY KEY,
+
+    id_product_fk INT NOT NULL,
+
+    image_url VARCHAR(255) NOT NULL,
+    is_main BOOLEAN DEFAULT FALSE,
+    sort_order INT DEFAULT 0,                                   -- ✅ FIX agregado
+
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    FOREIGN KEY (id_product_fk) REFERENCES Product(id_product)
+);
+
+-- ✅ FIX: Índice para historial de stock
+CREATE INDEX idx_stock_history_stock ON Stock_History(id_stock_fk);
+CREATE INDEX idx_stock_history_type ON Stock_History(movement_type);
+CREATE INDEX idx_stock_history_created ON Stock_History(created_at);
+
+-- ✅ FIX: Índice para ordenar imágenes
+CREATE INDEX idx_image_product_order ON Product_Image(id_product_fk, sort_order);
+
+-- búsquedas reales ecommerce
+CREATE INDEX idx_line_active ON Line(is_active);
+CREATE INDEX idx_line_subcategory ON Line(id_subcategory_fk);
+CREATE INDEX idx_product_active ON Product(is_active);
+CREATE INDEX idx_product_company ON Product(id_company_fk);
+
+-- filtros típicos
+CREATE INDEX idx_product_price ON Product(price);
+
+-- ordenamientos
+CREATE INDEX idx_line_created ON Line(created_at);
+
+DELIMITER //
+
+DROP PROCEDURE IF EXISTS sp_admin_create_category //
+
+CREATE PROCEDURE sp_admin_create_category (
+    IN p_name VARCHAR(100)
+)
+BEGIN
+
+    IF EXISTS (
+        SELECT 1 FROM Category WHERE name = p_name
+    ) THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Categoría ya existe';
+    END IF;
+
+    INSERT INTO Category (name)
+    VALUES (p_name);
+
+END //
+
+DELIMITER ;
+
+DELIMITER //
+
+DROP PROCEDURE IF EXISTS sp_update_category //
+
+CREATE PROCEDURE sp_update_category (
+    IN p_id_category INT,
+    IN p_name VARCHAR(100)
+)
+BEGIN
+
+    IF NOT EXISTS (
+        SELECT 1 FROM Category WHERE id_category = p_id_category
+    ) THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Categoría no existe';
+    END IF;
+
+    IF EXISTS (
+        SELECT 1
+        FROM Category
+        WHERE name = p_name AND id_category <> p_id_category
+    ) THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Categoría ya existe';
+    END IF;
+
+    UPDATE Category
+    SET name = COALESCE(NULLIF(p_name, ''), name)
+    WHERE id_category = p_id_category;
+
+END //
+
+DELIMITER ;
+
+DELIMITER //
+
+DROP PROCEDURE IF EXISTS sp_toggle_category //
+
+CREATE PROCEDURE sp_toggle_category (
+    IN p_id_category INT,
+    IN p_is_active BOOLEAN
+)
+BEGIN
+
+    IF NOT EXISTS (
+        SELECT 1 FROM Category WHERE id_category = p_id_category
+    ) THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Categoría no existe';
+    END IF;
+
+    UPDATE Category
+    SET is_active = p_is_active
+    WHERE id_category = p_id_category;
+
+END //
+
+DELIMITER ;
+
+DELIMITER //
+
+DROP PROCEDURE IF EXISTS sp_admin_create_subcategory //
+
+CREATE PROCEDURE sp_admin_create_subcategory (
+    IN p_name VARCHAR(100),
+    IN p_id_category INT
+)
+BEGIN
+
+    IF NOT EXISTS (
+        SELECT 1 FROM Category WHERE id_category = p_id_category
+    ) THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Categoría no existe';
+    END IF;
+
+    IF EXISTS (
+        SELECT 1 FROM Subcategory 
+        WHERE name = p_name AND id_category_fk = p_id_category
+    ) THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Subcategoría ya existe';
+    END IF;
+
+    INSERT INTO Subcategory (name, id_category_fk)
+    VALUES (p_name, p_id_category);
+
+END //
+
+DELIMITER ;
+
+DELIMITER //
+
+DROP PROCEDURE IF EXISTS sp_update_subcategory //
+
+CREATE PROCEDURE sp_update_subcategory (
+    IN p_id_subcategory INT,
+    IN p_name VARCHAR(100),
+    IN p_id_category INT
+)
+BEGIN
+
+    DECLARE v_category_id INT;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM Subcategory WHERE id_subcategory = p_id_subcategory
+    ) THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Subcategoría no existe';
+    END IF;
+
+    SET v_category_id = p_id_category;
+
+    IF v_category_id IS NULL THEN
+        SELECT id_category_fk INTO v_category_id
+        FROM Subcategory
+        WHERE id_subcategory = p_id_subcategory
+        LIMIT 1;
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM Category WHERE id_category = v_category_id
+    ) THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Categoría no existe';
+    END IF;
+
+    IF EXISTS (
+        SELECT 1
+        FROM Subcategory
+        WHERE name = COALESCE(NULLIF(p_name, ''), name)
+          AND id_category_fk = v_category_id
+          AND id_subcategory <> p_id_subcategory
+    ) THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Subcategoría ya existe';
+    END IF;
+
+    UPDATE Subcategory
+    SET
+        name = COALESCE(NULLIF(p_name, ''), name),
+        id_category_fk = v_category_id
+    WHERE id_subcategory = p_id_subcategory;
+
+END //
+
+DELIMITER ;
+
+DELIMITER //
+
+DROP PROCEDURE IF EXISTS sp_toggle_subcategory //
+
+CREATE PROCEDURE sp_toggle_subcategory (
+    IN p_id_subcategory INT,
+    IN p_is_active BOOLEAN
+)
+BEGIN
+
+    IF NOT EXISTS (
+        SELECT 1 FROM Subcategory WHERE id_subcategory = p_id_subcategory
+    ) THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Subcategoría no existe';
+    END IF;
+
+    UPDATE Subcategory
+    SET is_active = p_is_active
+    WHERE id_subcategory = p_id_subcategory;
+
+END //
+
+DELIMITER ;
+
+DELIMITER //
+
+DROP PROCEDURE IF EXISTS sp_create_product_full //
+
+CREATE PROCEDURE sp_create_product_full(
+    IN p_name VARCHAR(150),
+    IN p_id_subcategory INT,
+    IN p_id_company INT,                    -- ✅ p_id_user → p_id_company
+    IN p_brand VARCHAR(100),
+
+    IN p_sku VARCHAR(50),
+    IN p_description VARCHAR(255),
+    IN p_price DECIMAL(10,2),
+    IN p_attributes JSON,
+
+    IN p_quantity INT,
+    IN p_min_stock INT,
+
+    IN p_image_url VARCHAR(255)
+)
+BEGIN
+
+    DECLARE v_line_id INT;
+    DECLARE v_product_id INT;
+
+    DECLARE EXIT HANDLER FOR SQLEXCEPTION
+    BEGIN
+        ROLLBACK;
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Error creando producto (rollback ejecutado)';
+    END;
+
+    START TRANSACTION;
+
+    -- ✅ User_J → Company
+    IF NOT EXISTS (SELECT 1 FROM Company WHERE id_company = p_id_company) THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Empresa no existe';
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM Subcategory WHERE id_subcategory = p_id_subcategory) THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Subcategoría no existe';
+    END IF;
+
+    SELECT id_line INTO v_line_id
+    FROM Line
+    WHERE name = p_name
+      AND id_subcategory_fk = p_id_subcategory
+    LIMIT 1;
+
+    IF v_line_id IS NULL THEN
+        INSERT INTO Line (name, id_subcategory_fk)
+        VALUES (p_name, p_id_subcategory);
+
+        SET v_line_id = LAST_INSERT_ID();
+    END IF;
+
+    SET p_sku = IFNULL(p_sku, CONCAT('SKU-', v_line_id));
+
+    INSERT INTO Product (
+        id_line_fk, id_company_fk, sku, name, brand, description, price, attributes
+    )
+    VALUES (
+        v_line_id, p_id_company, p_sku, p_name, p_brand, p_description, p_price, p_attributes
+    );
+
+    SET v_product_id = LAST_INSERT_ID();
+
+    INSERT INTO Stock (id_product_fk, quantity, min_stock)
+    VALUES (v_product_id, p_quantity, p_min_stock);
+
+    IF p_image_url IS NOT NULL THEN
+        INSERT INTO Product_Image (id_product_fk, image_url, is_main)
+        VALUES (v_product_id, p_image_url, TRUE);
+    END IF;
+
+    COMMIT;
+
+END //
+
+DELIMITER ;
+
+
+DELIMITER //
+
+DROP PROCEDURE IF EXISTS sp_update_product //
+
+CREATE PROCEDURE sp_update_product (
+    IN p_id_product INT,
+    IN p_name VARCHAR(150),
+    IN p_brand VARCHAR(100)
+)
+BEGIN
+
+    IF NOT EXISTS (
+        SELECT 1 FROM Line WHERE id_line = p_id_product
+    ) THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Línea no existe';
+    END IF;
+
+    UPDATE Line
+    SET
+        name = COALESCE(p_name, name),
+        updated_at = CURRENT_TIMESTAMP
+    WHERE id_line = p_id_product;
+
+    UPDATE Product
+    SET
+        brand = COALESCE(p_brand, brand),
+        updated_at = CURRENT_TIMESTAMP
+    WHERE id_line_fk = p_id_product;
+
+END //
+
+DELIMITER ;
+
+DELIMITER //
+
+DROP PROCEDURE IF EXISTS sp_update_variant //
+
+CREATE PROCEDURE sp_update_variant (
+    IN p_id_variant INT,
+    IN p_price DECIMAL(10,2),
+    IN p_attributes JSON
+)
+BEGIN
+
+    IF NOT EXISTS (
+        SELECT 1 FROM Product WHERE id_product = p_id_variant
+    ) THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Producto no existe';
+    END IF;
+
+    UPDATE Product
+    SET
+        price = COALESCE(p_price, price),
+        attributes = COALESCE(p_attributes, attributes),
+        updated_at = CURRENT_TIMESTAMP
+    WHERE id_product = p_id_variant;
+
+END //
+
+DELIMITER ;
+
+DELIMITER //
+
+DROP PROCEDURE IF EXISTS sp_toggle_product //
+
+CREATE PROCEDURE sp_toggle_product (
+    IN p_id_product INT,
+    IN p_is_active BOOLEAN
+)
+BEGIN
+
+    IF NOT EXISTS (
+        SELECT 1 FROM Line WHERE id_line = p_id_product
+    ) THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Línea no existe';
+    END IF;
+
+    UPDATE Line
+    SET is_active = p_is_active,
+        updated_at = CURRENT_TIMESTAMP
+    WHERE id_line = p_id_product;
+
+END //
+
+DELIMITER ;
+
+DELIMITER //
+
+DROP PROCEDURE IF EXISTS sp_toggle_variant //
+
+CREATE PROCEDURE sp_toggle_variant (
+    IN p_id_variant INT,
+    IN p_is_active BOOLEAN
+)
+BEGIN
+
+    IF NOT EXISTS (
+        SELECT 1 FROM Product WHERE id_product = p_id_variant
+    ) THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Producto no existe';
+    END IF;
+
+    UPDATE Product
+    SET is_active = p_is_active,
+        updated_at = CURRENT_TIMESTAMP
+    WHERE id_product = p_id_variant;
+
+END //
+
+DELIMITER ;
+
+DELIMITER //
+
+DROP PROCEDURE IF EXISTS sp_create_product_auto //
+
+CREATE PROCEDURE sp_create_product_auto (
+    IN p_categoria VARCHAR(100),
+    IN p_subcategoria VARCHAR(100),
+    IN p_producto VARCHAR(150),
+    IN p_id_company INT                     -- ✅ p_id_user → p_id_company
+)
+BEGIN
+
+    DECLARE v_category_id INT;
+    DECLARE v_subcategory_id INT;
+    DECLARE v_line_id INT;
+    DECLARE v_product_id INT;
+
+    DECLARE EXIT HANDLER FOR SQLEXCEPTION
+    BEGIN
+        ROLLBACK;
+        RESIGNAL;
+    END;
+
+    START TRANSACTION;
+
+    -- ✅ User_J → Company
+    IF NOT EXISTS (SELECT 1 FROM Company WHERE id_company = p_id_company) THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Empresa no existe';
+    END IF;
+
+    SELECT id_category INTO v_category_id
+    FROM Category WHERE name = p_categoria LIMIT 1;
+
+    IF v_category_id IS NULL THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Categoría no existe';
+    END IF;
+
+    SELECT id_subcategory INTO v_subcategory_id
+    FROM Subcategory 
+    WHERE name = p_subcategoria 
+    AND id_category_fk = v_category_id
+    LIMIT 1;
+
+    IF v_subcategory_id IS NULL THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Subcategoría no existe';
+    END IF;
+
+    SELECT id_line INTO v_line_id
+    FROM Line
+    WHERE name = p_producto
+      AND id_subcategory_fk = v_subcategory_id
+    LIMIT 1;
+
+    IF v_line_id IS NULL THEN
+        INSERT INTO Line (
+            name,
+            id_subcategory_fk
+        )
+        VALUES (
+            p_producto,
+            v_subcategory_id
+        );
+
+        SET v_line_id = LAST_INSERT_ID();
+    END IF;
+
+    INSERT INTO Product (
+        id_line_fk,
+        id_company_fk,
+        sku,
+        name,
+        price,
+        attributes
+    )
+    VALUES (
+        v_line_id,
+        p_id_company,
+        CONCAT('AUTO-', v_line_id),
+        p_producto,
+        0,
+        JSON_OBJECT('default', 'auto')
+    );
+
+    SET v_product_id = LAST_INSERT_ID();
+
+    INSERT INTO Stock (
+        id_product_fk,
+        quantity
+    )
+    VALUES (
+        v_product_id,
+        0
+    );
+
+    COMMIT;
+
+END //
+
+DELIMITER ;
+
+DELIMITER //
+
+DROP PROCEDURE IF EXISTS sp_add_variant //
+
+CREATE PROCEDURE sp_add_variant (
+    IN p_id_product INT,
+    IN p_id_company INT,
+
+    IN p_sku VARCHAR(50),
+    IN p_name VARCHAR(150),
+    IN p_description VARCHAR(255),
+    IN p_price DECIMAL(10,2),
+    IN p_attributes JSON,
+
+    IN p_quantity INT,
+    IN p_min_stock INT,
+
+    IN p_image_url VARCHAR(255)
+)
+BEGIN
+
+    DECLARE v_product_id INT;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM Company WHERE id_company = p_id_company
+    ) THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Empresa no existe';
+    END IF;
+
+    -- validar linea
+    IF NOT EXISTS (
+        SELECT 1 FROM Line WHERE id_line = p_id_product
+    ) THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Línea no existe';
+    END IF;
+
+    -- validar SKU único
+    IF EXISTS (
+        SELECT 1 FROM Product WHERE sku = p_sku
+    ) THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'SKU ya existe';
+    END IF;
+
+    -- crear producto dentro de la linea
+    INSERT INTO Product (
+        id_line_fk,
+        id_company_fk,
+        sku,
+        name,
+        description,
+        price,
+        attributes
+    )
+    VALUES (
+        p_id_product,
+        p_id_company,
+        p_sku,
+        p_name,
+        p_description,
+        p_price,
+        p_attributes
+    );
+
+    SET v_product_id = LAST_INSERT_ID();
+
+    -- stock
+    INSERT INTO Stock (
+        id_product_fk,
+        quantity,
+        min_stock
+    )
+    VALUES (
+        v_product_id,
+        p_quantity,
+        p_min_stock
+    );
+
+    -- imagen
+    IF p_image_url IS NOT NULL THEN
+        INSERT INTO Product_Image (
+            id_product_fk,
+            image_url,
+            is_main
+        )
+        VALUES (
+            v_product_id,
+            p_image_url,
+            TRUE
+        );
+    END IF;
+
+END //
+
+DELIMITER ;
+
+DELIMITER //
+
+DROP PROCEDURE IF EXISTS sp_update_stock //
+
+CREATE PROCEDURE sp_update_stock (
+    IN p_id_variant INT,
+    IN p_quantity INT,
+    IN p_movement_type ENUM('PURCHASE','SALE','ADJUSTMENT','RETURN'),
+    IN p_notes VARCHAR(255)
+)
+BEGIN
+
+    DECLARE v_previous_quantity INT;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM Stock WHERE id_product_fk = p_id_variant
+    ) THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Stock no existe';
+    END IF;
+
+    SELECT quantity INTO v_previous_quantity
+    FROM Stock WHERE id_product_fk = p_id_variant;
+
+    UPDATE Stock
+    SET quantity = p_quantity,
+        updated_at = CURRENT_TIMESTAMP
+    WHERE id_product_fk = p_id_variant;
+
+    INSERT INTO Stock_History (
+        id_stock_fk,
+        quantity_change,
+        previous_quantity,
+        new_quantity,
+        movement_type,
+        notes
+    )
+    SELECT
+        id_stock,
+        p_quantity - v_previous_quantity,
+        v_previous_quantity,
+        p_quantity,
+        p_movement_type,
+        p_notes
+    FROM Stock WHERE id_product_fk = p_id_variant;
+
+END //
+
+DELIMITER ;
+
+DELIMITER //
+
+DROP PROCEDURE IF EXISTS sp_add_stock //
+
+CREATE PROCEDURE sp_add_stock (
+    IN p_id_variant INT,
+    IN p_amount INT,
+    IN p_movement_type ENUM('PURCHASE','SALE','ADJUSTMENT','RETURN'),
+    IN p_notes VARCHAR(255)
+)
+BEGIN
+
+    DECLARE v_stock_id INT;
+    DECLARE v_previous_quantity INT;
+
+    START TRANSACTION;
+
+    SELECT id_stock, quantity INTO v_stock_id, v_previous_quantity
+    FROM Stock
+    WHERE id_product_fk = p_id_variant
+    FOR UPDATE;
+
+    IF v_stock_id IS NULL THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Stock no existe';
+    END IF;
+
+    UPDATE Stock
+    SET quantity = quantity + p_amount,
+        updated_at = CURRENT_TIMESTAMP
+    WHERE id_product_fk = p_id_variant;
+
+    INSERT INTO Stock_History (
+        id_stock_fk,
+        quantity_change,
+        previous_quantity,
+        new_quantity,
+        movement_type,
+        notes
+    )
+    VALUES (
+        v_stock_id,
+        p_amount,
+        v_previous_quantity,
+        v_previous_quantity + p_amount,
+        p_movement_type,
+        p_notes
+    );
+
+    COMMIT;
+
+END //
+
+DELIMITER ;
+
+DELIMITER //
+
+DROP PROCEDURE IF EXISTS sp_remove_stock //
+
+CREATE PROCEDURE sp_remove_stock (
+    IN p_id_variant INT,
+    IN p_amount INT,
+    IN p_movement_type ENUM('PURCHASE','SALE','ADJUSTMENT','RETURN'),
+    IN p_notes VARCHAR(255)
+)
+BEGIN
+
+    DECLARE v_stock_id INT;
+    DECLARE v_stock INT;
+
+    START TRANSACTION;
+
+    SELECT id_stock, quantity INTO v_stock_id, v_stock
+    FROM Stock
+    WHERE id_product_fk = p_id_variant
+    FOR UPDATE;
+
+    IF v_stock IS NULL THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Stock no existe';
+    END IF;
+
+    IF v_stock < p_amount THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Stock insuficiente';
+    END IF;
+
+    UPDATE Stock
+    SET quantity = quantity - p_amount,
+        updated_at = CURRENT_TIMESTAMP
+    WHERE id_product_fk = p_id_variant;
+
+    INSERT INTO Stock_History (
+        id_stock_fk,
+        quantity_change,
+        previous_quantity,
+        new_quantity,
+        movement_type,
+        notes
+    )
+    VALUES (
+        v_stock_id,
+        -p_amount,
+        v_stock,
+        v_stock - p_amount,
+        p_movement_type,
+        p_notes
+    );
+
+    COMMIT;
+
+END //
+
+DELIMITER ;
+
+DELIMITER //
+
+DROP PROCEDURE IF EXISTS sp_internal_create_variant //
+
+CREATE PROCEDURE sp_internal_create_variant (
+    IN p_id_product INT,
+    IN p_id_company INT,
+    IN p_sku VARCHAR(50),
+    IN p_name VARCHAR(150),
+    IN p_description VARCHAR(255),
+    IN p_price DECIMAL(10,2),
+    IN p_attributes JSON,
+    OUT p_product_id INT
+)
+BEGIN
+
+    IF NOT EXISTS (
+        SELECT 1 FROM Company WHERE id_company = p_id_company
+    ) THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Empresa no existe';
+    END IF;
+
+    INSERT INTO Product (
+        id_line_fk, id_company_fk, sku, name, description, price, attributes
+    )
+    VALUES (
+        p_id_product, p_id_company, p_sku, p_name, p_description, p_price, p_attributes
+    );
+
+    SET p_product_id = LAST_INSERT_ID();
+
+END //
+
+DELIMITER ;
+
+DELIMITER //
+
+DROP PROCEDURE IF EXISTS sp_dashboard_admin_company_summary //
+CREATE PROCEDURE sp_dashboard_admin_company_summary()
+BEGIN
+  SELECT
+    COUNT(*) AS total_companies,
+    SUM(CASE WHEN is_active = TRUE THEN 1 ELSE 0 END) AS active_companies,
+    SUM(CASE WHEN is_active = FALSE THEN 1 ELSE 0 END) AS inactive_companies,
+    SUM(CASE WHEN id_role_fk = 1 THEN 1 ELSE 0 END) AS admin_companies,
+    SUM(CASE WHEN attempts > 0 THEN 1 ELSE 0 END) AS companies_with_attempts
+  FROM Company;
+END //
+
+DROP PROCEDURE IF EXISTS sp_dashboard_admin_company_list //
+CREATE PROCEDURE sp_dashboard_admin_company_list()
+BEGIN
+  SELECT
+    id_company,
+    name,
+    rif,
+    email,
+    id_role_fk,
+    is_active,
+    attempts,
+    can_buy,
+    can_sell,
+    cell_phone,
+    mail_address,
+    created_at,
+    updated_at
+  FROM Company
+  ORDER BY created_at DESC, id_company DESC;
+END //
+
+DELIMITER ;
+
+-- =========================================
+-- 📊 DASHBOARD ADMIN: CUSTOMERS
+-- =========================================
+
+DROP PROCEDURE IF EXISTS sp_dashboard_admin_customer_summary;
+DROP PROCEDURE IF EXISTS sp_dashboard_admin_customer_list;
+
+DELIMITER //
+
+CREATE PROCEDURE sp_dashboard_admin_customer_summary ()
+BEGIN
+    SELECT
+        COUNT(*) AS total_customers,
+        SUM(CASE WHEN is_active = TRUE THEN 1 ELSE 0 END) AS active_customers,
+        SUM(CASE WHEN is_active = FALSE THEN 1 ELSE 0 END) AS blocked_customers,
+        SUM(CASE WHEN auth_provider = 'local' THEN 1 ELSE 0 END) AS local_customers,
+        SUM(CASE WHEN auth_provider = 'google' THEN 1 ELSE 0 END) AS google_customers,
+        SUM(CASE WHEN auth_provider = 'both' THEN 1 ELSE 0 END) AS both_customers,
+        SUM(CASE WHEN is_verified = TRUE THEN 1 ELSE 0 END) AS verified_customers
+    FROM Customer;
+END //
+
+CREATE PROCEDURE sp_dashboard_admin_customer_list ()
+BEGIN
+    SELECT
+        id_customer,
+        name,
+        email,
+        auth_provider,
+        is_verified,
+        is_active,
+        attempts,
+        cell_phone,
+        mail_address,
+        created_at,
+        updated_at
+    FROM Customer
+    ORDER BY created_at DESC, id_customer DESC;
+END //
+
+DELIMITER ;
+
+CREATE TABLE Exchange_Rate (
+    id_exchange_rate INT AUTO_INCREMENT PRIMARY KEY,
+
+    rate_bs_per_usd DECIMAL(12,4) NOT NULL,
+
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT chk_exchange_rate_positive CHECK (rate_bs_per_usd > 0)
+);
+
+CREATE INDEX idx_exchange_rate_created ON Exchange_Rate(created_at);
+
+DELIMITER //
+
+DROP PROCEDURE IF EXISTS sp_create_exchange_rate //
+
+CREATE PROCEDURE sp_create_exchange_rate (
+    IN p_rate_bs_per_usd DECIMAL(12,4)
+)
+BEGIN
+
+    IF p_rate_bs_per_usd IS NULL OR p_rate_bs_per_usd <= 0 THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'La tasa debe ser mayor a 0';
+    END IF;
+
+    INSERT INTO Exchange_Rate (rate_bs_per_usd)
+    VALUES (p_rate_bs_per_usd);
+
+    SELECT
+        id_exchange_rate,
+        rate_bs_per_usd,
+        created_at
+    FROM Exchange_Rate
+    WHERE id_exchange_rate = LAST_INSERT_ID()
+    LIMIT 1;
+
+END //
+
+DELIMITER ;
+
+DELIMITER //
+
+DROP PROCEDURE IF EXISTS sp_get_latest_exchange_rate //
+
+CREATE PROCEDURE sp_get_latest_exchange_rate ()
+BEGIN
+
+    SELECT
+        id_exchange_rate,
+        rate_bs_per_usd,
+        created_at
+    FROM Exchange_Rate
+    ORDER BY created_at DESC, id_exchange_rate DESC
+    LIMIT 1;
+
+END //
+
+DELIMITER ;
+
+DELIMITER //
+
+DROP PROCEDURE IF EXISTS sp_list_exchange_rates //
+
+CREATE PROCEDURE sp_list_exchange_rates ()
+BEGIN
+
+    SELECT
+        id_exchange_rate,
+        rate_bs_per_usd,
+        created_at
+    FROM Exchange_Rate
+    ORDER BY created_at DESC, id_exchange_rate DESC;
+
+END //
+
+DELIMITER ;
+
+DELIMITER //
+
+DROP PROCEDURE IF EXISTS sp_seed_master_categories //
+CREATE PROCEDURE sp_seed_master_categories()
+BEGIN
+
+	INSERT INTO Category (name)
+	SELECT src.canonical_name
+	FROM (
+		SELECT
+			MIN(raw_categories.raw_name) AS canonical_name,
+			LOWER(TRIM(raw_categories.raw_name)) AS normalized_name
+		FROM (
+			SELECT 'Accesorios Herramientas Eléctricas' AS raw_name
+			UNION ALL SELECT 'Accesorios para Herramientas'
+			UNION ALL SELECT 'Accesorios para herramientas eléctricas'
+			UNION ALL SELECT 'Adhesivos y Selladores'
+			UNION ALL SELECT 'Almacenamiento y Estanterías'
+			UNION ALL SELECT 'Automotriz'
+			UNION ALL SELECT 'Baños y Sanitarios'
+			UNION ALL SELECT 'Bombas y Sistemas Hidráulicos'
+			UNION ALL SELECT 'Cocina'
+			UNION ALL SELECT 'Construcción y Albañilería'
+			UNION ALL SELECT 'Electricidad'
+			UNION ALL SELECT 'Equipos De Taller Y Automotriz'
+			UNION ALL SELECT 'Equipos de taller y automotriz'
+			UNION ALL SELECT 'Ferretería General'
+			UNION ALL SELECT 'Gas'
+			UNION ALL SELECT 'Generadores Eléctricos y Herramientas a Motor'
+			UNION ALL SELECT 'Herrajes y Accesorios'
+			UNION ALL SELECT 'Herramientas de Medición y Diagnóstico'
+			UNION ALL SELECT 'Herramientas Eléctricas'
+			UNION ALL SELECT 'Herramientas Especializadas y Técnicas'
+			UNION ALL SELECT 'Herramientas Inalámbricas'
+			UNION ALL SELECT 'Herramientas Manuales'
+			UNION ALL SELECT 'Herramientas Neumáticas'
+			UNION ALL SELECT 'Hierro Y Acero'
+			UNION ALL SELECT 'Hierros y Perfiles'
+			UNION ALL SELECT 'Hogar, Camping y Decoración'
+			UNION ALL SELECT 'HVAC (Refrigeración y Aire Acondicionado)'
+			UNION ALL SELECT 'Iluminación'
+			UNION ALL SELECT 'Impermeabilización'
+			UNION ALL SELECT 'Jardín y Agrícola'
+			UNION ALL SELECT 'Limpieza y Aseo'
+			UNION ALL SELECT 'Lubricantes y Grasas'
+			UNION ALL SELECT 'Madera y Derivados'
+			UNION ALL SELECT 'Madera Y Derivados'
+			UNION ALL SELECT 'Materiales de Construcción'
+			UNION ALL SELECT 'Pintura Y Acabados'
+			UNION ALL SELECT 'Pinturas y Complementos'
+			UNION ALL SELECT 'Plomería'
+			UNION ALL SELECT 'Productos Químicos y Limpieza'
+			UNION ALL SELECT 'Seguridad Industrial (EPP)'
+			UNION ALL SELECT 'Seguridad y Señalización'
+			UNION ALL SELECT 'Soldadura'
+			UNION ALL SELECT 'Techos y Cobertizos'
+			UNION ALL SELECT 'Tornillería y Fijaciones'
+			UNION ALL SELECT 'Tuberías y Conexiones'
+			UNION ALL SELECT 'Varios'
+		) AS raw_categories
+		GROUP BY LOWER(TRIM(raw_categories.raw_name))
+	) AS src
+	LEFT JOIN Category c
+		ON LOWER(TRIM(c.name)) = src.normalized_name
+	WHERE c.id_category IS NULL;
+
+END //
+
+DELIMITER ;
+
+-- Ejecutar con:
+CALL sp_seed_master_categories();
+
+DELIMITER //
+
+DROP PROCEDURE IF EXISTS sp_seed_master_subcategories //
+CREATE PROCEDURE sp_seed_master_subcategories()
+BEGIN
+
+	INSERT INTO Subcategory (name, id_category_fk)
+	SELECT src.canonical_subcategory, c.id_category
+	FROM (
+		SELECT
+			MIN(raw_pairs.raw_subcategory) AS canonical_subcategory,
+			LOWER(TRIM(raw_pairs.raw_category)) AS normalized_category,
+			LOWER(TRIM(raw_pairs.raw_subcategory)) AS normalized_subcategory
+		FROM (
+			SELECT 'Accesorios Herramientas Eléctricas' AS raw_category, 'Accesorios Esmeriles' AS raw_subcategory
+			UNION ALL SELECT 'Accesorios Herramientas Eléctricas', 'Accesorios para Atornilladores'
+			UNION ALL SELECT 'Accesorios Herramientas Eléctricas', 'Accesorios para Lijadoras'
+			UNION ALL SELECT 'Accesorios Herramientas Eléctricas', 'Accesorios para Mototools'
+			UNION ALL SELECT 'Accesorios Herramientas Eléctricas', 'Accesorios para Multiherramientas'
+			UNION ALL SELECT 'Accesorios Herramientas Eléctricas', 'Accesorios para Pulidoras'
+			UNION ALL SELECT 'Accesorios Herramientas Eléctricas', 'Accesorios para Sierras Caladoras'
+			UNION ALL SELECT 'Accesorios Herramientas Eléctricas', 'Accesorios para Sierras y Tronzadoras'
+			UNION ALL SELECT 'Accesorios Herramientas Eléctricas', 'Accesorios para Taladros y Rotomartillos'
+			UNION ALL SELECT 'Accesorios Herramientas Eléctricas', 'Brocas Especiales'
+			UNION ALL SELECT 'Accesorios Herramientas Eléctricas', 'Brocas Para Cerámica'
+			UNION ALL SELECT 'Accesorios Herramientas Eléctricas', 'Brocas Para Concreto'
+			UNION ALL SELECT 'Accesorios Herramientas Eléctricas', 'Brocas Para Madera'
+			UNION ALL SELECT 'Accesorios Herramientas Eléctricas', 'Brocas Para Metal'
+			UNION ALL SELECT 'Accesorios Herramientas Eléctricas', 'Disco Corte Esmeriles'
+			UNION ALL SELECT 'Accesorios Herramientas Eléctricas', 'Disco Desbaste Esmeriles'
+			UNION ALL SELECT 'Accesorios Herramientas Eléctricas', 'Pistolas De Calor'
+			UNION ALL SELECT 'Accesorios para Herramientas', 'Accesorios de organización de herramientas'
+			UNION ALL SELECT 'Accesorios para Herramientas', 'Accesorios manuales'
+			UNION ALL SELECT 'Accesorios para herramientas eléctricas', 'Accesorios para esmeriles'
+			UNION ALL SELECT 'Accesorios para herramientas eléctricas', 'Accesorios para sierras'
+			UNION ALL SELECT 'Accesorios para herramientas eléctricas', 'Accesorios para taladros'
+			UNION ALL SELECT 'Adhesivos y Selladores', 'Adhesivos de construcción'
+			UNION ALL SELECT 'Adhesivos y Selladores', 'Adhesivos de montaje y construcción'
+			UNION ALL SELECT 'Adhesivos y Selladores', 'Adhesivos especiales'
+			UNION ALL SELECT 'Adhesivos y Selladores', 'Adhesivos para madera'
+			UNION ALL SELECT 'Adhesivos y Selladores', 'Adhesivos para PVC y tuberías'
+			UNION ALL SELECT 'Adhesivos y Selladores', 'Cintas selladoras y para roscas'
+			UNION ALL SELECT 'Adhesivos y Selladores', 'Espumas de poliuretano'
+			UNION ALL SELECT 'Adhesivos y Selladores', 'Espumas y anclajes químicos'
+			UNION ALL SELECT 'Adhesivos y Selladores', 'Masillas y selladores especiales'
+			UNION ALL SELECT 'Adhesivos y Selladores', 'Removedores y limpiadores de adhesivos'
+			UNION ALL SELECT 'Adhesivos y Selladores', 'Selladores'
+			UNION ALL SELECT 'Adhesivos y Selladores', 'Selladores acrílicos'
+			UNION ALL SELECT 'Adhesivos y Selladores', 'Selladores de poliuretano'
+			UNION ALL SELECT 'Adhesivos y Selladores', 'Siliconas y selladores de silicona'
+			UNION ALL SELECT 'Almacenamiento y Estanterías', 'Almacenamiento metálico'
+			UNION ALL SELECT 'Almacenamiento y Estanterías', 'Almacenamiento plástico'
+			UNION ALL SELECT 'Almacenamiento y Estanterías', 'Cajas y contenedores'
+			UNION ALL SELECT 'Almacenamiento y Estanterías', 'Estanterías pesadas'
+			UNION ALL SELECT 'Almacenamiento y Estanterías', 'Organizadores'
+			UNION ALL SELECT 'Automotriz', 'Accesorios para vehículo'
+			UNION ALL SELECT 'Automotriz', 'Limpieza y cuidado automotriz'
+			UNION ALL SELECT 'Baños y Sanitarios', 'Accesorios de baño'
+			UNION ALL SELECT 'Baños y Sanitarios', 'Accesorios de seguridad para baño'
+			UNION ALL SELECT 'Baños y Sanitarios', 'Accesorios para ducha'
+			UNION ALL SELECT 'Baños y Sanitarios', 'Aparatos sanitarios'
+			UNION ALL SELECT 'Baños y Sanitarios', 'Bañeras y tinas'
+			UNION ALL SELECT 'Baños y Sanitarios', 'Cabinas y mamparas de baño'
+			UNION ALL SELECT 'Baños y Sanitarios', 'Complementos varios para baño'
+			UNION ALL SELECT 'Baños y Sanitarios', 'Espejos y botiquines'
+			UNION ALL SELECT 'Baños y Sanitarios', 'Grifería para ducha y tina'
+			UNION ALL SELECT 'Baños y Sanitarios', 'Grifería para lavamanos'
+			UNION ALL SELECT 'Baños y Sanitarios', 'Griferías para baño'
+			UNION ALL SELECT 'Baños y Sanitarios', 'Lavamanos y lavabos'
+			UNION ALL SELECT 'Baños y Sanitarios', 'Muebles de baño'
+			UNION ALL SELECT 'Baños y Sanitarios', 'Platos de ducha y bases'
+			UNION ALL SELECT 'Baños y Sanitarios', 'Sistemas de descarga y cisternas'
+			UNION ALL SELECT 'Bombas y Sistemas Hidráulicos', 'Accesorios hidráulicos'
+			UNION ALL SELECT 'Bombas y Sistemas Hidráulicos', 'Accesorios para bombas'
+			UNION ALL SELECT 'Bombas y Sistemas Hidráulicos', 'Bombas de agua'
+			UNION ALL SELECT 'Bombas y Sistemas Hidráulicos', 'Bombas especiales'
+			UNION ALL SELECT 'Bombas y Sistemas Hidráulicos', 'Sistemas de presión'
+			UNION ALL SELECT 'Cocina', 'Accesorios murales para cocina'
+			UNION ALL SELECT 'Cocina', 'Accesorios para fregadero de cocina'
+			UNION ALL SELECT 'Cocina', 'Accesorios varios de cocina'
+			UNION ALL SELECT 'Cocina', 'Basureros y sistemas de reciclaje para cocina'
+			UNION ALL SELECT 'Cocina', 'Campanas y extracción de cocina'
+			UNION ALL SELECT 'Cocina', 'Fregaderos y accesorios'
+			UNION ALL SELECT 'Cocina', 'Fregaderos y lavaplatos'
+			UNION ALL SELECT 'Cocina', 'Grifería de cocina'
+			UNION ALL SELECT 'Cocina', 'Griferías de cocina'
+			UNION ALL SELECT 'Cocina', 'Muebles de cocina'
+			UNION ALL SELECT 'Cocina', 'Organización interior de muebles de cocina'
+			UNION ALL SELECT 'Cocina', 'Plomería para cocina'
+			UNION ALL SELECT 'Construcción y Albañilería', 'Accesorios de encofrado y hormigón'
+			UNION ALL SELECT 'Construcción y Albañilería', 'Accesorios de seguridad y señalización de obra'
+			UNION ALL SELECT 'Construcción y Albañilería', 'Alicatado manual y cerámica'
+			UNION ALL SELECT 'Construcción y Albañilería', 'Andamios y accesos temporales'
+			UNION ALL SELECT 'Construcción y Albañilería', 'Aplicación e impermeabilización en obra'
+			UNION ALL SELECT 'Construcción y Albañilería', 'Apuntalamiento y soportes provisionales'
+			UNION ALL SELECT 'Construcción y Albañilería', 'Colado de concreto y mortero'
+			UNION ALL SELECT 'Construcción y Albañilería', 'Compactación y relleno manual'
+			UNION ALL SELECT 'Construcción y Albañilería', 'Drywall y construcción en seco'
+			UNION ALL SELECT 'Construcción y Albañilería', 'Encofrado y cimbras'
+			UNION ALL SELECT 'Construcción y Albañilería', 'Equipos De Albañilería'
+			UNION ALL SELECT 'Construcción y Albañilería', 'Equipos de obra'
+			UNION ALL SELECT 'Construcción y Albañilería', 'Herramientas para albañil'
+			UNION ALL SELECT 'Construcción y Albañilería', 'Mampostería y bloque'
+			UNION ALL SELECT 'Construcción y Albañilería', 'Pavimentos y adoquines'
+			UNION ALL SELECT 'Construcción y Albañilería', 'Preparación de terreno y demolición pesada'
+			UNION ALL SELECT 'Construcción y Albañilería', 'Revestimientos y frisos'
+			UNION ALL SELECT 'Construcción y Albañilería', 'Transporte y manipulación de materiales'
+			UNION ALL SELECT 'Electricidad', 'Accesorios'
+			UNION ALL SELECT 'Electricidad', 'Automatización'
+			UNION ALL SELECT 'Electricidad', 'Cables eléctricos'
+			UNION ALL SELECT 'Electricidad', 'Cables Y Conductores'
+			UNION ALL SELECT 'Electricidad', 'Cajas y accesorios'
+			UNION ALL SELECT 'Electricidad', 'Canalización y bandejas'
+			UNION ALL SELECT 'Electricidad', 'Canalizaciones'
+			UNION ALL SELECT 'Electricidad', 'Conectores'
+			UNION ALL SELECT 'Electricidad', 'enchufes o clavijas'
+			UNION ALL SELECT 'Electricidad', 'Interruptores'
+			UNION ALL SELECT 'Electricidad', 'Protecciones'
+			UNION ALL SELECT 'Electricidad', 'Protecciones eléctricas'
+			UNION ALL SELECT 'Electricidad', 'Tomacorrientes'
+			UNION ALL SELECT 'Equipos De Taller Y Automotriz', 'Almacenamiento Y Organización'
+			UNION ALL SELECT 'Equipos De Taller Y Automotriz', 'Bancadas Y Mesas'
+			UNION ALL SELECT 'Equipos de taller y automotriz', 'Compresores y neumática'
+			UNION ALL SELECT 'Equipos de taller y automotriz', 'Elevación y soporte'
+			UNION ALL SELECT 'Equipos De Taller Y Automotriz', 'Equipos De Aire Acondicionado'
+			UNION ALL SELECT 'Equipos De Taller Y Automotriz', 'Equipos De Diagnóstico'
+			UNION ALL SELECT 'Equipos De Taller Y Automotriz', 'Equipos De Elevación Y Manipulación'
+			UNION ALL SELECT 'Equipos De Taller Y Automotriz', 'Equipos De Ruedas Y Llantas'
+			UNION ALL SELECT 'Equipos de taller y automotriz', 'Equipos de servicio'
+			UNION ALL SELECT 'Equipos De Taller Y Automotriz', 'Equipos De Suspensión Y Dirección'
+			UNION ALL SELECT 'Equipos De Taller Y Automotriz', 'Equipos De Transmisión Y Freno'
+			UNION ALL SELECT 'Equipos De Taller Y Automotriz', 'Equipos Especiales De Motor'
+			UNION ALL SELECT 'Equipos De Taller Y Automotriz', 'Herramientas Varias Taller'
+			UNION ALL SELECT 'Equipos De Taller Y Automotriz', 'Limpieza Y Mantenimiento'
+			UNION ALL SELECT 'Equipos De Taller Y Automotriz', 'Seguridad Y Protección'
+			UNION ALL SELECT 'Equipos De Taller Y Automotriz', 'Sistemas De Aire Y Lubricación'
+			UNION ALL SELECT 'Ferretería General', 'Accesorios para cables'
+			UNION ALL SELECT 'Ferretería General', 'Accesorios varios de ferretería'
+			UNION ALL SELECT 'Ferretería General', 'Cadenas y cables'
+			UNION ALL SELECT 'Ferretería General', 'Cierres y pestillos'
+			UNION ALL SELECT 'Ferretería General', 'Escuadras y pletinas'
+			UNION ALL SELECT 'Ferretería General', 'Ganchos y anillas'
+			UNION ALL SELECT 'Ferretería General', 'Grapas y abrazaderas'
+			UNION ALL SELECT 'Ferretería General', 'Ruedas y rodajas'
+			UNION ALL SELECT 'Ferretería General', 'Soportes y accesorios de fijación'
+			UNION ALL SELECT 'Ferretería General', 'Topes y niveladores'
+			UNION ALL SELECT 'Gas', 'Accesorios De Instalación'
+			UNION ALL SELECT 'Gas', 'Accesorios Generales'
+			UNION ALL SELECT 'Gas', 'Accesorios para instalación de gas'
+			UNION ALL SELECT 'Gas', 'Accesorios Para Tubería'
+			UNION ALL SELECT 'Gas', 'Conexiones De Acero Negro'
+			UNION ALL SELECT 'Gas', 'Conexiones De Cobre'
+			UNION ALL SELECT 'Gas', 'Conexiones Galvanizadas'
+			UNION ALL SELECT 'Gas', 'Conexiones PEAD'
+			UNION ALL SELECT 'Gas', 'Herramientas Para Instalación'
+			UNION ALL SELECT 'Gas', 'Instalaciones Domésticas'
+			UNION ALL SELECT 'Gas', 'Instalaciones Industriales'
+			UNION ALL SELECT 'Gas', 'Mangueras'
+			UNION ALL SELECT 'Gas', 'Medición Y Control'
+			UNION ALL SELECT 'Gas', 'Reguladores'
+			UNION ALL SELECT 'Gas', 'Seguridad'
+			UNION ALL SELECT 'Gas', 'Tuberías'
+			UNION ALL SELECT 'Gas', 'Válvulas'
+			UNION ALL SELECT 'Gas', 'Válvulas y llaves para gas'
+			UNION ALL SELECT 'Generadores Eléctricos y Herramientas a Motor', 'Equipos a motor'
+			UNION ALL SELECT 'Generadores Eléctricos y Herramientas a Motor', 'Generadores eléctricos'
+			UNION ALL SELECT 'Generadores Eléctricos y Herramientas a Motor', 'Motobombas'
+			UNION ALL SELECT 'Herrajes y Accesorios', 'Anillas, argollas y ganchos'
+			UNION ALL SELECT 'Herrajes y Accesorios', 'Bisagras'
+			UNION ALL SELECT 'Herrajes y Accesorios', 'Candados'
+			UNION ALL SELECT 'Herrajes y Accesorios', 'Cerraduras y cilindros'
+			UNION ALL SELECT 'Herrajes y Accesorios', 'Herrajes para muebles'
+			UNION ALL SELECT 'Herrajes y Accesorios', 'Herrajes para portones'
+			UNION ALL SELECT 'Herrajes y Accesorios', 'Herrajes para puertas'
+			UNION ALL SELECT 'Herrajes y Accesorios', 'Herrajes para puertas corredizas'
+			UNION ALL SELECT 'Herrajes y Accesorios', 'Herrajes para ventanas'
+			UNION ALL SELECT 'Herrajes y Accesorios', 'Herrajes Y Accesorios Para Muebles'
+			UNION ALL SELECT 'Herrajes y Accesorios', 'Manijas y pomos'
+			UNION ALL SELECT 'Herrajes y Accesorios', 'Pasadores y cerrojos'
+			UNION ALL SELECT 'Herrajes y Accesorios', 'Picaportes y pestillos'
+			UNION ALL SELECT 'Herrajes y Accesorios', 'Placas y embellecedores'
+			UNION ALL SELECT 'Herrajes y Accesorios', 'Soportes y escuadras'
+			UNION ALL SELECT 'Herrajes y Accesorios', 'Tensores y accesorios de cable'
+			UNION ALL SELECT 'Herrajes y Accesorios', 'Topes y burletes'
+			UNION ALL SELECT 'Herramientas de Medición y Diagnóstico', 'Diagnóstico electrónico portátil'
+			UNION ALL SELECT 'Herramientas de Medición y Diagnóstico', 'Inspección visual y diagnóstico'
+			UNION ALL SELECT 'Herramientas de Medición y Diagnóstico', 'Instrumentos de medición eléctrica'
+			UNION ALL SELECT 'Herramientas de Medición y Diagnóstico', 'Instrumentos de medición láser'
+			UNION ALL SELECT 'Herramientas de Medición y Diagnóstico', 'Instrumentos de medición mecánica'
+			UNION ALL SELECT 'Herramientas de Medición y Diagnóstico', 'Medición HVAC y climatización'
+			UNION ALL SELECT 'Herramientas de Medición y Diagnóstico', 'Medición industrial y procesos'
+			UNION ALL SELECT 'Herramientas de Medición y Diagnóstico', 'Medición para plomería y gas'
+			UNION ALL SELECT 'Herramientas de Medición y Diagnóstico', 'Medición y diagnóstico automotriz'
+			UNION ALL SELECT 'Herramientas de Medición y Diagnóstico', 'Medición y diagnóstico eléctrico'
+			UNION ALL SELECT 'Herramientas de Medición y Diagnóstico', 'Metrología de precisión'
+			UNION ALL SELECT 'Herramientas de Medición y Diagnóstico', 'Topografía y nivelación'
+			UNION ALL SELECT 'Herramientas Eléctricas', 'Agua'
+			UNION ALL SELECT 'Herramientas Eléctricas', 'Atornillado eléctrico/Atornilladores con cable'
+			UNION ALL SELECT 'Herramientas Eléctricas', 'Atornillado eléctrico/Atornilladores de impacto con cable'
+			UNION ALL SELECT 'Herramientas Eléctricas', 'Atornillado eléctrico/Atornilladores para yeso'
+			UNION ALL SELECT 'Herramientas Eléctricas', 'Carpintería eléctrica/Cepillos eléctricos'
+			UNION ALL SELECT 'Herramientas Eléctricas', 'Carpintería eléctrica/Engalletadoras and uniones'
+			UNION ALL SELECT 'Herramientas Eléctricas', 'Carpintería eléctrica/Engalletadoras y uniones'
+			UNION ALL SELECT 'Herramientas Eléctricas', 'Carpintería eléctrica/Fresadoras y routers'
+			UNION ALL SELECT 'Herramientas Eléctricas', 'Carpintería eléctrica/Lijadoras combinadas de banco'
+			UNION ALL SELECT 'Herramientas Eléctricas', 'Carpintería eléctrica/Sierras especiales de carpintero'
+			UNION ALL SELECT 'Herramientas Eléctricas', 'Corte y desbaste eléctricos/Amoladoras angulares'
+			UNION ALL SELECT 'Herramientas Eléctricas', 'Corte y desbaste eléctricos/Amoladoras rectas'
+			UNION ALL SELECT 'Herramientas Eléctricas', 'Corte y desbaste eléctricos/Esmeriles de banco'
+			UNION ALL SELECT 'Herramientas Eléctricas', 'Corte y desbaste eléctricos/Pulidoras angulares'
+			UNION ALL SELECT 'Herramientas Eléctricas', 'Esmeriles y amoladoras eléctricas'
+			UNION ALL SELECT 'Herramientas Eléctricas', 'Fijación eléctrica/Clavadoras eléctricas'
+			UNION ALL SELECT 'Herramientas Eléctricas', 'Fijación eléctrica/Remachadoras eléctricas'
+			UNION ALL SELECT 'Herramientas Eléctricas', 'Herramientas de calor eléctricas/Decapadores eléctricos'
+			UNION ALL SELECT 'Herramientas Eléctricas', 'Herramientas de calor eléctricas/Pistolas de aire caliente'
+			UNION ALL SELECT 'Herramientas Eléctricas', 'Herramientas de calor eléctricas/Soldadores de aire caliente'
+			UNION ALL SELECT 'Herramientas Eléctricas', 'Herramientas eléctricas especiales/Corte especializado'
+			UNION ALL SELECT 'Herramientas Eléctricas', 'Herramientas eléctricas especiales/Herramientas rotativas'
+			UNION ALL SELECT 'Herramientas Eléctricas', 'Herramientas eléctricas especiales/Otras herramientas especiales'
+			UNION ALL SELECT 'Herramientas Eléctricas', 'Juegos de herramientas eléctricas/Juegos combinados'
+			UNION ALL SELECT 'Herramientas Eléctricas', 'Juegos de herramientas eléctricas/Juegos para construcción'
+			UNION ALL SELECT 'Herramientas Eléctricas', 'Lijado y pulido eléctricos/Lijadoras de banda'
+			UNION ALL SELECT 'Herramientas Eléctricas', 'Lijado y pulido eléctricos/Lijadoras de detalle y delta'
+			UNION ALL SELECT 'Herramientas Eléctricas', 'Lijado y pulido eléctricos/Lijadoras de pared para yeso'
+			UNION ALL SELECT 'Herramientas Eléctricas', 'Lijado y pulido eléctricos/Lijadoras orbitales'
+			UNION ALL SELECT 'Herramientas Eléctricas', 'Lijado y pulido eléctricos/Pulidoras de carrocería'
+			UNION ALL SELECT 'Herramientas Eléctricas', 'Sierras eléctricas'
+			UNION ALL SELECT 'Herramientas Eléctricas', 'Sierras eléctricas portátiles/Sierras caladoras'
+			UNION ALL SELECT 'Herramientas Eléctricas', 'Sierras eléctricas portátiles/Sierras circulares'
+			UNION ALL SELECT 'Herramientas Eléctricas', 'Sierras eléctricas portátiles/Sierras de banda portátiles'
+			UNION ALL SELECT 'Herramientas Eléctricas', 'Sierras eléctricas portátiles/Sierras para azulejos portátiles'
+			UNION ALL SELECT 'Herramientas Eléctricas', 'Sierras eléctricas portátiles/Sierras sable (reciprocantes)'
+			UNION ALL SELECT 'Herramientas Eléctricas', 'Sierras estacionarias/Cortadoras de cerámica de mesa'
+			UNION ALL SELECT 'Herramientas Eléctricas', 'Sierras estacionarias/Sierras de cinta de taller'
+			UNION ALL SELECT 'Herramientas Eléctricas', 'Sierras estacionarias/Sierras de mesa para madera'
+			UNION ALL SELECT 'Herramientas Eléctricas', 'Sierras estacionarias/Sierras ingleteadoras'
+			UNION ALL SELECT 'Herramientas Eléctricas', 'Sierras estacionarias/Tronzadoras de metal de banco'
+			UNION ALL SELECT 'Herramientas Eléctricas', 'Taladros eléctricos'
+			UNION ALL SELECT 'Herramientas Eléctricas', 'Taladros y perforación eléctrica/Herramientas de mezcla'
+			UNION ALL SELECT 'Herramientas Eléctricas', 'Taladros y perforación eléctrica/Martillos perforadores y demoledores'
+			UNION ALL SELECT 'Herramientas Eléctricas', 'Taladros y perforación eléctrica/Taladros con cable'
+			UNION ALL SELECT 'Herramientas Eléctricas', 'Taladros y perforación eléctrica/Taladros de banco y columna'
+			UNION ALL SELECT 'Herramientas Especializadas y Técnicas', 'Herramientas automotrices – especiales'
+			UNION ALL SELECT 'Herramientas Especializadas y Técnicas', 'Herramientas automotrices – frenos'
+			UNION ALL SELECT 'Herramientas Especializadas y Técnicas', 'Herramientas automotrices – motor e inyección'
+			UNION ALL SELECT 'Herramientas Especializadas y Técnicas', 'Herramientas automotrices – suspensión y dirección'
+			UNION ALL SELECT 'Herramientas Especializadas y Técnicas', 'Herramientas cerrajería – instalación'
+			UNION ALL SELECT 'Herramientas Especializadas y Técnicas', 'Herramientas drywall y construcción ligera'
+			UNION ALL SELECT 'Herramientas Especializadas y Técnicas', 'Herramientas electrónica y precisión'
+			UNION ALL SELECT 'Herramientas Especializadas y Técnicas', 'Herramientas estructuras ligeras y carpintería metálica técnica'
+			UNION ALL SELECT 'Herramientas Especializadas y Técnicas', 'Herramientas fibra óptica'
+			UNION ALL SELECT 'Herramientas Especializadas y Técnicas', 'Herramientas hidráulicas manuales'
+			UNION ALL SELECT 'Herramientas Especializadas y Técnicas', 'Herramientas HVAC y refrigeración'
+			UNION ALL SELECT 'Herramientas Especializadas y Técnicas', 'Herramientas mantenimiento industrial'
+			UNION ALL SELECT 'Herramientas Especializadas y Técnicas', 'Herramientas montaje de paneles solares'
+			UNION ALL SELECT 'Herramientas Especializadas y Técnicas', 'Herramientas montaje eléctrico industrial'
+			UNION ALL SELECT 'Herramientas Especializadas y Técnicas', 'Herramientas montaje sistemas modulares'
+			UNION ALL SELECT 'Herramientas Especializadas y Técnicas', 'Herramientas para carpintero'
+			UNION ALL SELECT 'Herramientas Especializadas y Técnicas', 'Herramientas para electricista'
+			UNION ALL SELECT 'Herramientas Especializadas y Técnicas', 'Herramientas para mecánico'
+			UNION ALL SELECT 'Herramientas Especializadas y Técnicas', 'Herramientas para pisos y revestimientos técnicos'
+			UNION ALL SELECT 'Herramientas Especializadas y Técnicas', 'Herramientas redes y telecom'
+			UNION ALL SELECT 'Herramientas Especializadas y Técnicas', 'Herramientas techos metálicos y panelería'
+			UNION ALL SELECT 'Herramientas Especializadas y Técnicas', 'Herramientas técnicas de plomería y gas'
+			UNION ALL SELECT 'Herramientas Especializadas y Técnicas', 'Herramientas vidrio y aluminio'
+			UNION ALL SELECT 'Herramientas Inalámbricas', 'Atornillado inalámbrico/Atornilladores de impacto'
+			UNION ALL SELECT 'Herramientas Inalámbricas', 'Atornillado inalámbrico/Atornilladores tradicionales'
+			UNION ALL SELECT 'Herramientas Inalámbricas', 'Automotriz inalámbrico/Herramientas automotrices'
+			UNION ALL SELECT 'Herramientas Inalámbricas', 'Baterías y cargadores/Baterías'
+			UNION ALL SELECT 'Herramientas Inalámbricas', 'Baterías y cargadores/Cargadores'
+			UNION ALL SELECT 'Herramientas Inalámbricas', 'Baterías y cargadores/Estaciones de carga'
+			UNION ALL SELECT 'Herramientas Inalámbricas', 'Bombas inalámbricas/Bombas de agua'
+			UNION ALL SELECT 'Herramientas Inalámbricas', 'Bombas inalámbricas/Bombas de aire'
+			UNION ALL SELECT 'Herramientas Inalámbricas', 'Corte y desbaste inalámbrico/Amoladoras angulares'
+			UNION ALL SELECT 'Herramientas Inalámbricas', 'Fijación inalámbrica/Grapadoras inalámbricas'
+			UNION ALL SELECT 'Herramientas Inalámbricas', 'Fijación inalámbrica/Remachadoras inalámbricas'
+			UNION ALL SELECT 'Herramientas Inalámbricas', 'Herramientas especializadas inalámbricas/Multiherramientas'
+			UNION ALL SELECT 'Herramientas Inalámbricas', 'Herramientas especializadas inalámbricas/Otros'
+			UNION ALL SELECT 'Herramientas Inalámbricas', 'Herramientas inalámbricas varias'
+			UNION ALL SELECT 'Herramientas Inalámbricas', 'Herramientas rotativas inalámbricas/Herramientas rotativas'
+			UNION ALL SELECT 'Herramientas Inalámbricas', 'HVAC inalámbrico/Herramientas HVAC'
+			UNION ALL SELECT 'Herramientas Inalámbricas', 'Juegos inalámbricos/Juegos combinados'
+			UNION ALL SELECT 'Herramientas Inalámbricas', 'Lijado inalámbrico/Lijadoras de banda'
+			UNION ALL SELECT 'Herramientas Inalámbricas', 'Sierras inalámbricas'
+			UNION ALL SELECT 'Herramientas Inalámbricas', 'Sierras inalámbricas/Sierras caladoras'
+			UNION ALL SELECT 'Herramientas Inalámbricas', 'Sierras inalámbricas/Sierras circulares'
+			UNION ALL SELECT 'Herramientas Inalámbricas', 'Sierras inalámbricas/Sierras especializadas'
+			UNION ALL SELECT 'Herramientas Inalámbricas', 'Taladros inalámbricos/Taladros inalámbricos convencionales'
+			UNION ALL SELECT 'Herramientas Manuales', 'Albañilería/Alicatado'
+			UNION ALL SELECT 'Herramientas Manuales', 'Albañilería/Herramientas varias'
+			UNION ALL SELECT 'Herramientas Manuales', 'Albañilería/Llanas o Palustras'
+			UNION ALL SELECT 'Herramientas Manuales', 'Albañilería/Martillos y cinceles'
+			UNION ALL SELECT 'Herramientas Manuales', 'Albañilería/Paletas de albañil'
+			UNION ALL SELECT 'Herramientas Manuales', 'Alicates'
+			UNION ALL SELECT 'Herramientas Manuales', 'Alicates y pinzas/Alicates de corte'
+			UNION ALL SELECT 'Herramientas Manuales', 'Alicates y pinzas/Alicates de presión'
+			UNION ALL SELECT 'Herramientas Manuales', 'Alicates y pinzas/Alicates de punta'
+			UNION ALL SELECT 'Herramientas Manuales', 'Alicates y pinzas/Alicates especiales'
+			UNION ALL SELECT 'Herramientas Manuales', 'Alicates y pinzas/Alicates para anillos'
+			UNION ALL SELECT 'Herramientas Manuales', 'Alicates y pinzas/Alicates universales'
+			UNION ALL SELECT 'Herramientas Manuales', 'Alicates y pinzas/Tenazas'
+			UNION ALL SELECT 'Herramientas Manuales', 'Atornillado/Destornilladores aislados'
+			UNION ALL SELECT 'Herramientas Manuales', 'Atornillado/Destornilladores de precisión'
+			UNION ALL SELECT 'Herramientas Manuales', 'Atornillado/Destornilladores especiales'
+			UNION ALL SELECT 'Herramientas Manuales', 'Atornillado/Destornilladores Phillips'
+			UNION ALL SELECT 'Herramientas Manuales', 'Atornillado/Destornilladores planos'
+			UNION ALL SELECT 'Herramientas Manuales', 'Atornillado/Destornilladores Torx'
+			UNION ALL SELECT 'Herramientas Manuales', 'Atornillado/Llaves de tuerca (nut drivers)'
+			UNION ALL SELECT 'Herramientas Manuales', 'Atornillado/Llaves hexagonales (Allen)'
+			UNION ALL SELECT 'Herramientas Manuales', 'Atornillado/Llaves Torx manuales'
+			UNION ALL SELECT 'Herramientas Manuales', 'Atornillado/Puntas y portapuntas'
+			UNION ALL SELECT 'Herramientas Manuales', 'Carpintería/Cepillos de carpintero'
+			UNION ALL SELECT 'Herramientas Manuales', 'Carpintería/Herramientas de tallado'
+			UNION ALL SELECT 'Herramientas Manuales', 'Carpintería/Limas y escofinas'
+			UNION ALL SELECT 'Herramientas Manuales', 'Carpintería/Otras herramientas de carpintero'
+			UNION ALL SELECT 'Herramientas Manuales', 'Destornilladores'
+			UNION ALL SELECT 'Herramientas Manuales', 'Drywall manual – Acabado y masillado'
+			UNION ALL SELECT 'Herramientas Manuales', 'Drywall manual – Accesorios y especiales'
+			UNION ALL SELECT 'Herramientas Manuales', 'Drywall manual – Corte y preparación'
+			UNION ALL SELECT 'Herramientas Manuales', 'Drywall manual – Instalación y manipulación'
+			UNION ALL SELECT 'Herramientas Manuales', 'Electricista manual/Comprobación básica'
+			UNION ALL SELECT 'Herramientas Manuales', 'Electricista manual/Corte and pelado'
+			UNION ALL SELECT 'Herramientas Manuales', 'Electricista manual/Corte y pelado'
+			UNION ALL SELECT 'Herramientas Manuales', 'Electricista manual/Crimpado y engaste'
+			UNION ALL SELECT 'Herramientas Manuales', 'Electricista manual/Herramientas de tendido'
+			UNION ALL SELECT 'Herramientas Manuales', 'Extractores manuales/Extractores de poleas y engranajes'
+			UNION ALL SELECT 'Herramientas Manuales', 'Extractores manuales/Extractores de rodamientos'
+			UNION ALL SELECT 'Herramientas Manuales', 'Extractores manuales/Extractores de tornillos y espárragos'
+			UNION ALL SELECT 'Herramientas Manuales', 'Extractores manuales/Extractores especiales'
+			UNION ALL SELECT 'Herramientas Manuales', 'Extractores manuales/Separadores y apoyos'
+			UNION ALL SELECT 'Herramientas Manuales', 'Fontanería manual/Corte de tuberías'
+			UNION ALL SELECT 'Herramientas Manuales', 'Fontanería manual/Desatascadores'
+			UNION ALL SELECT 'Herramientas Manuales', 'Fontanería manual/Llaves de fontanero'
+			UNION ALL SELECT 'Herramientas Manuales', 'Fontanería manual/Roscado y reparación'
+			UNION ALL SELECT 'Herramientas Manuales', 'Herramientas automotrices manuales/Encendido y bujías'
+			UNION ALL SELECT 'Herramientas Manuales', 'Herramientas automotrices manuales/Frenos'
+			UNION ALL SELECT 'Herramientas Manuales', 'Herramientas automotrices manuales/Llaves para filtros'
+			UNION ALL SELECT 'Herramientas Manuales', 'Herramientas automotrices manuales/Mecánica general'
+			UNION ALL SELECT 'Herramientas Manuales', 'Herramientas automotrices manuales/Neumáticos y ruedas'
+			UNION ALL SELECT 'Herramientas Manuales', 'Herramientas de cerrajero manual/Extracción y apertura'
+			UNION ALL SELECT 'Herramientas Manuales', 'Herramientas de cerrajero manual/Herramientas de tensión'
+			UNION ALL SELECT 'Herramientas Manuales', 'Herramientas de cerrajero manual/Herramientas especiales'
+			UNION ALL SELECT 'Herramientas Manuales', 'Herramientas de cerrajero manual/Juegos de ganzúas'
+			UNION ALL SELECT 'Herramientas Manuales', 'Herramientas de corte/Cinceles y punzones'
+			UNION ALL SELECT 'Herramientas Manuales', 'Herramientas de corte/Cúters y navajas'
+			UNION ALL SELECT 'Herramientas Manuales', 'Herramientas de corte/Formones'
+			UNION ALL SELECT 'Herramientas Manuales', 'Herramientas de corte/Otros cortantes'
+			UNION ALL SELECT 'Herramientas Manuales', 'Herramientas de corte/Tijeras'
+			UNION ALL SELECT 'Herramientas Manuales', 'Herramientas HVAC manuales/Abocardado y ensanchado'
+			UNION ALL SELECT 'Herramientas Manuales', 'Herramientas HVAC manuales/Doblado y corte de tubería'
+			UNION ALL SELECT 'Herramientas Manuales', 'Herramientas HVAC manuales/Instalación y servicio'
+			UNION ALL SELECT 'Herramientas Manuales', 'Herramientas manuales especializadas/Chapas y lámina'
+			UNION ALL SELECT 'Herramientas Manuales', 'Herramientas manuales especializadas/Cortadores especiales'
+			UNION ALL SELECT 'Herramientas Manuales', 'Herramientas manuales especializadas/Herramientas de alineación'
+			UNION ALL SELECT 'Herramientas Manuales', 'Herramientas manuales especializadas/Prensas y mordazas'
+			UNION ALL SELECT 'Herramientas Manuales', 'Jardinería manual/Herramientas de corte jardín'
+			UNION ALL SELECT 'Herramientas Manuales', 'Jardinería manual/Herramientas de labranza'
+			UNION ALL SELECT 'Herramientas Manuales', 'Jardinería manual/Herramientas de plantación'
+			UNION ALL SELECT 'Herramientas Manuales', 'Jardinería manual/Herramientas forestales'
+			UNION ALL SELECT 'Herramientas Manuales', 'Juegos de herramientas manuales/Juegos generales'
+			UNION ALL SELECT 'Herramientas Manuales', 'Juegos de herramientas manuales/Juegos para carpintero'
+			UNION ALL SELECT 'Herramientas Manuales', 'Juegos de herramientas manuales/Juegos para mecánico'
+			UNION ALL SELECT 'Herramientas Manuales', 'Juegos de herramientas manuales/Juegos para plomero'
+			UNION ALL SELECT 'Herramientas Manuales', 'Limas y escofinas'
+			UNION ALL SELECT 'Herramientas Manuales', 'Llaves manuales'
+			UNION ALL SELECT 'Herramientas Manuales', 'Llaves manuales/Accesorios para vasos'
+			UNION ALL SELECT 'Herramientas Manuales', 'Llaves manuales/Llaves ajustables'
+			UNION ALL SELECT 'Herramientas Manuales', 'Llaves manuales/Llaves combinadas en pulgadas'
+			UNION ALL SELECT 'Herramientas Manuales', 'Llaves manuales/Llaves combinadas métricas'
+			UNION ALL SELECT 'Herramientas Manuales', 'Llaves manuales/Llaves de estrella en pulgadas'
+			UNION ALL SELECT 'Herramientas Manuales', 'Llaves manuales/Llaves de estrella métricas'
+			UNION ALL SELECT 'Herramientas Manuales', 'Llaves manuales/Llaves de tubo'
+			UNION ALL SELECT 'Herramientas Manuales', 'Llaves manuales/Llaves de vaso y carracas'
+			UNION ALL SELECT 'Herramientas Manuales', 'Llaves manuales/Llaves especiales'
+			UNION ALL SELECT 'Herramientas Manuales', 'Llaves manuales/Llaves fijas en pulgadas'
+			UNION ALL SELECT 'Herramientas Manuales', 'Llaves manuales/Llaves fijas métricas'
+			UNION ALL SELECT 'Herramientas Manuales', 'Llaves manuales/Vasos de impacto en pulgadas'
+			UNION ALL SELECT 'Herramientas Manuales', 'Llaves manuales/Vasos de impacto métricos'
+			UNION ALL SELECT 'Herramientas Manuales', 'Llaves manuales/Vasos en pulgadas'
+			UNION ALL SELECT 'Herramientas Manuales', 'Llaves manuales/Vasos métricos'
+			UNION ALL SELECT 'Herramientas Manuales', 'Martillos and percusión/Punzones y botadores'
+			UNION ALL SELECT 'Herramientas Manuales', 'Martillos y mazas'
+			UNION ALL SELECT 'Herramientas Manuales', 'Martillos y percusión/Macetas y cinceles'
+			UNION ALL SELECT 'Herramientas Manuales', 'Martillos y percusión/Martillos de bola'
+			UNION ALL SELECT 'Herramientas Manuales', 'Martillos y percusión/Martillos de demolición'
+			UNION ALL SELECT 'Herramientas Manuales', 'Martillos y percusión/Martillos de uña'
+			UNION ALL SELECT 'Herramientas Manuales', 'Martillos y percusión/Martillos especializados'
+			UNION ALL SELECT 'Herramientas Manuales', 'Martillos y percusión/Mazas'
+			UNION ALL SELECT 'Herramientas Manuales', 'Martillos y percusión/Palancas y demolición'
+			UNION ALL SELECT 'Herramientas Manuales', 'Martillos y percusión/Punzones y botadores'
+			UNION ALL SELECT 'Herramientas Manuales', 'Medición/Cintas métricas y reglas'
+			UNION ALL SELECT 'Herramientas Manuales', 'Medición/Escuadras y ángulos'
+			UNION ALL SELECT 'Herramientas Manuales', 'Medición/Herramientas de marcación'
+			UNION ALL SELECT 'Herramientas Manuales', 'Medición/Instrumentos de medición'
+			UNION ALL SELECT 'Herramientas Manuales', 'Otros manuales/Otros manuales'
+			UNION ALL SELECT 'Herramientas Manuales', 'Perforación manual/Brocas para concreto'
+			UNION ALL SELECT 'Herramientas Manuales', 'Perforación manual/Brocas para madera'
+			UNION ALL SELECT 'Herramientas Manuales', 'Perforación manual/Brocas para metal HSS'
+			UNION ALL SELECT 'Herramientas Manuales', 'Perforación manual/Sierras perforadoras'
+			UNION ALL SELECT 'Herramientas Manuales', 'Perforación manual/Taladros manuales'
+			UNION ALL SELECT 'Herramientas Manuales', 'Pintura y acabados/Aplicadores de sellador'
+			UNION ALL SELECT 'Herramientas Manuales', 'Pintura y acabados/Brochas y rodillos'
+			UNION ALL SELECT 'Herramientas Manuales', 'Pintura y acabados/Espátulas y rascadores'
+			UNION ALL SELECT 'Herramientas Manuales', 'Pintura y acabados/Lijado manual'
+			UNION ALL SELECT 'Herramientas Manuales', 'Pintura y acabados/Otros'
+			UNION ALL SELECT 'Herramientas Manuales', 'Prensas y sargentos'
+			UNION ALL SELECT 'Herramientas Manuales', 'Remachado y fijación manual/Grapadoras manuales'
+			UNION ALL SELECT 'Herramientas Manuales', 'Remachado y fijación manual/Pinzas y útiles de fijación'
+			UNION ALL SELECT 'Herramientas Manuales', 'Remachado y fijación manual/Remachadoras'
+			UNION ALL SELECT 'Herramientas Manuales', 'Repuestos y accesorios/Hojas y cuchillas'
+			UNION ALL SELECT 'Herramientas Manuales', 'Repuestos y accesorios/Mangos de herramientas'
+			UNION ALL SELECT 'Herramientas Manuales', 'Roscado manual/Avellanadores'
+			UNION ALL SELECT 'Herramientas Manuales', 'Roscado manual/Calibradores y peines de rosca'
+			UNION ALL SELECT 'Herramientas Manuales', 'Roscado manual/Escariadores'
+			UNION ALL SELECT 'Herramientas Manuales', 'Roscado manual/Juegos de roscado'
+			UNION ALL SELECT 'Herramientas Manuales', 'Roscado manual/Machos de roscar'
+			UNION ALL SELECT 'Herramientas Manuales', 'Roscado manual/Porta terrajas y manerales'
+			UNION ALL SELECT 'Herramientas Manuales', 'Roscado manual/Terrajas'
+			UNION ALL SELECT 'Herramientas Manuales', 'Sierras manuales'
+			UNION ALL SELECT 'Herramientas Manuales', 'Sierras y serruchos/Hojas de sierra'
+			UNION ALL SELECT 'Herramientas Manuales', 'Sierras y serruchos/Sierras especiales'
+			UNION ALL SELECT 'Herramientas Manuales', 'Sierras y serruchos/Sierras para madera'
+			UNION ALL SELECT 'Herramientas Manuales', 'Sierras y serruchos/Sierras para metal'
+			UNION ALL SELECT 'Herramientas Manuales', 'Sujeción/Otras sujeciones'
+			UNION ALL SELECT 'Herramientas Manuales', 'Sujeción/Sargentos y prensas'
+			UNION ALL SELECT 'Herramientas Manuales', 'Sujeción/Tornillos de banco'
+			UNION ALL SELECT 'Herramientas Neumáticas', 'Atornillado neumático/Atornilladores neumáticos'
+			UNION ALL SELECT 'Herramientas Neumáticas', 'Automotriz neumático/Herramientas automotrices'
+			UNION ALL SELECT 'Herramientas Neumáticas', 'Compresores/Accesorios de compresores'
+			UNION ALL SELECT 'Herramientas Neumáticas', 'Compresores/Compresores estacionarios'
+			UNION ALL SELECT 'Herramientas Neumáticas', 'Compresores/Compresores portátiles'
+			UNION ALL SELECT 'Herramientas Neumáticas', 'Corte especializado neumático/Corte metálico'
+			UNION ALL SELECT 'Herramientas Neumáticas', 'Corte especializado neumático/Otros cortes'
+			UNION ALL SELECT 'Herramientas Neumáticas', 'Corte neumático/Sierras neumáticas'
+			UNION ALL SELECT 'Herramientas Neumáticas', 'Herramientas de fijación neumáticas'
+			UNION ALL SELECT 'Herramientas Neumáticas', 'Herramientas de impacto neumáticas'
+			UNION ALL SELECT 'Herramientas Neumáticas', 'Herramientas rotativas neumáticas/Herramientas rotativas'
+			UNION ALL SELECT 'Herramientas Neumáticas', 'HVAC neumático/Herramientas HVAC'
+			UNION ALL SELECT 'Herramientas Neumáticas', 'Juegos neumáticos/Juegos de herramientas'
+			UNION ALL SELECT 'Herramientas Neumáticas', 'Llaves de impacto/Llaves de impacto neumáticas'
+			UNION ALL SELECT 'Herramientas Neumáticas', 'Percusión neumática/Martillos neumáticos'
+			UNION ALL SELECT 'Herramientas Neumáticas', 'Pistolas neumáticas/Pistolas de engrase'
+			UNION ALL SELECT 'Herramientas Neumáticas', 'Pistolas neumáticas/Pistolas de pintura'
+			UNION ALL SELECT 'Herramientas Neumáticas', 'Pistolas neumáticas/Pistolas de soplado'
+			UNION ALL SELECT 'Herramientas Neumáticas', 'Pulido y lijado neumático'
+			UNION ALL SELECT 'Herramientas Neumáticas', 'Taladros neumáticos/Taladros neumáticos'
+			UNION ALL SELECT 'Hierro Y Acero', 'Aceros Estructurales'
+			UNION ALL SELECT 'Hierro Y Acero', 'Alambres Y Mallas'
+			UNION ALL SELECT 'Hierro Y Acero', 'Barras Y Varillas'
+			UNION ALL SELECT 'Hierro Y Acero', 'Derivados Del Acero'
+			UNION ALL SELECT 'Hierro Y Acero', 'Perfiles'
+			UNION ALL SELECT 'Hierro Y Acero', 'Productos De Acero Inoxidable'
+			UNION ALL SELECT 'Hierro Y Acero', 'Tuberías Metálicas'
+			UNION ALL SELECT 'Hierros y Perfiles', 'Perfiles estructurales'
+			UNION ALL SELECT 'Hierros y Perfiles', 'Perfiles livianos'
+			UNION ALL SELECT 'Hogar, Camping y Decoración', 'Accesorios para hogar'
+			UNION ALL SELECT 'Hogar, Camping y Decoración', 'Artículos de limpieza para hogar'
+			UNION ALL SELECT 'Hogar, Camping y Decoración', 'Camping y aire libre'
+			UNION ALL SELECT 'Hogar, Camping y Decoración', 'Decoración y ambientación'
+			UNION ALL SELECT 'Hogar, Camping y Decoración', 'Equipos para camping'
+			UNION ALL SELECT 'Hogar, Camping y Decoración', 'Organización y almacenamiento en hogar'
+			UNION ALL SELECT 'Hogar, Camping y Decoración', 'Parrillas y asadores'
+			UNION ALL SELECT 'HVAC (Refrigeración y Aire Acondicionado)', 'Accesorios de climatización'
+			UNION ALL SELECT 'HVAC (Refrigeración y Aire Acondicionado)', 'Bandejas y soportes'
+			UNION ALL SELECT 'HVAC (Refrigeración y Aire Acondicionado)', 'Controles y termostatos'
+			UNION ALL SELECT 'HVAC (Refrigeración y Aire Acondicionado)', 'Difusores y rejillas'
+			UNION ALL SELECT 'HVAC (Refrigeración y Aire Acondicionado)', 'Drenaje de condensados'
+			UNION ALL SELECT 'HVAC (Refrigeración y Aire Acondicionado)', 'Ductos y accesorios'
+			UNION ALL SELECT 'HVAC (Refrigeración y Aire Acondicionado)', 'Equipos de aire acondicionado'
+			UNION ALL SELECT 'HVAC (Refrigeración y Aire Acondicionado)', 'Equipos de climatización'
+			UNION ALL SELECT 'HVAC (Refrigeración y Aire Acondicionado)', 'Filtros de aire'
+			UNION ALL SELECT 'HVAC (Refrigeración y Aire Acondicionado)', 'Herramientas específicas HVAC'
+			UNION ALL SELECT 'HVAC (Refrigeración y Aire Acondicionado)', 'Refrigerantes'
+			UNION ALL SELECT 'HVAC (Refrigeración y Aire Acondicionado)', 'Tubería y aislamiento frigorífico'
+			UNION ALL SELECT 'HVAC (Refrigeración y Aire Acondicionado)', 'Válvulas y componentes frigoríficos'
+			UNION ALL SELECT 'HVAC (Refrigeración y Aire Acondicionado)', 'Ventilación y extracción'
+			UNION ALL SELECT 'Iluminación', 'Accesorios'
+			UNION ALL SELECT 'Iluminación', 'Fluorescentes'
+			UNION ALL SELECT 'Iluminación', 'Iluminación De Emergencia'
+			UNION ALL SELECT 'Iluminación', 'Iluminación Decorativa'
+			UNION ALL SELECT 'Iluminación', 'Iluminación Exterior'
+			UNION ALL SELECT 'Iluminación', 'Iluminación industrial'
+			UNION ALL SELECT 'Iluminación', 'Iluminación Interior'
+			UNION ALL SELECT 'Iluminación', 'Iluminación Técnica'
+			UNION ALL SELECT 'Iluminación', 'Incandescentes'
+			UNION ALL SELECT 'Iluminación', 'Lámparas Especiales'
+			UNION ALL SELECT 'Iluminación', 'LED'
+			UNION ALL SELECT 'Iluminación', 'Luminarias de exterior'
+			UNION ALL SELECT 'Iluminación', 'Luminarias de interior'
+			UNION ALL SELECT 'Iluminación', 'Reflectores'
+			UNION ALL SELECT 'Impermeabilización', 'Accesorios de aplicación para impermeabilización'
+			UNION ALL SELECT 'Impermeabilización', 'Cintas, bandas y accesorios impermeables'
+			UNION ALL SELECT 'Impermeabilización', 'Impermeabilización de baños y áreas húmedas'
+			UNION ALL SELECT 'Impermeabilización', 'Impermeabilización de cimentaciones y sótanos'
+			UNION ALL SELECT 'Impermeabilización', 'Impermeabilizantes cementicios y morteros'
+			UNION ALL SELECT 'Impermeabilización', 'Impermeabilizantes líquidos'
+			UNION ALL SELECT 'Impermeabilización', 'Impermeabilizantes para muros y fachadas'
+			UNION ALL SELECT 'Impermeabilización', 'Impermeabilizantes para techos y terrazas'
+			UNION ALL SELECT 'Impermeabilización', 'Láminas impermeables'
+			UNION ALL SELECT 'Impermeabilización', 'Membranas y mantos asfálticos'
+			UNION ALL SELECT 'Impermeabilización', 'Selladores específicos para impermeabilización'
+			UNION ALL SELECT 'Impermeabilización', 'Sistemas de drenaje y alivio de presión'
+			UNION ALL SELECT 'Jardín y Agrícola', 'Accesorios de cultivo y soporte'
+			UNION ALL SELECT 'Jardín y Agrícola', 'Almacenamiento y organización de jardín'
+			UNION ALL SELECT 'Jardín y Agrícola', 'Carretillas y transporte de jardín'
+			UNION ALL SELECT 'Jardín y Agrícola', 'Cercas y delimitación de jardín'
+			UNION ALL SELECT 'Jardín y Agrícola', 'Equipos de riego'
+			UNION ALL SELECT 'Jardín y Agrícola', 'Equipos motorizados de jardín'
+			UNION ALL SELECT 'Jardín y Agrícola', 'Herramientas de jardín'
+			UNION ALL SELECT 'Jardín y Agrícola', 'Pulverización y fumigación'
+			UNION ALL SELECT 'Jardín y Agrícola', 'Riego de jardín y agrícola'
+			UNION ALL SELECT 'Limpieza y Aseo', 'Accesorios de aseo'
+			UNION ALL SELECT 'Limpieza y Aseo', 'Accesorios de aseo institucional'
+			UNION ALL SELECT 'Limpieza y Aseo', 'Basureros y contenedores'
+			UNION ALL SELECT 'Limpieza y Aseo', 'Bolsas de basura'
+			UNION ALL SELECT 'Limpieza y Aseo', 'Implementos de limpieza manual'
+			UNION ALL SELECT 'Limpieza y Aseo', 'Limpieza de pisos'
+			UNION ALL SELECT 'Limpieza y Aseo', 'Limpieza de vidrios'
+			UNION ALL SELECT 'Limpieza y Aseo', 'Paños, microfibras y esponjas'
+			UNION ALL SELECT 'Limpieza y Aseo', 'Utensilios de limpieza'
+			UNION ALL SELECT 'Lubricantes y Grasas', 'Aceites de transmisión y engranajes'
+			UNION ALL SELECT 'Lubricantes y Grasas', 'Aceites hidráulicos y para compresor'
+			UNION ALL SELECT 'Lubricantes y Grasas', 'Aceites para motor'
+			UNION ALL SELECT 'Lubricantes y Grasas', 'Grasas lubricantes'
+			UNION ALL SELECT 'Lubricantes y Grasas', 'Lubricantes'
+			UNION ALL SELECT 'Lubricantes y Grasas', 'Lubricantes especiales en spray'
+			UNION ALL SELECT 'Lubricantes y Grasas', 'Lubricantes especiales varios'
+			UNION ALL SELECT 'Madera Y Derivados', 'Accesorios Y Componentes'
+			UNION ALL SELECT 'Madera Y Derivados', 'Elementos Estructurales'
+			UNION ALL SELECT 'Madera Y Derivados', 'Maderas Naturales'
+			UNION ALL SELECT 'Madera Y Derivados', 'Molduras Y Acabados'
+			UNION ALL SELECT 'Madera y Derivados', 'Molduras y listones'
+			UNION ALL SELECT 'Madera Y Derivados', 'Pisos De Madera'
+			UNION ALL SELECT 'Madera Y Derivados', 'Puertas Y Ventanas'
+			UNION ALL SELECT 'Madera Y Derivados', 'Revestimientos'
+			UNION ALL SELECT 'Madera y Derivados', 'Tableros de madera'
+			UNION ALL SELECT 'Madera Y Derivados', 'Tableros Y Láminas'
+			UNION ALL SELECT 'Materiales de Construcción', 'Adoquines y piezas para pavimento'
+			UNION ALL SELECT 'Materiales de Construcción', 'Áridos y agregados'
+			UNION ALL SELECT 'Materiales de Construcción', 'Cementos, cales y yesos'
+			UNION ALL SELECT 'Materiales de Construcción', 'Ladrillos y bloques'
+			UNION ALL SELECT 'Materiales de Construcción', 'Materiales básicos'
+			UNION ALL SELECT 'Materiales de Construcción', 'Morteros y mezclas preparadas'
+			UNION ALL SELECT 'Materiales de Construcción', 'Paneles y placas'
+			UNION ALL SELECT 'Materiales de Construcción', 'Placas y paneles de construcción'
+			UNION ALL SELECT 'Materiales de Construcción', 'Productos para juntas y nivelación'
+			UNION ALL SELECT 'Materiales de Construcción', 'Revestimientos Y Pisos'
+			UNION ALL SELECT 'Materiales de Construcción', 'Techos Y Cubiertas'
+			UNION ALL SELECT 'Pintura Y Acabados', 'Abrasivos Y Preparación'
+			UNION ALL SELECT 'Pintura Y Acabados', 'Accesorios De Aplicación'
+			UNION ALL SELECT 'Pintura Y Acabados', 'Aditivos Y Complementos'
+			UNION ALL SELECT 'Pintura Y Acabados', 'Almacenamiento Y Transporte'
+			UNION ALL SELECT 'Pintura Y Acabados', 'Cintas Y Enmascarado'
+			UNION ALL SELECT 'Pintura Y Acabados', 'Color Y Mezclado'
+			UNION ALL SELECT 'Pintura Y Acabados', 'Colorantes y tintas'
+			UNION ALL SELECT 'Pintura Y Acabados', 'Ensayos Y Control De Calidad'
+			UNION ALL SELECT 'Pintura Y Acabados', 'Equipos De Pintura'
+			UNION ALL SELECT 'Pintura Y Acabados', 'Imprimaciones Y Primers'
+			UNION ALL SELECT 'Pintura Y Acabados', 'Mantenimiento Y Limpieza'
+			UNION ALL SELECT 'Pintura Y Acabados', 'Masillas Y Rellenos'
+			UNION ALL SELECT 'Pintura Y Acabados', 'Pinturas'
+			UNION ALL SELECT 'Pintura Y Acabados', 'Productos Especiales'
+			UNION ALL SELECT 'Pintura Y Acabados', 'Revestimientos Especiales'
+			UNION ALL SELECT 'Pinturas y Complementos', 'Complementos de pintura'
+			UNION ALL SELECT 'Pinturas y Complementos', 'Pinturas arquitectónicas'
+			UNION ALL SELECT 'Plomería', 'Accesorios De Tubería'
+			UNION ALL SELECT 'Plomería', 'Bombas'
+			UNION ALL SELECT 'Plomería', 'Conectores Y Mangueras'
+			UNION ALL SELECT 'Plomería', 'Conexiones De Hierro Negro'
+			UNION ALL SELECT 'Plomería', 'Conexiones Galvanizadas'
+			UNION ALL SELECT 'Plomería', 'Conexiones PEX'
+			UNION ALL SELECT 'Plomería', 'Conexiones PPR'
+			UNION ALL SELECT 'Plomería', 'Conexiones PVC'
+			UNION ALL SELECT 'Plomería', 'Conexiones PVC-O'
+			UNION ALL SELECT 'Plomería', 'Desagües y sifones'
+			UNION ALL SELECT 'Plomería', 'Filtros Y Purificación'
+			UNION ALL SELECT 'Plomería', 'Herramientas y Equipos'
+			UNION ALL SELECT 'Plomería', 'Llaves de paso'
+			UNION ALL SELECT 'Plomería', 'Llaves y válvulas'
+			UNION ALL SELECT 'Plomería', 'Repuestos y Accesorios'
+			UNION ALL SELECT 'Plomería', 'Selladores Y Empaques'
+			UNION ALL SELECT 'Plomería', 'Sifones Y Drenaje'
+			UNION ALL SELECT 'Plomería', 'Termofusión - Accesorios'
+			UNION ALL SELECT 'Plomería', 'Termofusión - Control Y Registro'
+			UNION ALL SELECT 'Plomería', 'Termofusión - Transiciones'
+			UNION ALL SELECT 'Plomería', 'Tuberías'
+			UNION ALL SELECT 'Plomería', 'Válvulas'
+			UNION ALL SELECT 'Productos Químicos y Limpieza', 'Control de plagas químico'
+			UNION ALL SELECT 'Productos Químicos y Limpieza', 'Desengrasantes y desincrustantes'
+			UNION ALL SELECT 'Productos Químicos y Limpieza', 'Desinfectantes y sanitizantes'
+			UNION ALL SELECT 'Productos Químicos y Limpieza', 'Limpieza de manos industrial'
+			UNION ALL SELECT 'Productos Químicos y Limpieza', 'Limpieza profesional e industrial'
+			UNION ALL SELECT 'Productos Químicos y Limpieza', 'Productos químicos automotrices de limpieza'
+			UNION ALL SELECT 'Productos Químicos y Limpieza', 'Productos químicos de construcción'
+			UNION ALL SELECT 'Productos Químicos y Limpieza', 'Productos químicos para construcción'
+			UNION ALL SELECT 'Productos Químicos y Limpieza', 'Productos químicos para piscinas y agua'
+			UNION ALL SELECT 'Productos Químicos y Limpieza', 'Químicos de mantenimiento'
+			UNION ALL SELECT 'Productos Químicos y Limpieza', 'Solventes y diluyentes'
+			UNION ALL SELECT 'Productos Químicos y Limpieza', 'Tratamiento y protección de superficies'
+			UNION ALL SELECT 'Seguridad Industrial (EPP)', 'Accesorios de seguridad personal'
+			UNION ALL SELECT 'Seguridad Industrial (EPP)', 'Protección auditiva'
+			UNION ALL SELECT 'Seguridad Industrial (EPP)', 'Protección contra caídas'
+			UNION ALL SELECT 'Seguridad Industrial (EPP)', 'Protección corporal'
+			UNION ALL SELECT 'Seguridad Industrial (EPP)', 'Protección craneal'
+			UNION ALL SELECT 'Seguridad Industrial (EPP)', 'Protección de cuerpo'
+			UNION ALL SELECT 'Seguridad Industrial (EPP)', 'Protección ocular y facial'
+			UNION ALL SELECT 'Seguridad Industrial (EPP)', 'Protección para manos'
+			UNION ALL SELECT 'Seguridad Industrial (EPP)', 'Protección para pies'
+			UNION ALL SELECT 'Seguridad Industrial (EPP)', 'Protección respiratoria'
+			UNION ALL SELECT 'Seguridad y Señalización', 'Cintas y barreras de seguridad'
+			UNION ALL SELECT 'Seguridad y Señalización', 'Elementos de seguridad física'
+			UNION ALL SELECT 'Seguridad y Señalización', 'Espejos y balizamiento'
+			UNION ALL SELECT 'Seguridad y Señalización', 'Postes, bases y soportes para señalización'
+			UNION ALL SELECT 'Seguridad y Señalización', 'Señales adhesivas y etiquetas de seguridad'
+			UNION ALL SELECT 'Seguridad y Señalización', 'Señalización fotoluminiscente'
+			UNION ALL SELECT 'Seguridad y Señalización', 'Señalización industrial y de seguridad'
+			UNION ALL SELECT 'Seguridad y Señalización', 'Señalización vial'
+			UNION ALL SELECT 'Seguridad y Señalización', 'Señalización vial y de obra'
+			UNION ALL SELECT 'Soldadura', 'Accesorios de soldadura'
+			UNION ALL SELECT 'Soldadura', 'Accesorios Para Soplete'
+			UNION ALL SELECT 'Soldadura', 'Consumibles'
+			UNION ALL SELECT 'Soldadura', 'Consumibles de soldadura'
+			UNION ALL SELECT 'Soldadura', 'Equipos De Corte'
+			UNION ALL SELECT 'Soldadura', 'Equipos De Soldadura'
+			UNION ALL SELECT 'Soldadura', 'Gases'
+			UNION ALL SELECT 'Soldadura', 'Herramientas Y Equipos Auxiliares'
+			UNION ALL SELECT 'Soldadura', 'Limpieza Y Mantenimiento'
+			UNION ALL SELECT 'Soldadura', 'Picos Y Boquillas'
+			UNION ALL SELECT 'Soldadura', 'Preparación y limpieza de soldadura'
+			UNION ALL SELECT 'Soldadura', 'Repuestos'
+			UNION ALL SELECT 'Techos y Cobertizos', 'Accesorios de techo'
+			UNION ALL SELECT 'Techos y Cobertizos', 'Cubiertas'
+			UNION ALL SELECT 'Tornillería y Fijaciones', 'Abrazaderas y fijaciones metálicas'
+			UNION ALL SELECT 'Tornillería y Fijaciones', 'Anclajes mecánicos'
+			UNION ALL SELECT 'Tornillería y Fijaciones', 'Anclajes mecánicos y químicos'
+			UNION ALL SELECT 'Tornillería y Fijaciones', 'Anclajes químicos'
+			UNION ALL SELECT 'Tornillería y Fijaciones', 'Arandelas'
+			UNION ALL SELECT 'Tornillería y Fijaciones', 'Clavos y puntas'
+			UNION ALL SELECT 'Tornillería y Fijaciones', 'Fijaciones para techos y láminas'
+			UNION ALL SELECT 'Tornillería y Fijaciones', 'Fijaciones plásticas'
+			UNION ALL SELECT 'Tornillería y Fijaciones', 'Grapas y fijaciones'
+			UNION ALL SELECT 'Tornillería y Fijaciones', 'Remaches'
+			UNION ALL SELECT 'Tornillería y Fijaciones', 'Tarugos y tacos plásticos'
+			UNION ALL SELECT 'Tornillería y Fijaciones', 'Tornillos autoperforantes'
+			UNION ALL SELECT 'Tornillería y Fijaciones', 'Tornillos drywall'
+			UNION ALL SELECT 'Tornillería y Fijaciones', 'Tornillos especiales'
+			UNION ALL SELECT 'Tornillería y Fijaciones', 'Tornillos para madera'
+			UNION ALL SELECT 'Tornillería y Fijaciones', 'Tornillos para metal'
+			UNION ALL SELECT 'Tornillería y Fijaciones', 'Tuercas'
+			UNION ALL SELECT 'Tuberías y Conexiones', 'Conexiones para tubería'
+			UNION ALL SELECT 'Tuberías y Conexiones', 'Tuberías para agua'
+			UNION ALL SELECT 'Varios', 'Accesorios generales'
+			UNION ALL SELECT 'Varios', 'Organización y orden'
+		) AS raw_pairs
+		GROUP BY
+			LOWER(TRIM(raw_pairs.raw_category)),
+			LOWER(TRIM(raw_pairs.raw_subcategory))
+	) AS src
+	INNER JOIN Category c
+		ON LOWER(TRIM(c.name)) = src.normalized_category
+	LEFT JOIN Subcategory s
+		ON s.id_category_fk = c.id_category
+	   AND LOWER(TRIM(s.name)) = src.normalized_subcategory
+	WHERE s.id_subcategory IS NULL;
+
+END //
+
+DELIMITER ;
+
+-- Ejecutar con:
+CALL sp_seed_master_subcategories();
+
+DELIMITER //
 
 DROP PROCEDURE IF EXISTS sp_seed_master_lines //
 
@@ -3526,3 +6140,783 @@ DELIMITER ;
 
 CALL sp_seed_master_lines();
 
+-- =========================================
+-- LIMPIEZA POST-CATEGORIZACION
+-- =========================================
+-- Objetivo:
+-- 1. Consolidar categorias duplicadas semanticamente.
+-- 2. Reasignar subcategorias y lineas sin perder relaciones.
+-- 3. Corregir texto roto por encoding (mojibake) en lineas y descripciones.
+--
+-- Recomendacion:
+-- ejecutar sobre una copia de la base o despues de un backup.
+
+START TRANSACTION;
+
+-- =========================================
+-- 0. MIGRAR BRAND DE LINE A PRODUCT
+-- =========================================
+-- Aplica cuando la base vieja tenia brand en Line y la nueva lo mueve a Product.
+-- Copia la marca historica a todos los productos de la linea solo si el producto
+-- todavia no tiene una marca definida.
+-- Si `Line.brand` ya no existe, este bloque se omite automaticamente.
+
+SET @has_line_brand := (
+        SELECT COUNT(*)
+        FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE()
+            AND TABLE_NAME = 'Line'
+            AND COLUMN_NAME = 'brand'
+);
+
+SET @has_product_brand := (
+        SELECT COUNT(*)
+        FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE()
+            AND TABLE_NAME = 'Product'
+            AND COLUMN_NAME = 'brand'
+);
+
+SET @brand_migration_sql := IF(
+        @has_line_brand > 0 AND @has_product_brand > 0,
+        'UPDATE Product p INNER JOIN Line l ON l.id_line = p.id_line_fk SET p.brand = l.brand WHERE (p.brand IS NULL OR TRIM(p.brand) = '''') AND l.brand IS NOT NULL AND TRIM(l.brand) <> ''''',
+        'SELECT 1'
+);
+
+PREPARE stmt_brand_migration FROM @brand_migration_sql;
+EXECUTE stmt_brand_migration;
+DEALLOCATE PREPARE stmt_brand_migration;
+
+-- =========================================
+-- 1. MAPEO DE CATEGORIAS A CONSOLIDAR
+-- =========================================
+DROP TEMPORARY TABLE IF EXISTS tmp_category_merge_map;
+CREATE TEMPORARY TABLE tmp_category_merge_map (
+    source_name VARCHAR(100) NOT NULL,
+    target_name VARCHAR(100) NOT NULL,
+    PRIMARY KEY (source_name)
+);
+
+INSERT INTO tmp_category_merge_map (source_name, target_name)
+VALUES
+    ('Accesorios para herramientas eléctricas', 'Accesorios Herramientas Eléctricas'),
+    ('Hierros y Perfiles', 'Hierro Y Acero'),
+    ('Pinturas y Complementos', 'Pintura Y Acabados');
+
+-- Reasignar subcategorias a la categoria canonica.
+UPDATE Subcategory sc
+INNER JOIN Category source_category
+    ON source_category.id_category = sc.id_category_fk
+INNER JOIN tmp_category_merge_map map
+    ON map.source_name = source_category.name
+INNER JOIN Category target_category
+    ON target_category.name = map.target_name
+SET sc.id_category_fk = target_category.id_category;
+
+-- =========================================
+-- 2. CONSOLIDAR SUBCATEGORIAS DUPLICADAS
+-- =========================================
+DROP TEMPORARY TABLE IF EXISTS tmp_subcategory_merge_map;
+CREATE TEMPORARY TABLE tmp_subcategory_merge_map (
+    source_subcategory_id INT NOT NULL,
+    target_subcategory_id INT NOT NULL,
+    PRIMARY KEY (source_subcategory_id)
+);
+
+INSERT INTO tmp_subcategory_merge_map (source_subcategory_id, target_subcategory_id)
+SELECT
+    duplicate_sc.id_subcategory AS source_subcategory_id,
+    kept_sc.id_subcategory AS target_subcategory_id
+FROM Subcategory duplicate_sc
+INNER JOIN Subcategory kept_sc
+    ON kept_sc.id_category_fk = duplicate_sc.id_category_fk
+   AND LOWER(TRIM(kept_sc.name)) = LOWER(TRIM(duplicate_sc.name))
+   AND kept_sc.id_subcategory < duplicate_sc.id_subcategory;
+
+-- Reasignar lineas que quedaron colgando en subcategorias duplicadas.
+UPDATE Line l
+INNER JOIN tmp_subcategory_merge_map map
+    ON map.source_subcategory_id = l.id_subcategory_fk
+SET l.id_subcategory_fk = map.target_subcategory_id;
+
+-- Eliminar subcategorias duplicadas luego de mover sus lineas.
+DELETE sc
+FROM Subcategory sc
+INNER JOIN tmp_subcategory_merge_map map
+    ON map.source_subcategory_id = sc.id_subcategory;
+
+-- Eliminar categorias fuente ya vacias.
+DELETE c
+FROM Category c
+INNER JOIN tmp_category_merge_map map
+    ON map.source_name = c.name;
+
+-- =========================================
+-- 3. CORREGIR MOJIBAKE EN TEXTO
+-- =========================================
+-- Esta conversion arregla casos clasicos como:
+-- magnÃ©tico -> magnético
+-- aspiraciÃ³n -> aspiración
+-- pequeÃ±o -> pequeño
+-- rÃ¡pido -> rápido
+
+UPDATE Line
+SET name = CONVERT(BINARY CONVERT(name USING latin1) USING utf8mb4)
+WHERE name LIKE '%Ã%'
+   OR name LIKE '%Â%';
+
+UPDATE Product
+SET description = CONVERT(BINARY CONVERT(description USING latin1) USING utf8mb4)
+WHERE description LIKE '%Ã%'
+   OR description LIKE '%Â%';
+
+UPDATE Product
+SET brand = CONVERT(BINARY CONVERT(brand USING latin1) USING utf8mb4)
+WHERE brand LIKE '%Ã%'
+    OR brand LIKE '%Â%';
+
+-- Si los atributos JSON fueron sembrados desde texto dañado,
+-- en MariaDB normalmente se puede corregir igual porque JSON es alias de LONGTEXT.
+UPDATE Product
+SET attributes = CONVERT(BINARY CONVERT(attributes USING latin1) USING utf8mb4)
+WHERE attributes LIKE '%Ã%'
+   OR attributes LIKE '%Â%';
+
+COMMIT;
+
+ALTER TABLE Stock_History
+MODIFY COLUMN movement_type ENUM(
+    'PURCHASE',
+    'SALE',
+    'ADJUSTMENT',
+    'RETURN',
+    'RESERVATION',
+    'RESERVATION_RELEASE'
+) NOT NULL;
+
+CREATE TABLE Company_Payment_Method (
+    id_payment_method INT AUTO_INCREMENT PRIMARY KEY,
+
+    id_company_fk INT NOT NULL,
+
+    method_type VARCHAR(50) NOT NULL,
+    label VARCHAR(100) NOT NULL,
+    account_holder VARCHAR(150),
+    account_number VARCHAR(100),
+    bank_name VARCHAR(150),
+    instructions VARCHAR(255),
+
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+    FOREIGN KEY (id_company_fk) REFERENCES Company(id_company)
+);
+
+CREATE TABLE Purchase_Checkout (
+    id_checkout INT AUTO_INCREMENT PRIMARY KEY,
+
+    id_customer_fk INT NOT NULL,
+    id_exchange_rate_fk INT NOT NULL,
+
+    exchange_rate_snapshot DECIMAL(12,4) NOT NULL,
+    total_usd DECIMAL(12,2) NOT NULL DEFAULT 0,
+    total_bs DECIMAL(14,2) NOT NULL DEFAULT 0,
+
+    status ENUM(
+        'OPEN',
+        'PARTIAL_SUBMITTED',
+        'PARTIAL_APPROVED',
+        'COMPLETED',
+        'COMPLETED_WITH_INCIDENTS'
+    ) NOT NULL DEFAULT 'OPEN',
+
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+    FOREIGN KEY (id_customer_fk) REFERENCES Customer(id_customer),
+    FOREIGN KEY (id_exchange_rate_fk) REFERENCES Exchange_Rate(id_exchange_rate)
+);
+
+CREATE TABLE Purchase_Group (
+    id_purchase_group INT AUTO_INCREMENT PRIMARY KEY,
+
+    id_checkout_fk INT NOT NULL,
+    id_company_fk INT NOT NULL,
+
+    subtotal_usd DECIMAL(12,2) NOT NULL DEFAULT 0,
+    subtotal_bs DECIMAL(14,2) NOT NULL DEFAULT 0,
+
+    status ENUM(
+        'PENDING_PAYMENT',
+        'PAYMENT_SUBMITTED',
+        'APPROVED',
+        'REJECTED',
+        'EXPIRED'
+    ) NOT NULL DEFAULT 'PENDING_PAYMENT',
+
+    payment_due_at TIMESTAMP NULL,
+    reviewed_at TIMESTAMP NULL,
+    review_note VARCHAR(255) NULL,
+
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+    FOREIGN KEY (id_checkout_fk) REFERENCES Purchase_Checkout(id_checkout),
+    FOREIGN KEY (id_company_fk) REFERENCES Company(id_company)
+);
+
+CREATE TABLE Purchase_Item (
+    id_purchase_item INT AUTO_INCREMENT PRIMARY KEY,
+
+    id_purchase_group_fk INT NOT NULL,
+    id_product_fk INT NOT NULL,
+
+    quantity INT NOT NULL,
+    unit_price_usd_snapshot DECIMAL(12,2) NOT NULL,
+    unit_price_bs_snapshot DECIMAL(14,2) NOT NULL,
+    subtotal_usd DECIMAL(12,2) NOT NULL,
+    subtotal_bs DECIMAL(14,2) NOT NULL,
+
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    FOREIGN KEY (id_purchase_group_fk) REFERENCES Purchase_Group(id_purchase_group),
+    FOREIGN KEY (id_product_fk) REFERENCES Product(id_product)
+);
+
+CREATE TABLE Purchase_Evidence (
+    id_purchase_evidence INT AUTO_INCREMENT PRIMARY KEY,
+
+    id_purchase_group_fk INT NOT NULL,
+
+    file_url VARCHAR(255) NOT NULL,
+    original_name VARCHAR(255),
+    mime_type VARCHAR(100),
+    note VARCHAR(255),
+
+    review_status ENUM(
+        'SUBMITTED',
+        'APPROVED',
+        'REJECTED'
+    ) NOT NULL DEFAULT 'SUBMITTED',
+
+    uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    reviewed_at TIMESTAMP NULL,
+
+    FOREIGN KEY (id_purchase_group_fk) REFERENCES Purchase_Group(id_purchase_group)
+);
+
+CREATE INDEX idx_payment_method_company_active ON Company_Payment_Method(id_company_fk, is_active);
+CREATE INDEX idx_purchase_checkout_customer_status ON Purchase_Checkout(id_customer_fk, status);
+CREATE INDEX idx_purchase_group_checkout_status ON Purchase_Group(id_checkout_fk, status);
+CREATE INDEX idx_purchase_group_company_status ON Purchase_Group(id_company_fk, status);
+CREATE INDEX idx_purchase_group_due_at ON Purchase_Group(payment_due_at);
+CREATE INDEX idx_purchase_item_group ON Purchase_Item(id_purchase_group_fk);
+CREATE INDEX idx_purchase_item_product ON Purchase_Item(id_product_fk);
+CREATE INDEX idx_purchase_evidence_group_status ON Purchase_Evidence(id_purchase_group_fk, review_status);
+
+DELIMITER //
+
+DROP PROCEDURE IF EXISTS sp_create_company_payment_method //
+
+CREATE PROCEDURE sp_create_company_payment_method (
+    IN p_id_company INT,
+    IN p_method_type VARCHAR(50),
+    IN p_label VARCHAR(100),
+    IN p_account_holder VARCHAR(150),
+    IN p_account_number VARCHAR(100),
+    IN p_bank_name VARCHAR(150),
+    IN p_instructions VARCHAR(255)
+)
+BEGIN
+
+    IF NOT EXISTS (
+        SELECT 1 FROM Company WHERE id_company = p_id_company
+    ) THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Empresa no existe';
+    END IF;
+
+    IF COALESCE(NULLIF(TRIM(p_method_type), ''), '') = '' THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'method_type es requerido';
+    END IF;
+
+    IF COALESCE(NULLIF(TRIM(p_label), ''), '') = '' THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'label es requerido';
+    END IF;
+
+    INSERT INTO Company_Payment_Method (
+        id_company_fk,
+        method_type,
+        label,
+        account_holder,
+        account_number,
+        bank_name,
+        instructions
+    )
+    VALUES (
+        p_id_company,
+        TRIM(p_method_type),
+        TRIM(p_label),
+        NULLIF(TRIM(p_account_holder), ''),
+        NULLIF(TRIM(p_account_number), ''),
+        NULLIF(TRIM(p_bank_name), ''),
+        NULLIF(TRIM(p_instructions), '')
+    );
+
+    SELECT *
+    FROM Company_Payment_Method
+    WHERE id_payment_method = LAST_INSERT_ID()
+    LIMIT 1;
+
+END //
+
+DELIMITER ;
+
+DELIMITER //
+
+DROP PROCEDURE IF EXISTS sp_create_purchase_checkout //
+
+CREATE PROCEDURE sp_create_purchase_checkout (
+    IN p_id_customer INT,
+    IN p_id_exchange_rate INT,
+    IN p_exchange_rate_snapshot DECIMAL(12,4),
+    IN p_total_usd DECIMAL(12,2),
+    IN p_total_bs DECIMAL(14,2)
+)
+BEGIN
+
+    IF NOT EXISTS (
+        SELECT 1 FROM Customer WHERE id_customer = p_id_customer
+    ) THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Customer no existe';
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM Exchange_Rate WHERE id_exchange_rate = p_id_exchange_rate
+    ) THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Tasa de cambio no existe';
+    END IF;
+
+    IF p_exchange_rate_snapshot IS NULL OR p_exchange_rate_snapshot <= 0 THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'exchange_rate_snapshot inválida';
+    END IF;
+
+    IF p_total_usd IS NULL OR p_total_usd < 0 OR p_total_bs IS NULL OR p_total_bs < 0 THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Totales inválidos';
+    END IF;
+
+    INSERT INTO Purchase_Checkout (
+        id_customer_fk,
+        id_exchange_rate_fk,
+        exchange_rate_snapshot,
+        total_usd,
+        total_bs
+    )
+    VALUES (
+        p_id_customer,
+        p_id_exchange_rate,
+        p_exchange_rate_snapshot,
+        p_total_usd,
+        p_total_bs
+    );
+
+    SELECT *
+    FROM Purchase_Checkout
+    WHERE id_checkout = LAST_INSERT_ID()
+    LIMIT 1;
+
+END //
+
+DELIMITER ;
+
+DELIMITER //
+
+DROP PROCEDURE IF EXISTS sp_create_purchase_group //
+
+CREATE PROCEDURE sp_create_purchase_group (
+    IN p_id_checkout INT,
+    IN p_id_company INT,
+    IN p_subtotal_usd DECIMAL(12,2),
+    IN p_subtotal_bs DECIMAL(14,2),
+    IN p_payment_due_at TIMESTAMP
+)
+BEGIN
+
+    DECLARE v_checkout_created_at TIMESTAMP;
+    DECLARE v_payment_due_at TIMESTAMP;
+
+    SELECT created_at INTO v_checkout_created_at
+    FROM Purchase_Checkout
+    WHERE id_checkout = p_id_checkout
+    LIMIT 1;
+
+    IF v_checkout_created_at IS NULL THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Checkout no existe';
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM Company WHERE id_company = p_id_company
+    ) THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Empresa no existe';
+    END IF;
+
+    IF p_subtotal_usd IS NULL OR p_subtotal_usd < 0 OR p_subtotal_bs IS NULL OR p_subtotal_bs < 0 THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Subtotales inválidos';
+    END IF;
+
+    SET v_payment_due_at = COALESCE(
+        p_payment_due_at,
+        DATE_ADD(v_checkout_created_at, INTERVAL 24 HOUR)
+    );
+
+    INSERT INTO Purchase_Group (
+        id_checkout_fk,
+        id_company_fk,
+        subtotal_usd,
+        subtotal_bs,
+        payment_due_at
+    )
+    VALUES (
+        p_id_checkout,
+        p_id_company,
+        p_subtotal_usd,
+        p_subtotal_bs,
+        v_payment_due_at
+    );
+
+    SELECT *
+    FROM Purchase_Group
+    WHERE id_purchase_group = LAST_INSERT_ID()
+    LIMIT 1;
+
+END //
+
+DELIMITER ;
+
+DELIMITER //
+
+DROP PROCEDURE IF EXISTS sp_create_purchase_item //
+
+CREATE PROCEDURE sp_create_purchase_item (
+    IN p_id_purchase_group INT,
+    IN p_id_product INT,
+    IN p_quantity INT,
+    IN p_unit_price_usd_snapshot DECIMAL(12,2),
+    IN p_unit_price_bs_snapshot DECIMAL(14,2),
+    IN p_subtotal_usd DECIMAL(12,2),
+    IN p_subtotal_bs DECIMAL(14,2)
+)
+BEGIN
+
+    IF NOT EXISTS (
+        SELECT 1 FROM Purchase_Group WHERE id_purchase_group = p_id_purchase_group
+    ) THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Grupo de compra no existe';
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM Product WHERE id_product = p_id_product
+    ) THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Producto no existe';
+    END IF;
+
+    IF p_quantity IS NULL OR p_quantity <= 0 THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'quantity inválida';
+    END IF;
+
+    INSERT INTO Purchase_Item (
+        id_purchase_group_fk,
+        id_product_fk,
+        quantity,
+        unit_price_usd_snapshot,
+        unit_price_bs_snapshot,
+        subtotal_usd,
+        subtotal_bs
+    )
+    VALUES (
+        p_id_purchase_group,
+        p_id_product,
+        p_quantity,
+        p_unit_price_usd_snapshot,
+        p_unit_price_bs_snapshot,
+        p_subtotal_usd,
+        p_subtotal_bs
+    );
+
+    SELECT *
+    FROM Purchase_Item
+    WHERE id_purchase_item = LAST_INSERT_ID()
+    LIMIT 1;
+
+END //
+
+DELIMITER ;
+
+DELIMITER //
+
+DROP PROCEDURE IF EXISTS sp_submit_purchase_evidence //
+
+CREATE PROCEDURE sp_submit_purchase_evidence (
+    IN p_id_purchase_group INT,
+    IN p_file_url VARCHAR(255),
+    IN p_original_name VARCHAR(255),
+    IN p_mime_type VARCHAR(100),
+    IN p_note VARCHAR(255)
+)
+BEGIN
+
+    DECLARE v_status VARCHAR(50);
+
+    SELECT status INTO v_status
+    FROM Purchase_Group
+    WHERE id_purchase_group = p_id_purchase_group
+    LIMIT 1;
+
+    IF v_status IS NULL THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Grupo de compra no existe';
+    END IF;
+
+    IF v_status <> 'PENDING_PAYMENT' THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'El grupo no permite cargar evidencia';
+    END IF;
+
+    IF COALESCE(NULLIF(TRIM(p_file_url), ''), '') = '' THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'file_url es requerido';
+    END IF;
+
+    INSERT INTO Purchase_Evidence (
+        id_purchase_group_fk,
+        file_url,
+        original_name,
+        mime_type,
+        note
+    )
+    VALUES (
+        p_id_purchase_group,
+        TRIM(p_file_url),
+        NULLIF(TRIM(p_original_name), ''),
+        NULLIF(TRIM(p_mime_type), ''),
+        NULLIF(TRIM(p_note), '')
+    );
+
+    UPDATE Purchase_Group
+    SET status = 'PAYMENT_SUBMITTED',
+        updated_at = CURRENT_TIMESTAMP
+    WHERE id_purchase_group = p_id_purchase_group;
+
+    SELECT *
+    FROM Purchase_Evidence
+    WHERE id_purchase_evidence = LAST_INSERT_ID()
+    LIMIT 1;
+
+END //
+
+DELIMITER ;
+
+DELIMITER //
+
+DROP PROCEDURE IF EXISTS sp_approve_purchase_group //
+
+CREATE PROCEDURE sp_approve_purchase_group (
+    IN p_id_purchase_group INT,
+    IN p_review_note VARCHAR(255)
+)
+BEGIN
+
+    DECLARE v_status VARCHAR(50);
+    DECLARE v_customer_id INT;
+    DECLARE v_cashback_id INT;
+    DECLARE v_cashback_total DECIMAL(10,2);
+
+    SELECT status INTO v_status
+    FROM Purchase_Group
+    WHERE id_purchase_group = p_id_purchase_group
+    LIMIT 1;
+
+    IF v_status IS NULL THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Grupo de compra no existe';
+    END IF;
+
+    IF v_status <> 'PAYMENT_SUBMITTED' THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'El grupo no puede aprobarse';
+    END IF;
+
+    SELECT pc.id_customer_fk INTO v_customer_id
+    FROM Purchase_Group pg
+    INNER JOIN Purchase_Checkout pc ON pc.id_checkout = pg.id_checkout_fk
+    WHERE pg.id_purchase_group = p_id_purchase_group
+    LIMIT 1;
+
+    IF v_customer_id IS NULL THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'No se pudo resolver el customer del grupo';
+    END IF;
+
+    SELECT id_cashback INTO v_cashback_id
+    FROM Cashback
+    WHERE id_customer_fk = v_customer_id
+    LIMIT 1;
+
+    IF v_cashback_id IS NULL THEN
+        INSERT INTO Cashback (id_customer_fk, value)
+        VALUES (v_customer_id, 0);
+
+        SET v_cashback_id = LAST_INSERT_ID();
+    END IF;
+
+    SELECT COALESCE(SUM(ROUND(subtotal_usd * 0.0225, 2)), 0) INTO v_cashback_total
+    FROM Purchase_Item
+    WHERE id_purchase_group_fk = p_id_purchase_group;
+
+    IF v_cashback_total > 0 THEN
+        UPDATE Cashback
+        SET value = value + v_cashback_total,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id_cashback = v_cashback_id;
+
+        INSERT INTO Cashback_History (
+            id_cashback_fk,
+            id_transaction_fk,
+            value,
+            transaction_type,
+            created_at
+        )
+        SELECT
+            v_cashback_id,
+            pi.id_purchase_item,
+            ROUND(pi.subtotal_usd * 0.0225, 2),
+            'acumulate',
+            CURRENT_TIMESTAMP
+        FROM Purchase_Item pi
+        WHERE pi.id_purchase_group_fk = p_id_purchase_group
+          AND ROUND(pi.subtotal_usd * 0.0225, 2) > 0;
+    END IF;
+
+    UPDATE Purchase_Group
+    SET status = 'APPROVED',
+        reviewed_at = CURRENT_TIMESTAMP,
+        review_note = NULLIF(TRIM(p_review_note), ''),
+        updated_at = CURRENT_TIMESTAMP
+    WHERE id_purchase_group = p_id_purchase_group;
+
+    UPDATE Purchase_Evidence
+    SET review_status = 'APPROVED',
+        reviewed_at = CURRENT_TIMESTAMP
+    WHERE id_purchase_group_fk = p_id_purchase_group
+      AND review_status = 'SUBMITTED';
+
+    SELECT *
+    FROM Purchase_Group
+    WHERE id_purchase_group = p_id_purchase_group
+    LIMIT 1;
+
+END //
+
+DELIMITER ;
+
+DELIMITER //
+
+DROP PROCEDURE IF EXISTS sp_reject_purchase_group //
+
+CREATE PROCEDURE sp_reject_purchase_group (
+    IN p_id_purchase_group INT,
+    IN p_review_note VARCHAR(255)
+)
+BEGIN
+
+    DECLARE v_status VARCHAR(50);
+
+    SELECT status INTO v_status
+    FROM Purchase_Group
+    WHERE id_purchase_group = p_id_purchase_group
+    LIMIT 1;
+
+    IF v_status IS NULL THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Grupo de compra no existe';
+    END IF;
+
+    IF v_status <> 'PAYMENT_SUBMITTED' THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'El grupo no puede rechazarse';
+    END IF;
+
+    UPDATE Purchase_Group
+    SET status = 'REJECTED',
+        reviewed_at = CURRENT_TIMESTAMP,
+        review_note = NULLIF(TRIM(p_review_note), ''),
+        updated_at = CURRENT_TIMESTAMP
+    WHERE id_purchase_group = p_id_purchase_group;
+
+    UPDATE Purchase_Evidence
+    SET review_status = 'REJECTED',
+        reviewed_at = CURRENT_TIMESTAMP
+    WHERE id_purchase_group_fk = p_id_purchase_group
+      AND review_status = 'SUBMITTED';
+
+    SELECT *
+    FROM Purchase_Group
+    WHERE id_purchase_group = p_id_purchase_group
+    LIMIT 1;
+
+END //
+
+DELIMITER ;
+
+DELIMITER //
+
+DROP PROCEDURE IF EXISTS sp_expire_purchase_group //
+
+CREATE PROCEDURE sp_expire_purchase_group (
+    IN p_id_purchase_group INT
+)
+BEGIN
+
+    DECLARE v_status VARCHAR(50);
+
+    SELECT status INTO v_status
+    FROM Purchase_Group
+    WHERE id_purchase_group = p_id_purchase_group
+    LIMIT 1;
+
+    IF v_status IS NULL THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Grupo de compra no existe';
+    END IF;
+
+    IF v_status <> 'PENDING_PAYMENT' THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'El grupo no puede expirar';
+    END IF;
+
+    UPDATE Purchase_Group
+    SET status = 'EXPIRED',
+        updated_at = CURRENT_TIMESTAMP
+    WHERE id_purchase_group = p_id_purchase_group;
+
+    SELECT *
+    FROM Purchase_Group
+    WHERE id_purchase_group = p_id_purchase_group
+    LIMIT 1;
+
+END //
+
+DELIMITER ;

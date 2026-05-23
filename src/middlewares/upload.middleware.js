@@ -14,10 +14,12 @@ const ensureDir = (dirPath) => {
 const customerDir = path.join(__dirname, '../../public/uploads/profiles/customers');
 const companyDir = path.join(__dirname, '../../public/uploads/profiles/companies');
 const productDir = path.join(__dirname, '../../public/uploads/products');
+const purchaseEvidenceDir = path.join(__dirname, '../../public/uploads/purchases/evidences');
 
 ensureDir(customerDir);
 ensureDir(companyDir);
 ensureDir(productDir);
+ensureDir(purchaseEvidenceDir);
 
 const createStorage = (folder, prefix) =>
   multer.diskStorage({
@@ -48,6 +50,11 @@ const uploadProductImage = multer({
   limits: { fileSize: 5 * 1024 * 1024 }
 });
 
+const uploadPurchaseEvidence = multer({
+  storage: createStorage(purchaseEvidenceDir, 'purchase_evidence'),
+  limits: { fileSize: 8 * 1024 * 1024 }
+});
+
 const uploadProductImages = uploadProductImage.fields([
   { name: 'main_image', maxCount: 1 },
   { name: 'secondary_images', maxCount: MAX_SECONDARY_PRODUCT_IMAGES }
@@ -57,5 +64,6 @@ module.exports = {
   uploadCustomerImage,
   uploadCompanyImage,
   uploadProductImage,
-  uploadProductImages
+  uploadProductImages,
+  uploadPurchaseEvidence
 };

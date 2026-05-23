@@ -12,6 +12,8 @@ app.use(express.json());
 
 const authCustomerRoutes = require('./routes/auth.customer.routes');
 const authCompanyRoutes = require('./routes/auth.company.routes');
+const exchangeRoutes = require('./routes/exchange.routes');
+const purchaseRoutes = require('./routes/purchase.routes');
 const productRoutes = require('./routes/products.routes');
 
 app.get('/', (_req, res) => {
@@ -25,6 +27,8 @@ app.get('/', (_req, res) => {
     docs: {
       customer_auth: '/api/auth',
       company_auth: '/api/company-auth',
+      exchange: '/api/exchange-rate',
+      purchases: '/api/purchases',
       products: '/api/products'
     }
   });
@@ -36,6 +40,8 @@ app.get('/.well-known/appspecific/com.chrome.devtools.json', (_req, res) => {
 
 app.use('/api/auth', authCustomerRoutes);
 app.use('/api/company-auth', authCompanyRoutes);
+app.use('/api/exchange-rate', exchangeRoutes);
+app.use('/api/purchases', purchaseRoutes);
 app.use('/api/products', productRoutes);
 
 app.use(express.static(publicDir));

@@ -1,5 +1,30 @@
 const safe = (v) => v || null;
 
+const requestJson = async (url, options = {}) => {
+  const response = await fetch(url, {
+    ...options,
+    headers: {
+      ...options.headers,
+      ...getAuthHeaders()
+    }
+  });
+  const contentType = response.headers.get('content-type') || '';
+  const rawBody = await response.text();
+  const data = contentType.includes('application/json')
+    ? JSON.parse(rawBody || '{}')
+    : null;
+
+  if (!response.ok) {
+    throw new Error(data?.error || `Error en la solicitud (${response.status})`);
+  }
+
+  if (!data) {
+    throw new Error('La respuesta del servidor no llegó en formato JSON');
+  }
+
+  return data;
+};
+
 if (!requireCustomerSession()) {
   throw new Error('Sesión requerida');
 }
@@ -7,15 +32,7 @@ if (!requireCustomerSession()) {
 // 🔥 Cargar datos actuales
 window.onload = async () => {
   try {
-    const res = await fetch(getProfileEndpointByEntity('customer'), {
-      headers: getAuthHeaders()
-    });
-
-    const data = await res.json();
-
-    if (!res.ok) {
-      throw new Error(data.error || 'No se pudo cargar el perfil');
-    }
+    const data = await requestJson(getProfileEndpointByEntity('customer'));
 
     const user = data.user;
 

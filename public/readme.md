@@ -1,223 +1,159 @@
-# Frontend público actual
+# Frontend publico actual
 
-## Estado real
+## Objetivo
 
-La carpeta `public/` contiene un frontend provisional hecho con HTML, CSS y JavaScript simple para acelerar pruebas manuales del backend.
+La carpeta `public/` contiene el frontend provisional del sistema, construido con HTML, CSS y JavaScript vanilla para validar manualmente los flujos del backend.
 
-No es todavía el frontend React final del proyecto.
+No es el frontend definitivo del proyecto. Su funcion actual es servir como laboratorio de integracion mientras se siguen ajustando compras, cashback, dashboards y operaciones por rol.
 
-Su propósito actual es:
-
-- validar autenticación de customer
-- validar lectura de sesión
-- validar edición básica de perfil
-- validar un catálogo público mínimo
-- servir como base temporal mientras el equipo de frontend implementa la versión real
+Tambien queda pensado para trabajar con una base reiniciable desde cero usando `DB/databasefor0test.sql`.
 
 ---
 
-## Estructura actual
+## Alcance actual
 
-### Archivos principales
+Este prototipo ya permite probar:
 
-- `index.html`: entrada pública simple
-- `auth/login.html`: pantalla de login local y Google
-- `auth/register.html`: pantalla de registro local
-- `modules/user_n/dashboard.html`: dashboard temporal de customer
-- `modules/user_n/profile.html`: edición temporal de perfil
-- `products/detail.html`: detalle temporal y mínimo de producto
+- acceso publico al home y al detalle de producto
+- registro y login de customer
+- login con Google para customer
+- login de company
+- lectura de sesion y logout
+- perfiles de customer y company
+- dashboard admin, company y customer
+- catalogo y gestion de productos para company
+- carrito y favoritos persistidos por customer
+- checkout agrupado por proveedor
+- carga de evidencias por grupo de compra
+- revision de compras por empresa
+- consulta y uso de cashback en compras
+- consulta de tasa de cambio para montos referenciales
 
-### JavaScript actual
+---
 
-- `assets/js/index.js`: detecta sesión y muestra accesos
-- `assets/js/index.js`: también consulta el catálogo público básico
+## Estructura real
+
+### Vistas HTML
+
+- `index.html`: portada publica con accesos rapidos y catalogo basico
+- `auth/login.html`: login local y acceso con Google para customer
+- `auth/register.html`: registro local de customer
+- `modules/admin/dashboard.html`: dashboard administrativo
+- `modules/company/dashboard.html`: dashboard de empresa
+- `modules/company/catalog-management.html`: gestion compacta de catalogo para empresa
+- `modules/company/products.html`: gestion de productos y stock de empresa
+- `modules/company/profile.html`: perfil de empresa
+- `modules/company/purchases.html`: revision de grupos de compra recibidos
+- `modules/customer/dashboard.html`: dashboard de customer
+- `modules/customer/cart.html`: carrito y checkout
+- `modules/customer/cashback.html`: saldo e historial de cashback
+- `modules/customer/favorites.html`: favoritos
+- `modules/customer/profile.html`: perfil de customer
+- `modules/customer/purchases.html`: historial de compras del customer
+- `products/detail.html`: detalle publico de producto
+
+### JavaScript por dominio
+
+- `assets/js/index.js`: home, accesos y catalogo publico
 - `assets/js/auth/login.js`: login local
 - `assets/js/auth/register.js`: registro local
 - `assets/js/auth/google.js`: login con Google
-- `assets/js/user_n/dashboard.js`: consulta `/api/auth/me`
-- `assets/js/user_n/profile.js`: consulta y actualiza `/api/auth/profile`
-- `assets/js/utils/auth.js`: utilidades simples de token/logout
+- `assets/js/admin/dashboard.js`: modulos y resumen admin
+- `assets/js/company/dashboard.js`: accesos principales de empresa
+- `assets/js/company/catalog-management.js`: catalogo compacto por empresa
+- `assets/js/company/products.js`: CRUD de productos, variantes y stock
+- `assets/js/company/profile.js`: perfil de empresa
+- `assets/js/company/purchases.js`: metodos de pago y revision de grupos
+- `assets/js/customer/dashboard.js`: accesos principales de customer
+- `assets/js/customer/cart.js`: carrito, tasa y checkout con cashback
+- `assets/js/customer/cashback.js`: saldo e historial de cashback
+- `assets/js/customer/favorites.js`: favoritos persistidos
+- `assets/js/customer/profile.js`: perfil de customer
+- `assets/js/customer/purchases.js`: compras, ordenes y evidencias
+- `assets/js/utils/auth.js`: token, sesion y cabeceras de autorizacion
 
 ### Estilos
 
-- `assets/css/styles.css`: estilos mínimos del prototipo
+- `assets/css/styles.css`: estilos del prototipo actual
 
 ---
 
-## Qué ya está alineado con el backend
+## Relacion con el backend
 
-El frontend provisional ya puede integrarse con estas rutas reales:
+El frontend de `public/` consume directamente las rutas reales del backend Express. Las familias principales son:
 
-### Customer
+- `/api/auth`: customer, perfil, favoritos, carrito, cashback y sesion
+- `/api/company-auth`: autenticacion y perfil de empresas
+- `/api/products`: catalogo publico, detalle, categorias y gestion de productos
+- `/api/exchange-rate`: tasa actual e historial
+- `/api/purchases`: checkout, compras del customer, compras de company y evidencias
 
-- `POST /api/auth/register`
-- `POST /api/auth/login`
-- `POST /api/auth/google`
-- `GET /api/auth/me`
-- `GET /api/auth/profile`
-- `PUT /api/auth/profile`
+### Contratos importantes ya contemplados
 
-### Catálogo público
-
-- `GET /api/products/catalog`
-- `GET /api/products/catalog/:productId`
-
-### Importante
-
-- el registro actual ya no usa `DOB`
-- el perfil se obtiene con respuesta tipo `{ message, user }`
-- el token se guarda en `localStorage` con la key `token`
-- el `index.html` ya muestra productos reales desde backend
-- el detalle de producto existe como placeholder funcional
+- el token se guarda en `localStorage`
+- customer y company usan sesiones separadas en frontend
+- el checkout puede enviar uso de cashback por body y header
+- las compras del customer se muestran con `order_code`
+- la carga de evidencia aplica por grupo de compra, no por checkout completo
+- si un grupo queda cubierto al 100% por cashback, el backend puede resolverlo sin evidencia manual
 
 ---
 
-## Problemas detectados y corregidos
+## Flujo recomendado de pruebas
 
-Durante la revisión del prototipo se corrigieron varios desajustes con el backend actual:
+### 1. Reiniciar la base
 
-- `register.html` todavía mostraba el campo `DOB`, pero el backend actual ya no lo usa
-- `register.js` todavía enviaba `DOB` al backend
-- `login.js` tenía código viejo de backend mezclado dentro del archivo del navegador
-- `profile.js` estaba leyendo mal la respuesta de `GET /api/auth/profile`
-- `index.js` y `dashboard.js` duplicaban manejo de sesión en vez de usar una base común
-- el homepage no consumía todavía el catálogo real del backend
+Para pruebas limpias desde cero, la referencia actual es:
 
-Estas correcciones ya quedaron aplicadas para que el prototipo siga siendo útil al equipo de frontend.
+- `DB/databasefor0test.sql`
 
----
+### 2. Levantar backend
 
-## Evaluación de la estructura actual
+El frontend asume el servidor Express activo en `http://localhost:3000`.
 
-La estructura cumple como prototipo de prueba, pero no debería crecer mucho más así.
+### 3. Probar por bloques
 
-### Lo bueno
+Orden sugerido:
 
-- permite probar rápido el backend sin esperar UI final
-- separa vistas públicas de scripts
-- hace visible el contrato real de las APIs
-- ya sirve como smoke test de catálogo público mínimo
-
-### Lo débil
-
-- mantiene nombres legacy como `user_n`
-- usa `fetch('http://localhost:3000/...')` hardcodeado
-- no hay manejo centralizado de errores
-- no hay componente reutilizable
-- no existe manejo de estado de sesión más allá de `localStorage`
-- no hay separación por dominio (`auth`, `profile`, `products`, etc.)
+- home y detalle de producto
+- registro y login de customer
+- favoritos y carrito
+- checkout con y sin cashback
+- historial de compras del customer
+- login de company
+- revision de grupos y metodos de pago
+- dashboard admin y tasa de cambio
 
 ---
 
-## Cómo debería integrarse el frontend React
+## Lo que ya refleja el prototipo
 
-Cuando el equipo de frontend empiece con React, lo más sano es tratar este `public/` como referencia funcional, no como base técnica directa.
-
-### Recomendación de arquitectura React
-
-Separar por módulos:
-
-- `auth/`
-- `customer/`
-- `company/`
-- `products/`
-- `shared/`
-
-Separar también:
-
-- `services/` para llamadas HTTP
-- `pages/` para vistas
-- `components/` para piezas reutilizables
-- `hooks/` para sesión, perfil y datos
-- `context/` o equivalente para auth global
+- la separacion real entre `admin`, `company` y `customer`
+- vistas mas compactas en compras y productos usando bloques expandibles
+- soporte visual para cashback disponible, cashback usado y total a pagar
+- agrupacion de compras por proveedor
+- soporte para tasa Bs/USD como referencia en carrito y compras
+- manejo provisional pero funcional de autenticacion y navegacion protegida
 
 ---
 
-## Implementación progresiva sugerida
+## Limitaciones actuales
 
-### Etapa 1
+Este frontend sigue siendo util para pruebas, pero mantiene limites claros:
 
-Replicar en React lo que ya funciona en el backend:
-
-- login local customer
-- registro customer
-- login con Google
-- lectura de sesión con `/api/auth/me`
-- edición de perfil
-
-### Etapa 2
-
-Agregar módulos de productos ya existentes:
-
-- ampliar el catálogo público y el detalle de producto
-- listar categorías
-- listar subcategorías
-- crear producto manual
-- crear variante
-- subir imagen de producto
-
-### Etapa 3
-
-Preparar la base para siguientes dominios:
-
-- carrito
-- órdenes
-- ventas
-- tipo de cambio USD/VES
+- usa JavaScript plano y `fetch` directo
+- depende de una URL base local fija
+- no hay componentes reutilizables ni estado global formal
+- no hay una capa unica de cliente HTTP
+- el estilo visual sigue siendo funcional, no definitivo
+- no debe tomarse como base tecnica final para un frontend escalable
 
 ---
 
-## Recomendaciones técnicas para frontend
+## Criterio de mantenimiento
 
-### 1. Evitar URLs hardcodeadas
+Mientras el proyecto siga validando backend y reglas de negocio, `public/` debe mantenerse pequeno y practico.
 
-En React, usar una configuración central como:
+La idea no es convertir esta carpeta en el frontend final, sino conservarla como entorno de pruebas manuales, especialmente util cuando se reinicia la base y se quiere volver a recorrer los flujos desde cero.
 
-- `VITE_API_URL`
-- `REACT_APP_API_URL`
-
-según el stack elegido.
-
-### 2. Centralizar llamadas HTTP
-
-No repetir `fetch` por archivo. Crear un cliente API reutilizable.
-
-### 3. Centralizar auth
-
-Crear una sola capa para:
-
-- guardar token
-- leer token
-- logout
-- validar sesión
-- redirigir cuando el token expire
-
-### 4. Preparar separación customer/company
-
-Ya el backend distingue entidades. El frontend también debería separar claramente:
-
-- login customer
-- login company
-- dashboard customer
-- dashboard company
-
-### 5. Mantener este prototipo pequeño
-
-No conviene convertir `public/` en el frontend definitivo. Conviene usarlo solo mientras el equipo de frontend valida contratos y flujos.
-
----
-
-## Resumen práctico
-
-Hoy `public/` sirve como laboratorio de integración con el backend.
-
-Es útil para:
-
-- probar endpoints
-- entender contratos
-- verificar flujos base
-- validar que el homepage ya consuma productos reales
-
-Pero el frontend real debería moverse a una app React separada por módulos y con integración más limpia.
-
-Mientras tanto, este prototipo ya quedó corregido para seguir haciendo pruebas sin arrastrar errores viejos del backend anterior.
+Cuando el producto migre a un frontend mas estructurado, este prototipo debe usarse como referencia funcional de pantallas, contratos y secuencia de pruebas.

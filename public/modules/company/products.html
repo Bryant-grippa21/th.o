@@ -14,7 +14,9 @@
 <p id="company-products-role-note"></p>
 
 <section>
-  <h2>Crear producto</h2>
+  <details>
+    <summary><b>Crear producto</b></summary>
+    <br>
   <form id="company-product-form">
     <label>
       Buscar línea
@@ -141,6 +143,7 @@
     <button type="submit">Crear producto</button>
   </form>
   <p id="company-product-form-message"></p>
+  </details>
 </section>
 
 <section>
@@ -154,7 +157,9 @@
   <div id="company-products-pagination"></div>
 
   <section id="company-product-editor-section" hidden>
-    <h3>Gestionar producto</h3>
+    <details id="company-product-editor-details" open>
+    <summary><b>Gestionar producto</b></summary>
+    <br>
     <form id="company-product-editor-form">
       <input id="edit-product-id" type="hidden">
 
@@ -234,6 +239,7 @@
       <p>Historial de stock no disponible.</p>
     </div>
     <div id="edit-product-stock-history-pagination"></div>
+    </details>
   </section>
 </section>
 

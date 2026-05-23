@@ -15,6 +15,7 @@
   <button type="button" onclick="showAdminModule('customers')">Clientes</button>
   <button type="button" onclick="showAdminModule('companies')">Juridicos</button>
   <button type="button" onclick="showAdminModule('products')">Productos</button>
+  <button type="button" onclick="showAdminModule('exchange')">Tasa</button>
 </div>
 <br>
 
@@ -67,6 +68,28 @@
 
   <div id="admin-company-list">
     <p>Cargando empresas...</p>
+  </div>
+</section>
+
+<section id="admin-module-exchange" hidden>
+  <h2>Tasa de cambio</h2>
+
+  <div id="admin-exchange-summary">
+    <p>Cargando tasa actual...</p>
+  </div>
+
+  <form id="admin-exchange-form">
+    <label>
+      Bs por USD
+      <input id="admin-exchange-rate-input" type="number" min="0.0001" step="0.0001" required>
+    </label>
+    <button type="submit">Registrar tasa</button>
+  </form>
+
+  <p id="admin-exchange-message"></p>
+
+  <div id="admin-exchange-list">
+    <p>Cargando historial...</p>
   </div>
 </section>
 

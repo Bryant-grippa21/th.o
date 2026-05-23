@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="es" xml:lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Mis compras</title>
+</head>
+<body>
+
+<h1>Mis compras</h1>
+<a href="/index.html">Volver al inicio</a><br>
+<a href="/modules/customer/dashboard.html">Volver al dashboard</a><br><br>
+
+<button onclick="logout()">Cerrar sesión</button>
+
+<p id="purchases-summary">Cargando compras...</p>
+<p id="purchases-feedback"></p>
+<div id="purchases-list">
+  <p>Cargando historial...</p>
+</div>
+
+<script src="/assets/js/utils/auth.js"></script>
+<script src="/assets/js/customer/purchases.js"></script>
+
+</body>
+</html>
