@@ -1,9 +1,29 @@
-# 🗄️ TuHerramienta.Online — Base de Datos
+# Base de datos
+
+## Estado actual
+
+El punto de partida recomendado para reconstruir la base desde cero es `DB/databasefor0test.sql`.
+
+Ese archivo consolidado ya integra los dominios principales del sistema:
+
+- usuarios, empresas y roles
+- cashback e historial
+- taxonomia, productos, imagenes y stock
+- reseñas de producto y sus indices
+- tasa de cambio
+- compras, grupos, evidencias y metodos de pago
+
+Las carpetas modulares dentro de `DB/` siguen sirviendo como referencia o trabajo incremental, pero hoy el bootstrap principal para pruebas completas es el archivo consolidado.
+
+---
+
+## Estructura de archivos
 
 ## 📁 Estructura de archivos
 
 ```
 DB/
+├── databasefor0test.sql
 ├── compras/
 │   ├── purchase_tables.sql
 │   └── purchase_sp.sql
@@ -18,6 +38,25 @@ DB/
 │   └── products_sp_manual.sql
 └── README.md
 ```
+
+---
+
+## Tablas adicionales del estado actual
+
+Ademas de lo documentado por modulo, el esquema consolidado incluye `Product_Review` para soportar reseñas publicas.
+
+### `Product_Review`
+
+Uso actual:
+
+- una reseña editable por producto y entidad autenticada
+- soporte para customer o company como autor
+- promedio y conteo para landing, detalle y recomendados
+
+Indices importantes en el script consolidado:
+
+- indices por producto y fecha para listar reseñas
+- indices unicos por `product + customer` y `product + company` para evitar duplicados
 
 ---
 

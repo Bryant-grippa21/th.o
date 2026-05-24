@@ -895,6 +895,27 @@ CREATE TABLE Product_Image (
     FOREIGN KEY (id_product_fk) REFERENCES Product(id_product)
 );
 
+CREATE TABLE Product_Review (
+    id_product_review INT AUTO_INCREMENT PRIMARY KEY,
+
+    id_product_fk INT NOT NULL,
+    id_customer_fk INT NULL,
+    id_company_fk INT NULL,
+
+    author_entity ENUM('customer', 'company') NOT NULL,
+    author_name VARCHAR(255) NOT NULL,
+    rating TINYINT NOT NULL,
+    comment TEXT NULL,
+
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+    FOREIGN KEY (id_product_fk) REFERENCES Product(id_product),
+    FOREIGN KEY (id_customer_fk) REFERENCES Customer(id_customer),
+    FOREIGN KEY (id_company_fk) REFERENCES Company(id_company),
+    CHECK (rating BETWEEN 1 AND 5)
+);
+
 -- ✅ FIX: Índice para historial de stock
 CREATE INDEX idx_stock_history_stock ON Stock_History(id_stock_fk);
 CREATE INDEX idx_stock_history_type ON Stock_History(movement_type);
@@ -902,6 +923,11 @@ CREATE INDEX idx_stock_history_created ON Stock_History(created_at);
 
 -- ✅ FIX: Índice para ordenar imágenes
 CREATE INDEX idx_image_product_order ON Product_Image(id_product_fk, sort_order);
+CREATE INDEX idx_product_review_product ON Product_Review(id_product_fk, created_at);
+CREATE INDEX idx_product_review_customer ON Product_Review(id_customer_fk);
+CREATE INDEX idx_product_review_company ON Product_Review(id_company_fk);
+CREATE UNIQUE INDEX uq_product_review_customer ON Product_Review(id_product_fk, id_customer_fk);
+CREATE UNIQUE INDEX uq_product_review_company ON Product_Review(id_product_fk, id_company_fk);
 
 -- búsquedas reales ecommerce
 CREATE INDEX idx_line_active ON Line(is_active);

@@ -14,7 +14,8 @@ Tambien queda pensado para trabajar con una base reiniciable desde cero usando `
 
 Este prototipo ya permite probar:
 
-- acceso publico al home y al detalle de producto
+- acceso publico al landing, al catalogo y al detalle de producto
+- busqueda general con sugerencias en vivo y filtro de categorias en el landing
 - registro y login de customer
 - login con Google para customer
 - login de company
@@ -28,6 +29,7 @@ Este prototipo ya permite probar:
 - revision de compras por empresa
 - consulta y uso de cashback en compras
 - consulta de tasa de cambio para montos referenciales
+- reseñas por producto, promedio visible y lista de recomendados
 
 ---
 
@@ -35,7 +37,7 @@ Este prototipo ya permite probar:
 
 ### Vistas HTML
 
-- `index.html`: portada publica con accesos rapidos y catalogo basico
+- `index.html`: landing publica con buscador, categorias, paginacion, carrito desplegable y catalogo ordenado por reseñas
 - `auth/login.html`: login local y acceso con Google para customer
 - `auth/register.html`: registro local de customer
 - `modules/admin/dashboard.html`: dashboard administrativo
@@ -50,11 +52,11 @@ Este prototipo ya permite probar:
 - `modules/customer/favorites.html`: favoritos
 - `modules/customer/profile.html`: perfil de customer
 - `modules/customer/purchases.html`: historial de compras del customer
-- `products/detail.html`: detalle publico de producto
+- `products/detail.html`: detalle publico con galeria, atributos, acciones, reseñas y recomendados
 
 ### JavaScript por dominio
 
-- `assets/js/index.js`: home, accesos y catalogo publico
+- `assets/js/index.js`: landing, sugerencias, categorias, carrito desplegable y catalogo publico
 - `assets/js/auth/login.js`: login local
 - `assets/js/auth/register.js`: registro local
 - `assets/js/auth/google.js`: login con Google
@@ -96,6 +98,9 @@ El frontend de `public/` consume directamente las rutas reales del backend Expre
 - las compras del customer se muestran con `order_code`
 - la carga de evidencia aplica por grupo de compra, no por checkout completo
 - si un grupo queda cubierto al 100% por cashback, el backend puede resolverlo sin evidencia manual
+- el landing consulta catalogo paginado, categorias, tasa actual y carrito del customer
+- las sugerencias del buscador salen del mismo endpoint publico de catalogo
+- las reseñas del detalle permiten editar la reseña existente en lugar de duplicarla
 
 ---
 
@@ -115,9 +120,9 @@ El frontend asume el servidor Express activo en `http://localhost:3000`.
 
 Orden sugerido:
 
-- home y detalle de producto
+- landing, buscador, categorias y detalle de producto
 - registro y login de customer
-- favoritos y carrito
+- favoritos, carrito temporal del landing y carrito completo
 - checkout con y sin cashback
 - historial de compras del customer
 - login de company
@@ -129,10 +134,13 @@ Orden sugerido:
 ## Lo que ya refleja el prototipo
 
 - la separacion real entre `admin`, `company` y `customer`
+- un landing simple pero funcional con descubrimiento de productos desde la portada
 - vistas mas compactas en compras y productos usando bloques expandibles
 - soporte visual para cashback disponible, cashback usado y total a pagar
 - agrupacion de compras por proveedor
 - soporte para tasa Bs/USD como referencia en carrito y compras
+- promedio de reseñas visible en tarjetas, detalle y recomendados
+- carrito desplegable con acciones rapidas para seguir comprando sin salir del landing
 - manejo provisional pero funcional de autenticacion y navegacion protegida
 
 ---

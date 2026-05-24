@@ -12,6 +12,9 @@ const {
   getManagedProductDetail,
   getManagedProductStockHistory,
   getPublicCatalog,
+  getRecommendedProducts,
+  getProductReviews,
+  createPublicProductReview,
   getPublicProduct,
   getPublicProductBySku,
   createCategoryManual,
@@ -33,6 +36,9 @@ const {
 const router = express.Router();
 
 router.get('/catalog', getPublicCatalog);
+router.get('/recommended', getRecommendedProducts);
+router.get('/:productId/reviews', getProductReviews);
+router.post('/:productId/reviews', verifyToken, createPublicProductReview);
 router.get('/catalog/sku/:sku', getPublicProductBySku);
 router.get('/catalog/:productId', getPublicProduct);
 router.get('/categories', getCategories);

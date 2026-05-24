@@ -113,6 +113,55 @@ const listImagesByProductIds = async (productIds, connection = pool) => {
   }, new Map());
 };
 
+const listReviewSummariesByProductIds = async (productIds, connection = pool) => {
+  if (!Array.isArray(productIds) || productIds.length === 0) {
+    return new Map();
+  }
+
+  const placeholders = productIds.map(() => '?').join(', ');
+  const [rows] = await connection.query(
+    `SELECT
+       id_product_fk,
+       COUNT(*) AS total_reviews,
+       ROUND(AVG(rating), 1) AS average_rating
+     FROM Product_Review
+     WHERE id_product_fk IN (${placeholders})
+     GROUP BY id_product_fk`,
+    productIds
+  );
+
+  return rows.reduce((summariesByProductId, row) => {
+    summariesByProductId.set(row.id_product_fk, {
+      total_reviews: Number(row.total_reviews || 0),
+      average_rating: Number(row.average_rating || 0)
+    });
+    return summariesByProductId;
+  }, new Map());
+};
+
+const attachProductReviewSummaries = async (products, connection = pool) => {
+  if (!Array.isArray(products) || products.length === 0) {
+    return [];
+  }
+
+  const productIds = products
+    .map((product) => Number(product.id_product))
+    .filter((productId) => Number.isInteger(productId) && productId > 0);
+  const summariesByProductId = await listReviewSummariesByProductIds(productIds, connection);
+
+  return products.map((product) => {
+    const summary = summariesByProductId.get(product.id_product) || {
+      total_reviews: 0,
+      average_rating: 0
+    };
+
+    return {
+      ...product,
+      reviews: summary
+    };
+  });
+};
+
 const attachProductGalleries = async (products, connection = pool) => {
   if (!Array.isArray(products) || products.length === 0) {
     return [];
@@ -502,8 +551,55 @@ const listProductImageRowsByProductId = async (productId, connection = pool) => 
   return rows;
 };
 
-const listPublicCatalog = async (limit = 12) => {
-  const safeLimit = Number.isInteger(limit) && limit > 0 ? limit : 12;
+const listPublicCatalog = async (filters = {}) => {
+  const safePage = Number.isInteger(filters.page) && filters.page > 0 ? filters.page : 1;
+  const safeLimit = Number.isInteger(filters.limit) && filters.limit > 0 ? filters.limit : 20;
+  const safeOffset = (safePage - 1) * safeLimit;
+  const normalizedQuery = String(filters.query || '').trim();
+  const normalizedCategoryId = Number.isInteger(filters.categoryId) && filters.categoryId > 0
+    ? filters.categoryId
+    : null;
+  const normalizedSort = String(filters.sort || 'reviews_desc').trim().toLowerCase();
+  const conditions = [
+    'l.is_active = TRUE',
+    'p.is_active = TRUE',
+    's.quantity > 0'
+  ];
+  const values = [];
+
+  if (normalizedCategoryId) {
+    conditions.push('c.id_category = ?');
+    values.push(normalizedCategoryId);
+  }
+
+  if (normalizedQuery) {
+    const queryLike = `%${normalizedQuery}%`;
+    conditions.push(`(
+      p.name LIKE ?
+      OR p.brand LIKE ?
+      OR p.sku LIKE ?
+      OR l.name LIKE ?
+      OR c.name LIKE ?
+      OR sc.name LIKE ?
+    )`);
+    values.push(queryLike, queryLike, queryLike, queryLike, queryLike, queryLike);
+  }
+
+  const whereClause = `WHERE ${conditions.join(' AND ')}`;
+  const sortClause = normalizedSort === 'recent'
+    ? 'ORDER BY p.created_at DESC, p.id_product DESC'
+    : 'ORDER BY COALESCE(rs.average_rating, 0) DESC, COALESCE(rs.total_reviews, 0) DESC, p.created_at DESC, p.id_product DESC';
+
+  const [countRows] = await pool.query(
+    `SELECT COUNT(*) AS total
+     FROM Product p
+     INNER JOIN Line l ON l.id_line = p.id_line_fk
+     INNER JOIN Subcategory sc ON sc.id_subcategory = l.id_subcategory_fk
+     INNER JOIN Category c ON c.id_category = sc.id_category_fk
+     INNER JOIN Stock s ON s.id_product_fk = p.id_product
+     ${whereClause}`,
+    values
+  );
 
   const [rows] = await pool.query(
     `SELECT
@@ -512,6 +608,88 @@ const listPublicCatalog = async (limit = 12) => {
        p.name,
        p.brand,
        p.price,
+       p.description,
+       l.id_line,
+       l.name AS line_name,
+       c.id_category,
+       c.name AS category_name,
+       sc.id_subcategory,
+       sc.name AS subcategory_name,
+       s.quantity,
+       pi.image_url AS image_url,
+       COALESCE(rs.total_reviews, 0) AS total_reviews,
+       COALESCE(rs.average_rating, 0) AS average_rating
+     FROM Product p
+     INNER JOIN Line l ON l.id_line = p.id_line_fk
+     INNER JOIN Subcategory sc ON sc.id_subcategory = l.id_subcategory_fk
+     INNER JOIN Category c ON c.id_category = sc.id_category_fk
+     INNER JOIN Stock s ON s.id_product_fk = p.id_product
+     LEFT JOIN Product_Image pi ON pi.id_product_fk = p.id_product AND pi.is_main = TRUE
+     LEFT JOIN (
+       SELECT
+         id_product_fk,
+         COUNT(*) AS total_reviews,
+         ROUND(AVG(rating), 1) AS average_rating
+       FROM Product_Review
+       GROUP BY id_product_fk
+     ) rs ON rs.id_product_fk = p.id_product
+     ${whereClause}
+     ${sortClause}
+     LIMIT ? OFFSET ?`,
+    [...values, safeLimit, safeOffset]
+  );
+
+  const products = rows
+    .map(mapProductImageFields)
+    .map((product) => normalizeProductName(product, product.line_name))
+    .map((product) => ({
+      ...product,
+      quantity: Number(product.quantity || 0),
+      reviews: {
+        total_reviews: Number(product.total_reviews || 0),
+        average_rating: Number(product.average_rating || 0)
+      }
+    }));
+
+  return {
+    products,
+    pagination: {
+      page: safePage,
+      limit: safeLimit,
+      total: countRows[0]?.total ?? 0,
+      total_pages: Math.max(1, Math.ceil((countRows[0]?.total ?? 0) / safeLimit))
+    },
+    filters: {
+      query: normalizedQuery,
+      category_id: normalizedCategoryId,
+      sort: normalizedSort
+    }
+  };
+};
+
+const listRecommendedProducts = async ({ limit = 10, excludeSku = null } = {}) => {
+  const safeLimit = Number.isInteger(limit) && limit > 0 ? limit : 10;
+  const conditions = [
+    'l.is_active = TRUE',
+    'p.is_active = TRUE',
+    's.quantity > 0'
+  ];
+  const values = [];
+
+  if (excludeSku) {
+    conditions.push('p.sku <> ?');
+    values.push(String(excludeSku).trim());
+  }
+
+  const [rows] = await pool.query(
+    `SELECT
+       p.id_product,
+       p.sku,
+       p.name,
+       p.brand,
+       p.description,
+       p.price,
+       s.quantity,
        l.id_line,
        l.name AS line_name,
        pi.image_url AS image_url
@@ -519,17 +697,161 @@ const listPublicCatalog = async (limit = 12) => {
      INNER JOIN Line l ON l.id_line = p.id_line_fk
      INNER JOIN Stock s ON s.id_product_fk = p.id_product
      LEFT JOIN Product_Image pi ON pi.id_product_fk = p.id_product AND pi.is_main = TRUE
-     WHERE l.is_active = TRUE
-       AND p.is_active = TRUE
-       AND s.quantity > 0
-     ORDER BY p.created_at DESC, p.id_product DESC
+     WHERE ${conditions.join(' AND ')}
+     ORDER BY RAND()
      LIMIT ?`,
-    [safeLimit]
+    [...values, safeLimit]
   );
 
-  return rows
+  return attachProductReviewSummaries(rows
     .map(mapProductImageFields)
-    .map((product) => normalizeProductName(product, product.line_name));
+    .map((product) => normalizeProductName(product, product.line_name)));
+};
+
+const ensurePublicProductExists = async (productId, connection = pool) => {
+  const [rows] = await connection.query(
+    `SELECT
+       p.id_product,
+       p.name,
+       p.sku,
+       p.is_active,
+       l.is_active AS line_is_active
+     FROM Product p
+     INNER JOIN Line l ON l.id_line = p.id_line_fk
+     WHERE p.id_product = ?
+     LIMIT 1`,
+    [productId]
+  );
+
+  if (!rows.length) {
+    throw new Error('Producto no encontrado');
+  }
+
+  return rows[0];
+};
+
+const listProductReviews = async (productId) => {
+  await ensurePublicProductExists(productId);
+
+  const [rows] = await pool.query(
+    `SELECT
+       id_product_review,
+       id_product_fk,
+       author_entity,
+       author_name,
+       rating,
+       comment,
+       created_at,
+       updated_at
+     FROM Product_Review
+     WHERE id_product_fk = ?
+     ORDER BY created_at DESC, id_product_review DESC`,
+    [productId]
+  );
+
+  const totalReviews = rows.length;
+  const averageRating = totalReviews
+    ? Number((rows.reduce((sum, review) => sum + Number(review.rating || 0), 0) / totalReviews).toFixed(1))
+    : 0;
+  const distribution = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+
+  rows.forEach((review) => {
+    const rating = Number(review.rating || 0);
+
+    if (distribution[rating] != null) {
+      distribution[rating] += 1;
+    }
+  });
+
+  return {
+    summary: {
+      total_reviews: totalReviews,
+      average_rating: averageRating,
+      distribution
+    },
+    reviews: rows.map((review) => ({
+      ...review,
+      rating: Number(review.rating || 0)
+    }))
+  };
+};
+
+const createProductReview = async ({ productId, reviewer, rating, comment = null }) => {
+  const normalizedProductId = Number(productId);
+  const normalizedRating = Number(rating);
+  const normalizedComment = String(comment || '').trim() || null;
+
+  if (!Number.isInteger(normalizedProductId) || normalizedProductId <= 0) {
+    throw new Error('productId inválido');
+  }
+
+  if (!Number.isInteger(normalizedRating) || normalizedRating < 1 || normalizedRating > 5) {
+    throw new Error('rating inválido');
+  }
+
+  if (!reviewer || !['customer', 'company'].includes(reviewer.entity)) {
+    throw new Error('Usuario no válido para reseña');
+  }
+
+  await ensurePublicProductExists(normalizedProductId);
+
+  const idCustomer = reviewer.entity === 'customer' ? Number(reviewer.id) : null;
+  const idCompany = reviewer.entity === 'company' ? Number(reviewer.id) : null;
+  const reviewerName = String(reviewer.name || reviewer.email || 'Usuario').trim();
+  const reviewerField = reviewer.entity === 'customer' ? 'id_customer_fk' : 'id_company_fk';
+  const reviewerId = reviewer.entity === 'customer' ? idCustomer : idCompany;
+
+  const [existingRows] = await pool.query(
+    `SELECT id_product_review
+     FROM Product_Review
+     WHERE id_product_fk = ?
+       AND ${reviewerField} = ?
+     ORDER BY id_product_review DESC
+     LIMIT 1`,
+    [normalizedProductId, reviewerId]
+  );
+
+  let action = 'created';
+
+  if (existingRows.length) {
+    await pool.query(
+      `UPDATE Product_Review
+       SET author_name = ?,
+           rating = ?,
+           comment = ?,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id_product_review = ?`,
+      [reviewerName, normalizedRating, normalizedComment, existingRows[0].id_product_review]
+    );
+
+    action = 'updated';
+  } else {
+    await pool.query(
+      `INSERT INTO Product_Review (
+         id_product_fk,
+         id_customer_fk,
+         id_company_fk,
+         author_entity,
+         author_name,
+         rating,
+         comment
+       ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [
+        normalizedProductId,
+        idCustomer,
+        idCompany,
+        reviewer.entity,
+        reviewerName,
+        normalizedRating,
+        normalizedComment
+      ]
+    );
+  }
+
+  return {
+    action,
+    ...(await listProductReviews(normalizedProductId))
+  };
 };
 
 const getPublicProductDetail = async (productId) => {
@@ -565,11 +887,16 @@ const getPublicProductDetail = async (productId) => {
        p.price,
        p.attributes,
        p.is_active,
+       p.id_company_fk,
        s.quantity,
        s.min_stock,
-       pi.image_url
+       pi.image_url,
+       co.name AS company_name,
+       co.email AS company_email,
+       co.rif AS company_rif
      FROM Product p
      INNER JOIN Stock s ON s.id_product_fk = p.id_product
+     INNER JOIN Company co ON co.id_company = p.id_company_fk
      LEFT JOIN Product_Image pi ON pi.id_product_fk = p.id_product AND pi.is_main = TRUE
      WHERE p.id_line_fk = ?
        AND p.is_active = TRUE
@@ -1252,6 +1579,9 @@ module.exports = {
   getManagedProductById,
   listManagedProductStockHistory,
   listPublicCatalog,
+  listRecommendedProducts,
+  listProductReviews,
+  createProductReview,
   getPublicProductDetail,
   getPublicProductDetailBySku,
   createCategory,

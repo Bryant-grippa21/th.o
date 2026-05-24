@@ -1,66 +1,461 @@
-const container = globalThis.document.getElementById('auth-buttons');
-const productList = globalThis.document.getElementById('product-list');
+const headerContainer = globalThis.document.getElementById('landing-header');
+const categoriesContainer = globalThis.document.getElementById('landing-categories');
+const productsContainer = globalThis.document.getElementById('landing-products');
+const cartDrawer = globalThis.document.getElementById('landing-cart-drawer');
 const exchangeRateCard = globalThis.document.getElementById('exchange-rate-card');
+
+const state = {
+  session: null,
+  exchangeRate: null,
+  categories: [],
+  categorySearch: '',
+  catalog: [],
+  pagination: {
+    page: 1,
+    limit: 20,
+    total: 0,
+    total_pages: 1
+  },
+  filters: {
+    query: '',
+    categoryId: null,
+    sort: 'reviews_desc'
+  },
+  suggestions: [],
+  suggestionOpen: false,
+  cart: null,
+  cartVisible: false,
+  cartLoading: false
+};
+
+let searchDebounceId = null;
 
 const formatExchangeRate = (value) => Number(value || 0).toLocaleString('es-VE', {
   minimumFractionDigits: 2,
   maximumFractionDigits: 4
 });
 
-const renderExchangeRate = (exchangeRate) => {
-  if (!exchangeRate) {
-    exchangeRateCard.innerHTML = '';
-    return;
+const formatAmount = (value) => Number(value || 0).toFixed(2);
+
+const formatBsAmount = (value) => Number(value || 0).toLocaleString('es-VE', {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2
+});
+
+const convertUsdToBs = (usdAmount) => {
+  if (!state.exchangeRate?.rate_bs_per_usd) {
+    return null;
   }
 
-  exchangeRateCard.innerHTML = `
-    <div style="display:inline-flex; flex-direction:column; gap:6px; padding:14px 16px; margin-bottom:18px; border-radius:14px; background:linear-gradient(180deg, #0f2741 0%, #0a1a2c 100%); color:#fff; min-width:140px; box-shadow:0 10px 24px rgba(3, 16, 30, 0.22);">
-      <span style="font-size:12px; color:#b7c9dd;">Tasa del día</span>
-      <strong style="font-size:24px; line-height:1.1;">Bs.S ${formatExchangeRate(exchangeRate.rate_bs_per_usd)}</strong>
+  return Number(usdAmount || 0) * Number(state.exchangeRate.rate_bs_per_usd || 0);
+};
+
+const requestJson = async (url, options = {}) => {
+  const response = await globalThis.fetch(url, {
+    ...options,
+    headers: {
+      ...options.headers,
+      ...getAuthHeaders()
+    }
+  });
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data.error || 'No se pudo completar la solicitud');
+  }
+
+  return data;
+};
+
+const renderRatingSummary = (reviewSummary) => {
+  const totalReviews = Number(reviewSummary?.total_reviews || 0);
+  const averageRating = Number(reviewSummary?.average_rating || 0);
+
+  if (!totalReviews) {
+    return 'Sin reseñas';
+  }
+
+  return `${averageRating.toFixed(1)} / 5 (${totalReviews})`;
+};
+
+const renderExchangeRateInline = () => {
+  if (!state.exchangeRate?.rate_bs_per_usd) {
+    return '';
+  }
+
+  return `
+    <span>
+      Tasa del día <b>Bs.S ${formatExchangeRate(state.exchangeRate.rate_bs_per_usd)}</b>
+    </span>
+  `;
+};
+
+const renderExchangeRate = (exchangeRate) => {
+  state.exchangeRate = exchangeRate || null;
+  exchangeRateCard.innerHTML = '';
+  renderHeader();
+};
+
+const renderAuthControls = () => {
+  if (!state.session) {
+    return `
+      <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+        <a href="/auth/login.html">Login</a>
+        <a href="/auth/register.html">Registro</a>
+      </div>
+    `;
+  }
+
+  const profile = state.session.entity === 'company'
+    ? state.session.data.company
+    : state.session.data.user;
+  const name = profile?.name || profile?.company_name || profile?.email || 'Usuario';
+  let dashboardLabel = 'Ir a mi dashboard';
+
+  if (state.session.entity === 'company') {
+    dashboardLabel = profile?.id_role_fk === 1
+      ? 'Ir a dashboard admin'
+      : 'Ir a dashboard empresa';
+  }
+
+  return `
+    <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+      <span>Bienvenido <b>${name}</b></span>
+      ${renderExchangeRateInline()}
+      <button type="button" onclick="goDashboard()">${dashboardLabel}</button>
+      <button type="button" onclick="logout()">Cerrar sesión</button>
     </div>
   `;
 };
 
-const renderProductList = (products) => {
-  if (!products.length) {
-    productList.innerHTML = '<p>No hay productos disponibles todavía.</p>';
+const renderSuggestions = () => {
+  if (!state.suggestionOpen || !state.suggestions.length) {
+    return '';
+  }
+
+  return `
+    <div style="position:absolute; top:100%; left:0; right:0; background:#fff; border:1px solid #ccc; padding:8px; z-index:20;">
+      ${state.suggestions.map((product) => `
+        <button
+          type="button"
+          onclick="selectSuggestion('${encodeURIComponent(product.sku)}')"
+          style="display:block; width:100%; text-align:left; margin-bottom:6px;"
+        >
+          ${product.name || 'Sin nombre'} | ${product.line_name || 'Sin línea'} | ${renderRatingSummary(product.reviews)}
+        </button>
+      `).join('')}
+    </div>
+  `;
+};
+
+const renderSuggestionsPanel = () => {
+  const suggestionsContainer = globalThis.document.getElementById('landing-search-suggestions');
+
+  if (!suggestionsContainer) {
     return;
   }
 
-  productList.innerHTML = products
-    .map((product) => `
-      <div style="display:inline-flex; flex-direction:column; align-items:center; width:180px; margin:0 16px 24px 0; vertical-align:top;">
-        <a href="/products/detail.html?sku=${encodeURIComponent(product.sku)}" style="text-decoration:none; color:inherit;">
-          ${product.image_url
-        ? `<img src="${product.image_url}" alt="${product.name}" style="width:160px; height:160px; object-fit:cover; border:1px solid #ccc; display:block;">`
-    : '<div style="width:160px; height:160px; border:1px solid #ccc; display:flex; align-items:center; justify-content:center;">Sin imagen</div>'}
-        </a>
-        <a href="/products/detail.html?sku=${encodeURIComponent(product.sku)}" style="margin-top:10px; text-align:center; text-decoration:none; color:inherit;">
-          ${product.name}
-        </a>
-        <span style="margin-top:6px; font-size:12px; color:#666; text-align:center;">${product.line_name || ''}</span>
-      </div>
-    `)
-    .join('');
+  suggestionsContainer.innerHTML = renderSuggestions();
 };
 
-const loadPublicCatalog = () => {
-  globalThis.fetch(`${API_BASE_URL}/api/products/catalog?limit=12`)
-    .then(async (res) => {
-      const data = await res.json();
+const renderCategoryButtons = () => {
+  const visibleCategories = state.categories.filter((category) => category.name.toLowerCase().includes(state.categorySearch.toLowerCase()));
 
-      if (!res.ok) {
-        throw new Error(data.error || 'No se pudo cargar el catálogo');
-      }
+  return `
+    <button type="button" onclick="selectCategory()">Todas</button>
+    ${visibleCategories.map((category) => `
+      <button type="button" onclick="selectCategory(${category.id_category})">${category.name}</button>
+    `).join('')}
+  `;
+};
 
-      return data;
-    })
-    .then((data) => {
-      renderProductList(data.products || []);
-    })
-    .catch(() => {
-      productList.innerHTML = '<p>No se pudo cargar el catálogo.</p>';
+const renderCategoryButtonsPanel = () => {
+  const categoryButtonsContainer = globalThis.document.getElementById('landing-category-buttons');
+
+  if (!categoryButtonsContainer) {
+    return;
+  }
+
+  categoryButtonsContainer.innerHTML = renderCategoryButtons();
+};
+
+const renderHeader = () => {
+  const guestExchangeRate = state.session ? '' : renderExchangeRateInline();
+
+  headerContainer.innerHTML = `
+    <div style="display:flex; gap:16px; align-items:flex-start; flex-wrap:wrap; padding:16px; border:1px solid #ccc; margin-bottom:16px;">
+      <a href="/index.html">Volver al inicio</a>
+      <div style="position:relative; flex:1 1 360px; min-width:280px;">
+        <form id="landing-search-form" style="display:flex; gap:8px; align-items:center;">
+          <input id="landing-search-input" type="search" placeholder="Buscar productos, líneas o categorías" value="${state.filters.query}">
+          <button type="submit">Buscar</button>
+          <button id="landing-search-clear" type="button">Limpiar</button>
+        </form>
+        <div id="landing-search-suggestions"></div>
+      </div>
+      ${renderAuthControls()}
+      ${guestExchangeRate}
+      <button type="button" onclick="goToCartPage()">Ir al carrito / checkout</button>
+    </div>
+  `;
+
+  const searchForm = globalThis.document.getElementById('landing-search-form');
+  const searchInput = globalThis.document.getElementById('landing-search-input');
+  const clearButton = globalThis.document.getElementById('landing-search-clear');
+
+  if (searchForm) {
+    searchForm.addEventListener('submit', handleSearchSubmit);
+  }
+
+  if (searchInput) {
+    searchInput.addEventListener('input', handleSearchInput);
+  }
+
+  if (clearButton) {
+    clearButton.addEventListener('click', clearSearch);
+  }
+
+  renderSuggestionsPanel();
+};
+
+const renderCategories = () => {
+  categoriesContainer.innerHTML = `
+    <div style="padding:16px; border:1px solid #ccc; margin-bottom:16px;">
+      <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin-bottom:12px;">
+        <h2 style="margin:0;">Categorías</h2>
+        <input id="landing-category-search" type="search" placeholder="Buscar categoría" value="${state.categorySearch}">
+      </div>
+      <div id="landing-category-buttons" style="display:flex; gap:8px; flex-wrap:wrap;">
+      </div>
+    </div>
+  `;
+
+  const categorySearchInput = globalThis.document.getElementById('landing-category-search');
+  if (categorySearchInput) {
+    categorySearchInput.addEventListener('input', (event) => {
+      state.categorySearch = event.target.value;
+      renderCategoryButtonsPanel();
     });
+  }
+
+  renderCategoryButtonsPanel();
+};
+
+const renderCatalogHeader = () => `
+  <div style="display:flex; gap:12px; align-items:center; justify-content:space-between; flex-wrap:wrap; margin-bottom:12px;">
+    <div>
+      <h2 style="margin:0;">Productos</h2>
+      <p style="margin:4px 0 0 0;">Ordenados por reseñas de mayor a menor</p>
+    </div>
+    <div>
+      <label for="landing-sort-select">Orden</label>
+      <select id="landing-sort-select">
+        <option value="reviews_desc" ${state.filters.sort === 'reviews_desc' ? 'selected' : ''}>Más reseñados</option>
+        <option value="recent" ${state.filters.sort === 'recent' ? 'selected' : ''}>Más recientes</option>
+      </select>
+    </div>
+  </div>
+`;
+
+const renderCatalogCards = () => {
+  if (!state.catalog.length) {
+    return '<p>No se encontraron productos para estos filtros.</p>';
+  }
+
+  return state.catalog.map((product) => {
+    const priceBs = convertUsdToBs(product.price);
+
+    return `
+      <article style="display:flex; gap:16px; align-items:flex-start; border:1px solid #ccc; padding:12px; margin-bottom:12px;">
+        <div>
+          <a href="/products/detail.html?sku=${encodeURIComponent(product.sku)}">
+            ${product.image_url
+              ? `<img src="${product.image_url}" alt="${product.name}" style="width:120px; height:120px; object-fit:cover; border:1px solid #ccc; display:block;">`
+              : '<div style="width:120px; height:120px; border:1px solid #ccc; display:flex; align-items:center; justify-content:center;">Sin imagen</div>'}
+          </a>
+        </div>
+        <div style="flex:1 1 auto; min-width:220px;">
+          <p><b>${product.name || 'Sin nombre'}</b></p>
+          <p><b>SKU:</b> ${product.sku}</p>
+          <p><b>Línea:</b> ${product.line_name || 'Sin línea'}</p>
+          <p><b>Categoría:</b> ${product.category_name || 'Sin categoría'}</p>
+          <p><b>Precio USD:</b> USD ${formatAmount(product.price)}</p>
+          <p><b>Precio Bs:</b> ${priceBs === null ? 'Tasa no disponible' : `Bs.S ${formatBsAmount(priceBs)}`}</p>
+          <p><b>Stock:</b> ${Number(product.quantity || 0)}</p>
+          <p><b>Promedio:</b> ${renderRatingSummary(product.reviews)}</p>
+          <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;">
+            <a href="/products/detail.html?sku=${encodeURIComponent(product.sku)}">Ver detalle</a>
+            <button type="button" onclick="addLandingProductToCart(${product.id_product})">Añadir</button>
+          </div>
+        </div>
+      </article>
+    `;
+  }).join('');
+};
+
+const renderPagination = () => {
+  const { page, total_pages: totalPages, total } = state.pagination;
+
+  return `
+    <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:16px;">
+      <button type="button" onclick="changeCatalogPage(-1)" ${page <= 1 ? 'disabled' : ''}>Anterior</button>
+      <span>Página ${page} de ${totalPages}</span>
+      <button type="button" onclick="changeCatalogPage(1)" ${page >= totalPages ? 'disabled' : ''}>Siguiente</button>
+      <span>Total visible: ${total}</span>
+    </div>
+  `;
+};
+
+const renderProducts = () => {
+  productsContainer.innerHTML = `
+    <div style="padding:16px; border:1px solid #ccc; margin-bottom:16px;">
+      ${renderCatalogHeader()}
+      ${renderCatalogCards()}
+      ${renderPagination()}
+    </div>
+  `;
+
+  const sortSelect = globalThis.document.getElementById('landing-sort-select');
+  if (sortSelect) {
+    sortSelect.addEventListener('change', (event) => {
+      state.filters.sort = event.target.value;
+      state.pagination.page = 1;
+      loadCatalog();
+    });
+  }
+};
+
+const renderCartDrawer = () => {
+  if (!state.cartVisible) {
+    cartDrawer.hidden = true;
+    cartDrawer.innerHTML = '';
+    return;
+  }
+
+  cartDrawer.hidden = false;
+
+  if (state.session?.entity !== 'customer') {
+    cartDrawer.innerHTML = `
+      <div style="position:fixed; inset:0; background:rgba(0,0,0,0.35); padding:24px; overflow:auto; z-index:50;">
+        <div style="background:#fff; border:1px solid #ccc; padding:16px; max-width:960px; margin:0 auto;">
+          <div style="display:flex; justify-content:space-between; gap:12px; align-items:center;">
+            <h2 style="margin:0;">Carrito</h2>
+            <button type="button" onclick="hideCartDrawer()">Ocultar</button>
+          </div>
+          <p>Debes iniciar sesión como cliente para usar el carrito.</p>
+          <p><a href="/auth/login.html">Ir a login</a></p>
+        </div>
+      </div>
+    `;
+    return;
+  }
+
+  const items = Array.isArray(state.cart?.items) ? state.cart.items : [];
+  const subtotalUsd = items.reduce((sum, item) => sum + (Number(item.quantity || 0) * Number(item.product?.price || 0)), 0);
+  const subtotalBs = convertUsdToBs(subtotalUsd);
+  const cartActionDisabled = state.cartLoading ? 'disabled' : '';
+
+  cartDrawer.innerHTML = `
+    <div style="position:fixed; inset:0; background:rgba(0,0,0,0.35); padding:24px; overflow:auto; z-index:50;">
+      <div style="background:#fff; border:1px solid #ccc; padding:16px; max-width:1100px; margin:0 auto;">
+        <div style="display:flex; justify-content:space-between; gap:12px; align-items:center; margin-bottom:12px;">
+          <h2 style="margin:0;">Carrito desplegable</h2>
+          <button type="button" onclick="hideCartDrawer()">Ocultar</button>
+        </div>
+        <p><b>Productos:</b> ${items.length}</p>
+        <p><b>Subtotal USD:</b> USD ${formatAmount(subtotalUsd)}</p>
+        <p><b>Subtotal Bs:</b> ${subtotalBs === null ? 'Tasa no disponible' : `Bs.S ${formatBsAmount(subtotalBs)}`}</p>
+        ${state.cartLoading ? '<p>Actualizando carrito...</p>' : ''}
+        ${items.length ? items.map((item) => `
+          <article style="border-top:1px solid #ccc; padding-top:12px; margin-top:12px; display:flex; gap:12px; align-items:flex-start;">
+            <div>
+              ${item.product?.main_image_url
+                ? `<img src="${item.product.main_image_url}" alt="${item.product.name}" style="width:96px; height:96px; object-fit:cover; border:1px solid #ccc;">`
+                : '<div style="width:96px; height:96px; border:1px solid #ccc; display:flex; align-items:center; justify-content:center;">Sin imagen</div>'}
+            </div>
+            <div>
+              <p><b>${item.product?.name || `Producto ${item.id_product}`}</b></p>
+              <p><b>SKU:</b> ${item.product?.sku || 'Sin SKU'}</p>
+              <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                <span><b>Cantidad:</b> ${Number(item.quantity || 0)}</span>
+                <button type="button" onclick="decreaseLandingCartItem(${item.id_product})" ${cartActionDisabled}>-</button>
+                <button type="button" onclick="increaseLandingCartItem(${item.id_product})" ${cartActionDisabled}>+</button>
+                <button type="button" onclick="removeLandingCartItem(${item.id_product})" ${cartActionDisabled}>Eliminar</button>
+              </div>
+              <p><b>Subtotal:</b> USD ${formatAmount(Number(item.quantity || 0) * Number(item.product?.price || 0))}</p>
+            </div>
+          </article>
+        `).join('') : '<p>Tu carrito está vacío.</p>'}
+        <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:16px;">
+          <a href="/modules/customer/cart.html">Ir al carrito</a>
+          <button type="button" onclick="hideCartDrawer()">Seguir comprando</button>
+        </div>
+      </div>
+    </div>
+  `;
+};
+
+const loadCatalog = async () => {
+  try {
+    const query = new URLSearchParams({
+      page: String(state.pagination.page),
+      limit: String(state.pagination.limit),
+      sort: state.filters.sort
+    });
+
+    if (state.filters.query) {
+      query.set('q', state.filters.query);
+    }
+
+    if (state.filters.categoryId) {
+      query.set('category_id', String(state.filters.categoryId));
+    }
+
+    const data = await requestJson(`${API_BASE_URL}/api/products/catalog?${query.toString()}`);
+    state.catalog = Array.isArray(data.products) ? data.products : [];
+    state.pagination = data.pagination || state.pagination;
+    renderProducts();
+  } catch {
+    productsContainer.innerHTML = '<p>No se pudo cargar el catálogo.</p>';
+  }
+};
+
+const loadCategories = async () => {
+  try {
+    const data = await requestJson(`${API_BASE_URL}/api/products/categories`);
+    state.categories = Array.isArray(data.categories)
+      ? data.categories.filter((category) => category.is_active !== false)
+      : [];
+    renderCategories();
+  } catch {
+    categoriesContainer.innerHTML = '<p>No se pudieron cargar las categorías.</p>';
+  }
+};
+
+const loadSearchSuggestions = async () => {
+  if (!state.filters.query || state.filters.query.length < 2) {
+    state.suggestions = [];
+    state.suggestionOpen = false;
+    renderSuggestionsPanel();
+    return;
+  }
+
+  try {
+    const query = new URLSearchParams({
+      q: state.filters.query,
+      page: '1',
+      limit: '6',
+      sort: state.filters.sort
+    });
+    const data = await requestJson(`${API_BASE_URL}/api/products/catalog?${query.toString()}`);
+    state.suggestions = Array.isArray(data.products) ? data.products : [];
+    state.suggestionOpen = true;
+  } catch {
+    state.suggestions = [];
+    state.suggestionOpen = false;
+  }
+
+  renderSuggestionsPanel();
 };
 
 const loadLatestExchangeRate = () => {
@@ -76,46 +471,98 @@ const loadLatestExchangeRate = () => {
     })
     .then((data) => {
       renderExchangeRate(data.exchange_rate || null);
+      renderProducts();
+      renderCartDrawer();
     })
     .catch(() => {
       exchangeRateCard.innerHTML = '';
     });
 };
 
-if (isLogged()) {
-  fetchCurrentSession()
-  .then((session) => {
-    const profile = session.entity === 'company'
-      ? session.data.company
-      : session.data.user;
+const loadSession = async () => {
+  if (!isLogged()) {
+    state.session = null;
+    renderHeader();
+    return;
+  }
 
-    const name = profile.name || profile.email;
-    let dashboardLabel = 'Ir a mi dashboard';
-
-    if (session.entity === 'company') {
-      dashboardLabel = profile.id_role_fk === 1
-        ? 'Ir a dashboard admin'
-        : 'Ir a dashboard empresa';
-    }
-
-    container.innerHTML = `
-      <p>Bienvenido <b>${name}</b></p>
-      
-      <button onclick="goDashboard()">${dashboardLabel}</button><br><br>
-      
-      <button onclick="logout()">Cerrar sesión</button>
-    `;
-  })
-  .catch(() => {
+  try {
+    state.session = await fetchCurrentSession();
+  } catch {
     clearSession();
-    globalThis.location.reload();
-  });
-} else {
-  container.innerHTML = `
-    <a href="/auth/login.html">Login</a><br>
-    <a href="/auth/register.html">Registro</a>
-  `;
-}
+    state.session = null;
+  }
+
+  renderHeader();
+};
+
+const loadCart = async () => {
+  if (state.session?.entity !== 'customer') {
+    state.cart = null;
+    renderCartDrawer();
+    return;
+  }
+
+  state.cartLoading = true;
+  renderCartDrawer();
+
+  try {
+    const data = await requestJson(`${API_BASE_URL}/api/auth/cart`);
+    state.cart = data.cart || null;
+  } catch {
+    state.cart = null;
+  } finally {
+    state.cartLoading = false;
+  }
+
+  renderCartDrawer();
+};
+
+const getLandingCartItemQuantity = (productId) => {
+  const items = Array.isArray(state.cart?.items) ? state.cart.items : [];
+  const item = items.find((cartItem) => Number(cartItem.id_product) === Number(productId));
+
+  return Number(item?.quantity || 0);
+};
+
+const setLandingCartItemQuantity = async (productId, quantity) => {
+  state.cartLoading = true;
+  renderCartDrawer();
+
+  try {
+    await requestJson(`${API_BASE_URL}/api/auth/cart/items`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        id_product: Number(productId),
+        quantity: Number(quantity)
+      })
+    });
+
+    await loadCart();
+  } catch {
+    state.cartLoading = false;
+    renderCartDrawer();
+  }
+};
+
+const deleteLandingCartItem = async (productId) => {
+  state.cartLoading = true;
+  renderCartDrawer();
+
+  try {
+    await requestJson(`${API_BASE_URL}/api/auth/cart/items/${productId}`, {
+      method: 'DELETE'
+    });
+
+    await loadCart();
+  } catch {
+    state.cartLoading = false;
+    renderCartDrawer();
+  }
+};
 
 function goDashboard() {
   redirectToDashboard().catch(() => {
@@ -124,5 +571,141 @@ function goDashboard() {
   });
 }
 
-loadPublicCatalog();
+function goToCartPage() {
+  location.href = '/modules/customer/cart.html';
+}
+
+function selectCategory(categoryId = null) {
+  state.filters.categoryId = categoryId ? Number(categoryId) : null;
+  state.pagination.page = 1;
+  loadCatalog();
+}
+
+function changeCatalogPage(delta) {
+  const nextPage = state.pagination.page + Number(delta || 0);
+
+  if (nextPage < 1 || nextPage > state.pagination.total_pages) {
+    return;
+  }
+
+  state.pagination.page = nextPage;
+  loadCatalog();
+}
+
+async function addLandingProductToCart(productId) {
+  state.cartVisible = true;
+  renderCartDrawer();
+
+  if (state.session?.entity !== 'customer') {
+    return;
+  }
+
+  try {
+    await requestJson(`${API_BASE_URL}/api/auth/cart/items`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        id_product: productId,
+        quantity: 1
+      })
+    });
+
+    await loadCart();
+  } catch {
+    renderCartDrawer();
+  }
+}
+
+async function increaseLandingCartItem(productId) {
+  const currentQuantity = getLandingCartItemQuantity(productId);
+  await setLandingCartItemQuantity(productId, currentQuantity + 1);
+}
+
+async function decreaseLandingCartItem(productId) {
+  const currentQuantity = getLandingCartItemQuantity(productId);
+  const nextQuantity = currentQuantity - 1;
+
+  if (nextQuantity <= 0) {
+    await deleteLandingCartItem(productId);
+    return;
+  }
+
+  await setLandingCartItemQuantity(productId, nextQuantity);
+}
+
+async function removeLandingCartItem(productId) {
+  await deleteLandingCartItem(productId);
+}
+
+function hideCartDrawer() {
+  state.cartVisible = false;
+  renderCartDrawer();
+}
+
+function handleSearchSubmit(event) {
+  event.preventDefault();
+  state.pagination.page = 1;
+  state.suggestionOpen = false;
+  renderSuggestionsPanel();
+  loadCatalog();
+}
+
+function clearSearch() {
+  state.filters.query = '';
+  state.pagination.page = 1;
+  state.suggestions = [];
+  state.suggestionOpen = false;
+  const searchInput = globalThis.document.getElementById('landing-search-input');
+
+  if (searchInput) {
+    searchInput.value = '';
+    searchInput.focus();
+  }
+
+  renderSuggestionsPanel();
+  loadCatalog();
+}
+
+function handleSearchInput(event) {
+  state.filters.query = event.target.value.trim();
+  state.pagination.page = 1;
+
+  if (searchDebounceId) {
+    clearTimeout(searchDebounceId);
+  }
+
+  searchDebounceId = setTimeout(() => {
+    loadSearchSuggestions();
+  }, 200);
+}
+
+function selectSuggestion(encodedSku) {
+  const decodedSku = decodeURIComponent(encodedSku);
+  state.suggestionOpen = false;
+  state.suggestions = [];
+  renderSuggestionsPanel();
+  location.href = `/products/detail.html?sku=${encodeURIComponent(decodedSku)}`;
+}
+
+globalThis.goDashboard = goDashboard;
+globalThis.goToCartPage = goToCartPage;
+globalThis.selectCategory = selectCategory;
+globalThis.changeCatalogPage = changeCatalogPage;
+globalThis.addLandingProductToCart = addLandingProductToCart;
+globalThis.increaseLandingCartItem = increaseLandingCartItem;
+globalThis.decreaseLandingCartItem = decreaseLandingCartItem;
+globalThis.removeLandingCartItem = removeLandingCartItem;
+globalThis.hideCartDrawer = hideCartDrawer;
+globalThis.selectSuggestion = selectSuggestion;
+
+Promise.all([
+  loadSession(),
+  loadCategories(),
+  loadCatalog()
+]).then(() => {
+  loadCart();
+});
+
 loadLatestExchangeRate();

@@ -16,7 +16,8 @@ Proyecto en desarrollo activo.
 - Registro publico de empresas con rol inicial `DETALLISTA`.
 - Dashboard admin con modulos de clientes, juridicos, productos y tasa.
 - Gestion de perfiles con imagen para customer y company.
-- Catalogo publico y detalle de producto.
+- Landing publico con buscador general, buscador de categorias, paginacion y carrito desplegable.
+- Catalogo publico, detalle de producto, recomendados y reseñas editables con promedio.
 - Gestion de productos para empresas y admin.
 - Carrito y favoritos persistidos en JSON por customer.
 - Tasa de cambio con administracion e historial.
@@ -98,6 +99,7 @@ TUHERRAMIENTA.ONLINE/
 - Perfil y subida de imagen.
 - Dashboard customer.
 - Favoritos y carrito por archivos JSON.
+- Carrito temporal desde el landing con acciones para sumar, restar y eliminar productos.
 - Checkout propio y vista de compras.
 - Carga de evidencias de pago.
 - Consulta de cashback e historial.
@@ -121,7 +123,10 @@ TUHERRAMIENTA.ONLINE/
 
 ### Catalogo y stock
 - Jerarquia `Category -> Subcategory -> Line -> Product`.
+- Landing con orden por reseñas, sugerencias de busqueda y filtro por categoria.
 - Imagen principal y secundarias por producto.
+- Promedio de reseñas visible en landing, detalle y recomendados.
+- Reseña publica por producto con una sola reseña editable por customer o company.
 - Stock e historial de stock.
 - Filtros administrativos y paginacion.
 
@@ -201,6 +206,7 @@ Tambien existen carpetas por dominio dentro de `DB/` para trabajo incremental o 
 - `Line`
 - `Product`
 - `Product_Image`
+- `Product_Review`
 - `Stock`
 - `Stock_History`
 - `Exchange_Rate`

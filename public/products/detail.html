@@ -2,15 +2,16 @@
 <html lang="es" xml:lang="es">
 <head>
   <meta charset="UTF-8">
-  <title>Detalle de linea</title>
+  <title>Detalle de producto</title>
 </head>
 <body>
 
-<h1>Detalle de linea</h1>
-<a href="/index.html">Volver al inicio</a>
+<h1>Detalle de producto</h1>
+<p><a href="/index.html">Volver al inicio</a></p>
 
+<div id="product-detail-feedback"></div>
 <div id="product-detail">
-  <p>Cargando linea...</p>
+  <p>Cargando producto...</p>
 </div>
 
 <script src="/assets/js/utils/auth.js"></script>
@@ -19,11 +20,49 @@
   const sku = params.get('sku');
   const lineId = params.get('lineId');
   const detailContainer = document.getElementById('product-detail');
+  const detailFeedback = document.getElementById('product-detail-feedback');
   const state = {
     session: null,
     product: null,
+    exchangeRate: null,
     favoriteIds: new Set(),
-    cartByProductId: new Map()
+    cartByProductId: new Map(),
+    recommendedProducts: [],
+    reviewsSummary: {
+      total_reviews: 0,
+      average_rating: 0,
+      distribution: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 }
+    },
+    reviews: []
+  };
+
+  const formatAmount = (value) => Number(value || 0).toFixed(2);
+  const formatExchangeRate = (value) => Number(value || 0).toLocaleString('es-VE', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 4
+  });
+  const formatBsAmount = (value) => Number(value || 0).toLocaleString('es-VE', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  });
+
+  const convertUsdToBs = (usdAmount) => {
+    if (!state.exchangeRate?.rate_bs_per_usd) {
+      return null;
+    }
+
+    return Number(usdAmount || 0) * Number(state.exchangeRate.rate_bs_per_usd || 0);
+  };
+
+  const setFeedback = (message, type = 'info') => {
+    detailFeedback.textContent = message || '';
+
+    if (!message) {
+      delete detailFeedback.dataset.type;
+      return;
+    }
+
+    detailFeedback.dataset.type = type;
   };
 
   const requestCustomerJson = async (url, options = {}) => {
@@ -43,6 +82,17 @@
     return data;
   };
 
+  const requestPublicJson = async (url) => {
+    const response = await fetch(url);
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || 'Error en la solicitud');
+    }
+
+    return data;
+  };
+
   const isCustomerSession = () => getAuthEntity() === 'customer';
 
   const syncFavoritesState = (favorites) => {
@@ -51,6 +101,88 @@
 
   const syncCartState = (cart) => {
     state.cartByProductId = new Map((cart?.items || []).map((item) => [Number(item.id_product), Number(item.quantity || 0)]));
+  };
+
+  const getSelectedProduct = (product) => Array.isArray(product?.products) && product.products.length
+    ? product.products[0]
+    : null;
+
+  const getOtherProducts = (product) => Array.isArray(product?.products)
+    ? product.products.slice(1)
+    : [];
+
+  const getStockLabel = (quantity) => {
+    const stock = Number(quantity || 0);
+
+    if (stock <= 0) {
+      return 'Sin stock';
+    }
+
+    if (stock <= 5) {
+      return 'Últimas unidades';
+    }
+
+    return 'Disponible';
+  };
+
+  const getCurrentReviewProductId = () => getSelectedProduct(state.product)?.id_product || null;
+
+  const getCurrentSessionLabel = () => {
+    if (!state.session) {
+      return 'Usuario';
+    }
+
+    if (state.session.entity === 'company') {
+      return state.session.data?.company?.name || state.session.data?.company?.email || 'Empresa';
+    }
+
+    return state.session.data?.user?.name || state.session.data?.user?.email || 'Cliente';
+  };
+
+  const getCurrentSessionEntity = () => state.session?.entity || getAuthEntity() || null;
+
+  const getCurrentSessionIdentifiers = () => {
+    if (!state.session) {
+      return [];
+    }
+
+    if (state.session.entity === 'company') {
+      const company = state.session.data?.company || {};
+      return [company.name, company.email].filter(Boolean);
+    }
+
+    const user = state.session.data?.user || {};
+    return [user.name, user.email].filter(Boolean);
+  };
+
+  const getCurrentUserReview = () => {
+    if (!isLogged()) {
+      return null;
+    }
+
+    const entity = getCurrentSessionEntity();
+    const identifiers = getCurrentSessionIdentifiers();
+
+    return state.reviews.find((review) => (
+      review.author_entity === entity
+      && identifiers.includes(review.author_name)
+    )) || null;
+  };
+
+  const renderStars = (rating) => {
+    const safeRating = Math.max(0, Math.min(5, Number(rating || 0)));
+    return `${'★'.repeat(safeRating)}${'☆'.repeat(5 - safeRating)}`;
+  };
+
+  const renderProductAverageLabel = (reviewSummary) => {
+    const totalReviews = Number(reviewSummary?.total_reviews || 0);
+    const averageRating = Number(reviewSummary?.average_rating || 0);
+
+    if (!totalReviews) {
+      return 'Sin reseñas';
+    }
+
+    return `${renderStars(Math.round(averageRating))} (${averageRating.toFixed(1)} / 5 - ${totalReviews})`;
   };
 
   const parseAttributes = (attributes) => {
@@ -75,12 +207,12 @@
     const entries = parseAttributes(attributes);
 
     if (!entries.length) {
-      return '<p>Atributos: Sin atributos registrados</p>';
+      return '<p>Sin atributos registrados.</p>';
     }
 
     return `
       <div>
-        <p><b>Atributos:</b></p>
+        <h3>Atributos</h3>
         <ul>
           ${entries.map(([key, value]) => `<li><b>${key}:</b> ${value}</li>`).join('')}
         </ul>
@@ -90,72 +222,323 @@
 
   const renderGallery = (images, fallbackAlt) => {
     if (!Array.isArray(images) || !images.length) {
-      return '';
+      return '<p>Sin imágenes registradas.</p>';
     }
 
     return `
-      <div style="display:flex; gap:12px; flex-wrap:wrap; margin:16px 0;">
+      <div>
+        <h3>Galería</h3>
+        <div>
         ${images.map((image, index) => `
           <img
             src="${image.image_url}"
             alt="${fallbackAlt} ${index + 1}"
-            style="width:220px; height:220px; object-fit:cover; border:1px solid #ccc; display:block;"
+            width="220"
           >
         `).join('')}
+        </div>
       </div>
+    `;
+  };
+
+  const renderVendorBlock = (item) => `
+    <section>
+      <h2>Vendedor</h2>
+      <p><b>Empresa:</b> ${item.company_name || 'Sin nombre'}</p>
+      <p><b>Correo:</b> ${item.company_email || 'Sin correo'}</p>
+    </section>
+  `;
+
+  const renderPriceBlock = (item) => {
+    const priceBs = convertUsdToBs(item.price);
+    const stock = Number(item.quantity || 0);
+
+    return `
+      <section>
+        <h2>Información de compra</h2>
+        <p><b>Precio USD:</b> USD ${formatAmount(item.price)}</p>
+        <p><b>Precio referencial Bs:</b> ${priceBs === null ? 'Tasa no disponible' : `Bs.S ${formatBsAmount(priceBs)}`}</p>
+        <p><b>Tasa actual:</b> ${state.exchangeRate?.rate_bs_per_usd ? `Bs.S ${formatExchangeRate(state.exchangeRate.rate_bs_per_usd)}` : 'No disponible'}</p>
+        <p><b>Cantidad:</b> ${stock}</p>
+      </section>
     `;
   };
 
   const renderCustomerActions = (item) => {
     if (!isLogged()) {
-      return '<p>Inicia sesión como cliente para usar favoritos y carrito.</p>';
+      return `
+        <section>
+          <h2>Acciones</h2>
+          <p>Inicia sesión como cliente para usar favoritos y carrito.</p>
+          <p><a href="/auth/login.html">Ir a login</a></p>
+        </section>
+      `;
     }
 
     if (!isCustomerSession()) {
-      return '<p>Estas acciones solo están disponibles para clientes.</p>';
+      return `
+        <section>
+          <h2>Acciones</h2>
+          <p>Estas acciones solo están disponibles para clientes.</p>
+        </section>
+      `;
     }
 
     const isFavorite = state.favoriteIds.has(Number(item.id_product));
     const quantity = state.cartByProductId.get(Number(item.id_product)) || 1;
 
     return `
-      <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-top:12px;">
+      <section>
+        <h2>Acciones</h2>
         <button type="button" onclick="toggleFavorite(${item.id_product})">${isFavorite ? 'Quitar de favoritos' : 'Agregar a favoritos'}</button>
-        <span>Cantidad</span>
+        <p>
+          <span>Cantidad</span>
         <button type="button" onclick="changeDetailCartQuantity(${item.id_product}, -1)">-</button>
-        <input id="cart-quantity-${item.id_product}" type="number" min="1" step="1" value="${quantity}" style="width:72px;">
+        <input id="cart-quantity-${item.id_product}" type="number" min="1" step="1" value="${quantity}">
         <button type="button" onclick="changeDetailCartQuantity(${item.id_product}, 1)">+</button>
+        </p>
         <button type="button" onclick="addToCart(${item.id_product})">Guardar en carrito</button>
+        <button type="button" onclick="buyNow(${item.id_product})">Comprar ahora</button>
         <a href="/modules/customer/favorites.html">Ver favoritos</a>
         <a href="/modules/customer/cart.html">Ver carrito</a>
+        <a href="/modules/customer/purchases.html">Ver compras</a>
+      </section>
+    `;
+  };
+
+  const renderRecommendedProducts = () => {
+    if (!Array.isArray(state.recommendedProducts) || !state.recommendedProducts.length) {
+      return `
+        <section>
+          <h2>Productos recomendados</h2>
+          <p>No hay productos recomendados disponibles.</p>
+        </section>
+      `;
+    }
+
+    return `
+      <section>
+        <h2>Productos recomendados</h2>
+        <ul>
+          ${state.recommendedProducts.map((product) => {
+            return `
+              <li>
+                ${product.image_url ? `
+                  <p>
+                    <a href="/products/detail.html?sku=${encodeURIComponent(product.sku)}">
+                      <img src="${product.image_url}" alt="${product.name}" width="160">
+                    </a>
+                  </p>
+                ` : ''}
+                <p><b>${product.name || 'Sin nombre'}</b></p>
+                <p><b>Precio USD:</b> USD ${formatAmount(product.price)}</p>
+                <p><b>Promedio:</b> ${renderProductAverageLabel(product.reviews)}</p>
+                <p><a href="/products/detail.html?sku=${encodeURIComponent(product.sku)}">Ver detalle</a></p>
+              </li>
+            `;
+          }).join('')}
+        </ul>
+      </section>
+    `;
+  };
+
+  const renderReviewRatingOptions = (selectedRating) => {
+    const safeSelectedRating = Number(selectedRating || 5);
+
+    return [5, 4, 3, 2, 1].map((ratingValue) => {
+      const selectedAttribute = safeSelectedRating === ratingValue ? 'selected' : '';
+      return `<option value="${ratingValue}" ${selectedAttribute}>${ratingValue}</option>`;
+    }).join('');
+  };
+
+  const renderReviewForm = (currentUserReview) => {
+    const helperText = currentUserReview
+      ? 'Ya tienes una reseña en este producto. Si envías otra, se actualiza.'
+      : 'Aún no has dejado reseña en este producto.';
+    const submitLabel = currentUserReview ? 'Actualizar reseña' : 'Publicar reseña';
+
+    return `
+      <form id="product-review-form">
+        <p><b>Reseñando como:</b> ${getCurrentSessionLabel()}</p>
+        <p>${helperText}</p>
+        <p>
+          <label for="product-review-rating">Calificación</label>
+          <select id="product-review-rating" name="rating" required>
+            ${renderReviewRatingOptions(currentUserReview?.rating)}
+          </select>
+        </p>
+        <p>
+          <label for="product-review-comment">Comentario</label><br>
+          <textarea id="product-review-comment" name="comment" rows="4" cols="60" placeholder="Comentario opcional">${currentUserReview?.comment || ''}</textarea>
+        </p>
+        <button type="submit">${submitLabel}</button>
+      </form>
+    `;
+  };
+
+  const renderReviewList = (reviews) => {
+    if (!reviews.length) {
+      return '<p>Todavía no hay reseñas para este producto.</p>';
+    }
+
+    return `
+      <div>
+        ${reviews.map((review) => `
+          <article>
+            <p><b>${review.author_name}</b> (${review.author_entity})</p>
+            <p><b>Calificación:</b> ${renderStars(review.rating)} (${review.rating}/5)</p>
+            <p><b>Comentario:</b> ${review.comment || 'Sin comentario.'}</p>
+            <p><b>Fecha:</b> ${new Date(review.created_at).toLocaleString('es-VE')}</p>
+          </article>
+        `).join('')}
       </div>
     `;
   };
 
+  const renderReviewsBlock = () => {
+    const summary = state.reviewsSummary || {
+      total_reviews: 0,
+      average_rating: 0,
+      distribution: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 }
+    };
+    const reviews = Array.isArray(state.reviews) ? state.reviews : [];
+    const currentUserReview = getCurrentUserReview();
+    const averageRating = Number(summary.average_rating || 0);
+    const reviewFormHtml = isLogged()
+      ? renderReviewForm(currentUserReview)
+      : '<p>Inicia sesión para dejar una reseña.</p>';
+
+    return `
+      <section>
+        <h2>Reseñas</h2>
+        <p><b>Promedio:</b> ${renderStars(Math.round(averageRating))} (${averageRating.toFixed(1)} / 5)</p>
+        <p><b>Total de reseñas:</b> ${Number(summary.total_reviews || 0)}</p>
+        <ul>
+          <li>5 estrellas: ${Number(summary.distribution?.[5] || 0)}</li>
+          <li>4 estrellas: ${Number(summary.distribution?.[4] || 0)}</li>
+          <li>3 estrellas: ${Number(summary.distribution?.[3] || 0)}</li>
+          <li>2 estrellas: ${Number(summary.distribution?.[2] || 0)}</li>
+          <li>1 estrella: ${Number(summary.distribution?.[1] || 0)}</li>
+        </ul>
+        ${reviewFormHtml}
+        ${renderReviewList(reviews)}
+      </section>
+    `;
+  };
+
+  const renderOtherProducts = (product) => {
+    const otherProducts = getOtherProducts(product);
+
+    if (!otherProducts.length) {
+      return '';
+    }
+
+    return `
+      <section>
+        <h2>Otros productos de esta línea</h2>
+        ${otherProducts.map((item) => `
+          <article>
+            <p><b>Nombre:</b> ${item.name || 'Sin nombre'}</p>
+            <p><b>SKU:</b> ${item.sku}</p>
+            <p><b>Precio USD:</b> USD ${formatAmount(item.price)}</p>
+            <p><b>Stock:</b> ${Number(item.quantity || 0)}</p>
+            <p><a href="/products/detail.html?sku=${encodeURIComponent(item.sku)}">Abrir este producto</a></p>
+          </article>
+        `).join('')}
+      </section>
+    `;
+  };
+
   const renderProductDetail = (product) => {
-    const mainBrand = product.brand || product.products.find((item) => item.brand)?.brand || null;
+    const selectedProduct = getSelectedProduct(product);
+
+    if (!selectedProduct) {
+      detailContainer.innerHTML = '<p>No hay productos activos disponibles para esta línea.</p>';
+      return;
+    }
+
+    const mainBrand = selectedProduct.brand || product.brand || null;
 
     detailContainer.innerHTML = `
-      <p><b>Linea:</b> ${product.name}</p>
-      <p><b>Marca:</b> ${mainBrand || 'Sin marca'}</p>
-      <p><b>Categoría:</b> ${product.category_name}</p>
-      <p><b>Subcategoría:</b> ${product.subcategory_name}</p>
-      <p><b>Productos activos:</b> ${product.products.length}</p>
-      <div>
-        ${product.products.map((item, index) => `
-          <div style="border-top:1px solid #ccc; padding-top:12px; margin-top:12px;">
-            <p><b>Producto ${index + 1}:</b> ${item.name || 'Sin nombre'}</p>
-            <p><b>SKU:</b> ${item.sku}</p>
-            <p><b>Precio:</b> ${item.price}</p>
-            <p><b>Stock disponible:</b> ${item.quantity ?? 0}</p>
-            <p><b>Descripción:</b> ${item.description || 'Sin descripción'}</p>
-            ${renderGallery(item.images, product.name)}
-            ${renderAttributes(item.attributes)}
-            ${renderCustomerActions(item)}
-          </div>
-        `).join('')}
-      </div>
+      <section>
+        <h2>Resumen del producto</h2>
+        <p><b>Línea:</b> ${product.name}</p>
+        <p>${selectedProduct.name || 'Sin nombre'}</p>
+        <p><b>SKU:</b> ${selectedProduct.sku}</p>
+        <p><b>Marca:</b> ${mainBrand || 'Sin marca'}</p>
+      </section>
+      ${renderGallery(selectedProduct.images, selectedProduct.name || product.name)}
+      ${renderPriceBlock(selectedProduct)}
+      <section>
+        <h2>Descripción</h2>
+        <p>${selectedProduct.description || 'Sin descripción registrada.'}</p>
+      </section>
+      ${renderAttributes(selectedProduct.attributes)}
+      ${renderVendorBlock(selectedProduct)}
+      ${renderCustomerActions(selectedProduct)}
+      ${renderOtherProducts(product)}
+      ${renderRecommendedProducts()}
+      ${renderReviewsBlock()}
     `;
+
+    const reviewForm = document.getElementById('product-review-form');
+
+    if (reviewForm) {
+      reviewForm.addEventListener('submit', submitReview);
+    }
+  };
+
+  const loadLatestExchangeRate = async () => {
+    try {
+      const data = await requestPublicJson(`${API_BASE_URL}/api/exchange-rate/latest`);
+      state.exchangeRate = data.exchange_rate || null;
+    } catch {
+      state.exchangeRate = null;
+    }
+  };
+
+  const loadRecommendedProducts = async () => {
+    const query = new URLSearchParams({ limit: '10' });
+
+    if (sku) {
+      query.set('exclude_sku', sku);
+    }
+
+    try {
+      const data = await requestPublicJson(`${API_BASE_URL}/api/products/recommended?${query.toString()}`);
+      state.recommendedProducts = Array.isArray(data.products) ? data.products : [];
+    } catch {
+      state.recommendedProducts = [];
+    }
+  };
+
+  const loadProductReviews = async (productId) => {
+    if (!productId) {
+      state.reviewsSummary = {
+        total_reviews: 0,
+        average_rating: 0,
+        distribution: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 }
+      };
+      state.reviews = [];
+      return;
+    }
+
+    try {
+      const data = await requestPublicJson(`${API_BASE_URL}/api/products/${productId}/reviews`);
+      state.reviewsSummary = data.summary || {
+        total_reviews: 0,
+        average_rating: 0,
+        distribution: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 }
+      };
+      state.reviews = Array.isArray(data.reviews) ? data.reviews : [];
+    } catch {
+      state.reviewsSummary = {
+        total_reviews: 0,
+        average_rating: 0,
+        distribution: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 }
+      };
+      state.reviews = [];
+    }
   };
 
   const loadCustomerCollections = async () => {
@@ -193,20 +576,15 @@
 
   if (detailEndpoint) {
     Promise.all([
-      fetch(detailEndpoint)
-      .then(async (res) => {
-        const data = await res.json();
-
-        if (!res.ok) {
-          throw new Error(data.error || 'No se pudo cargar la linea');
-        }
-
-        return data;
-      }),
-      loadCustomerCollections()
+      requestPublicJson(detailEndpoint),
+      loadCustomerCollections(),
+      loadLatestExchangeRate(),
+      loadRecommendedProducts()
     ])
-      .then(([{ product }]) => {
+      .then(async ([{ product }]) => {
         state.product = product;
+        await loadProductReviews(getCurrentReviewProductId());
+        setFeedback('');
         renderProductDetail(product);
       })
       .catch((error) => {
@@ -235,9 +613,10 @@
 
       const data = await request;
       syncFavoritesState(data.favorites);
+      setFeedback('Favoritos actualizados correctamente.', 'success');
       renderProductDetail(state.product);
     } catch (error) {
-      alert(error.message);
+      setFeedback(error.message, 'error');
     }
   }
 
@@ -258,9 +637,53 @@
       });
 
       syncCartState(data.cart);
+      setFeedback('Producto guardado en el carrito.', 'success');
       renderProductDetail(state.product);
     } catch (error) {
-      alert(error.message);
+      setFeedback(error.message, 'error');
+    }
+  }
+
+  async function buyNow(productId) {
+    await addToCart(productId);
+
+    if (detailFeedback.dataset.type !== 'error') {
+      location.href = '/modules/customer/cart.html';
+    }
+  }
+
+  async function submitReview(event) {
+    event.preventDefault();
+
+    try {
+      if (!isLogged()) {
+        redirectToLogin();
+        return;
+      }
+
+      const productId = getCurrentReviewProductId();
+
+      if (!productId) {
+        throw new Error('Producto no disponible para reseña');
+      }
+
+      const formData = new FormData(event.currentTarget);
+      const rating = Number(formData.get('rating'));
+      const comment = formData.get('comment');
+
+      await requestCustomerJson(`${API_BASE_URL}/api/products/${productId}/reviews`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ rating, comment })
+      });
+
+      await loadProductReviews(productId);
+      setFeedback('Reseña publicada correctamente.', 'success');
+      renderProductDetail(state.product);
+    } catch (error) {
+      setFeedback(error.message, 'error');
     }
   }
 
@@ -278,6 +701,7 @@
 
   globalThis.toggleFavorite = toggleFavorite;
   globalThis.addToCart = addToCart;
+  globalThis.buyNow = buyNow;
   globalThis.changeDetailCartQuantity = changeDetailCartQuantity;
 </script>
 

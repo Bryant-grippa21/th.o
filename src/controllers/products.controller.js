@@ -11,6 +11,9 @@ const {
   getManagedProductById,
   listManagedProductStockHistory,
   listPublicCatalog,
+  listRecommendedProducts,
+  listProductReviews,
+  createProductReview,
   getPublicProductDetail,
   getPublicProductDetailBySku,
   createCategory,
@@ -372,13 +375,115 @@ const getManagedProductStockHistory = async (req, res) => {
 
 const getPublicCatalog = async (req, res) => {
   try {
-    const limit = req.query.limit ? Number(req.query.limit) : 12;
-    const products = await listPublicCatalog(limit);
+    const page = req.query.page ? Number(req.query.page) : 1;
+    const limit = req.query.limit ? Number(req.query.limit) : 20;
+    const categoryResult = parseOptionalPositiveInteger(req.query.category_id, 'category_id');
 
-    return res.status(200).json({ products });
+    if (!Number.isInteger(page) || page <= 0) {
+      return res.status(400).json({ error: 'page inválido' });
+    }
+
+    if (!Number.isInteger(limit) || limit <= 0 || limit > 100) {
+      return res.status(400).json({ error: 'limit inválido' });
+    }
+
+    if (categoryResult.error) {
+      return res.status(400).json({ error: categoryResult.error });
+    }
+
+    const result = await listPublicCatalog({
+      page,
+      limit,
+      query: String(req.query.q ?? '').trim(),
+      categoryId: categoryResult.value,
+      sort: String(req.query.sort ?? 'reviews_desc').trim().toLowerCase() || 'reviews_desc'
+    });
+
+    return res.status(200).json(result);
   } catch (error) {
     console.error('❌ ERROR GET PUBLIC CATALOG:', error);
     return res.status(500).json({ error: error.message });
+  }
+};
+
+const getRecommendedProducts = async (req, res) => {
+  try {
+    const limit = req.query.limit ? Number(req.query.limit) : 10;
+    const excludeSku = String(req.query.exclude_sku ?? '').trim() || null;
+    const products = await listRecommendedProducts({ limit, excludeSku });
+
+    return res.status(200).json({ products });
+  } catch (error) {
+    console.error('❌ ERROR GET RECOMMENDED PRODUCTS:', error);
+    return res.status(500).json({ error: error.message });
+  }
+};
+
+const getProductReviews = async (req, res) => {
+  try {
+    const productId = Number(req.params.productId);
+
+    if (!Number.isInteger(productId) || productId <= 0) {
+      return res.status(400).json({ error: 'productId inválido' });
+    }
+
+    const result = await listProductReviews(productId);
+
+    return res.status(200).json(result);
+  } catch (error) {
+    console.error('❌ ERROR GET PRODUCT REVIEWS:', error);
+    const statusCode = error.message === 'Producto no encontrado' ? 404 : 500;
+    return res.status(statusCode).json({ error: error.message });
+  }
+};
+
+const createPublicProductReview = async (req, res) => {
+  try {
+    const productId = Number(req.params.productId);
+    const rating = Number(req.body?.rating);
+    const comment = req.body?.comment ?? null;
+
+    if (!Number.isInteger(productId) || productId <= 0) {
+      return res.status(400).json({ error: 'productId inválido' });
+    }
+
+    if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
+      return res.status(400).json({ error: 'rating inválido' });
+    }
+
+    const reviewer = {
+      id: req.user?.id,
+      email: req.user?.email,
+      entity: req.user?.entity,
+      name: req.user?.entity === 'company'
+        ? (req.user?.company_name || req.user?.email)
+        : (req.user?.name || req.user?.email)
+    };
+
+    const result = await createProductReview({
+      productId,
+      reviewer,
+      rating,
+      comment
+    });
+
+    return res.status(201).json({
+      message: result.action === 'updated'
+        ? 'Reseña actualizada correctamente'
+        : 'Reseña registrada correctamente',
+      ...result
+    });
+  } catch (error) {
+    console.error('❌ ERROR CREATE PRODUCT REVIEW:', error);
+    let statusCode = 500;
+
+    if (['productId inválido', 'rating inválido', 'Usuario no válido para reseña'].includes(error.message)) {
+      statusCode = 400;
+    } else if (error.message === 'Producto no encontrado') {
+      statusCode = 404;
+    }
+
+    return res.status(statusCode).json({ error: error.message });
   }
 };
 
@@ -939,6 +1044,9 @@ module.exports = {
   getManagedProductDetail,
   getManagedProductStockHistory,
   getPublicCatalog,
+  getRecommendedProducts,
+  getProductReviews,
+  createPublicProductReview,
   getPublicProduct,
   getPublicProductBySku,
   createCategoryManual,

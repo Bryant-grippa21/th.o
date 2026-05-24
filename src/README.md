@@ -181,8 +181,10 @@ Area de catalogo publico y gestion de productos.
 
 Incluye:
 
-- catalogo publico
+- catalogo publico paginado con filtros, busqueda y orden por reseñas
 - detalle publico por id o SKU
+- recomendados y resumenes de reseñas por producto
+- reseñas publicas editables con promedio por producto
 - categorias y subcategorias
 - lineas y referencias administradas
 - CRUD de productos y variantes
@@ -192,6 +194,9 @@ Incluye:
 Endpoints representativos:
 
 - `GET /api/products/catalog`
+- `GET /api/products/recommended`
+- `GET /api/products/:productId/reviews`
+- `POST /api/products/:productId/reviews`
 - `GET /api/products/catalog/sku/:sku`
 - `GET /api/products/categories`
 - `GET /api/products/management/products`
@@ -249,7 +254,7 @@ La informacion principal del negocio se guarda en MySQL/MariaDB:
 - customers y companies
 - roles
 - cashback e historial
-- catalogo y stock
+- catalogo, stock y reseñas de producto
 - tasa de cambio
 - compras, grupos, items y evidencias
 
