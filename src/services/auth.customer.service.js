@@ -212,6 +212,7 @@ const listCustomersForAdmin = async () => {
        id_customer,
        name,
        email,
+       img_profile,
        auth_provider,
        is_verified,
        is_active,
@@ -378,7 +379,11 @@ const toggleUserActive = async (userId, isActive) => {
 // 🖼️ ACTUALIZAR IMAGEN DE PERFIL
 const updateCustomerImage = async (customerId, imgProfile) => {
   await pool.query(
-    'UPDATE Customer SET img_profile = ? WHERE id_customer = ?',
+    `UPDATE Customer
+     SET
+       img_profile = ?,
+       updated_at = CURRENT_TIMESTAMP
+     WHERE id_customer = ?`,
     [imgProfile, customerId]
   );
 

@@ -7,10 +7,14 @@
 <body>
 
 <h1>Compras y pagos</h1>
-<a href="/index.html">Volver al inicio</a><br>
-<a href="/modules/company/dashboard.html">Volver al dashboard empresa</a><br><br>
+<div id="company-layout-nav"></div>
 
-<button onclick="logout()">Cerrar sesión</button>
+<label>
+  Buscar compra
+  <input id="company-purchases-search" type="search" placeholder="Buscar por grupo, orden, cliente, producto o estado">
+</label>
+
+<br><br>
 
 <p id="company-purchases-summary">Cargando informacion...</p>
 <p id="company-purchases-feedback"></p>
@@ -73,6 +77,7 @@
 </section>
 
 <script src="/assets/js/utils/auth.js"></script>
+<script src="/assets/js/company/layout.js"></script>
 <script src="/assets/js/company/purchases.js"></script>
 
 </body>

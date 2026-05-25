@@ -1,14 +1,17 @@
 const {
   createCheckoutFromCart,
   listCustomerCheckouts,
+  listAdminCheckouts,
   listCompanyGroups,
   listCompanyPaymentMethods,
   createCompanyPaymentMethod,
   submitPurchaseEvidence,
   approvePurchaseGroup,
   rejectPurchaseGroup,
-  expirePurchaseGroup
+  expirePurchaseGroup,
+  updatePurchaseGroupDelivery
 } = require('../services/purchase.service');
+const { findCompanyById } = require('../services/auth.company.service');
 
 const requireCustomer = (req, res) => {
   if (req.user?.entity && req.user.entity !== 'customer') {
@@ -32,6 +35,35 @@ const requireCompany = (req, res) => {
 
   if (!Number.isInteger(Number(req.user?.id)) || Number(req.user.id) <= 0) {
     res.status(401).json({ error: 'Token invalido' });
+    return false;
+  }
+
+  return true;
+};
+
+const requireCompanySellAccess = async (req, res, actionLabel = 'usar este módulo') => {
+  if (!requireCompany(req, res)) {
+    return false;
+  }
+
+  if (Number(req.user.id_role) === 1) {
+    return true;
+  }
+
+  const company = await findCompanyById(Number(req.user.id));
+
+  if (!company) {
+    res.status(404).json({ error: 'Empresa no encontrada' });
+    return false;
+  }
+
+  if (company.verification_status !== 'APPROVED') {
+    res.status(403).json({ error: `Tu empresa debe estar jurídicamente aprobada para ${actionLabel}` });
+    return false;
+  }
+
+  if (!company.can_sell) {
+    res.status(403).json({ error: `Tu empresa no tiene permiso comercial para ${actionLabel}` });
     return false;
   }
 
@@ -119,7 +151,7 @@ const createCustomerPurchaseEvidence = async (req, res) => {
 
 const getCompanyPurchaseGroups = async (req, res) => {
   try {
-    if (!requireCompany(req, res)) {
+    if (!await requireCompanySellAccess(req, res, 'gestionar grupos de compra')) {
       return;
     }
 
@@ -135,9 +167,28 @@ const getCompanyPurchaseGroups = async (req, res) => {
   }
 };
 
-const getCompanyMethods = async (req, res) => {
+const getAdminCheckouts = async (req, res) => {
   try {
     if (!requireCompany(req, res)) {
+      return;
+    }
+
+    if (Number(req.user.id_role) !== 1) {
+      return res.status(403).json({ error: 'Acceso solo para admin' });
+    }
+
+    const checkouts = await listAdminCheckouts();
+
+    return res.status(200).json({ checkouts });
+  } catch (error) {
+    console.error('ERROR GET ADMIN CHECKOUTS:', error);
+    return res.status(500).json({ error: error.message });
+  }
+};
+
+const getCompanyMethods = async (req, res) => {
+  try {
+    if (!await requireCompanySellAccess(req, res, 'gestionar métodos de pago')) {
       return;
     }
 
@@ -151,7 +202,7 @@ const getCompanyMethods = async (req, res) => {
 
 const createCompanyMethod = async (req, res) => {
   try {
-    if (!requireCompany(req, res)) {
+    if (!await requireCompanySellAccess(req, res, 'crear métodos de pago')) {
       return;
     }
 
@@ -168,7 +219,7 @@ const createCompanyMethod = async (req, res) => {
 
 const approveCompanyPurchaseGroup = async (req, res) => {
   try {
-    if (!requireCompany(req, res)) {
+    if (!await requireCompanySellAccess(req, res, 'aprobar grupos de compra')) {
       return;
     }
 
@@ -191,7 +242,7 @@ const approveCompanyPurchaseGroup = async (req, res) => {
 
 const rejectCompanyPurchaseGroup = async (req, res) => {
   try {
-    if (!requireCompany(req, res)) {
+    if (!await requireCompanySellAccess(req, res, 'rechazar grupos de compra')) {
       return;
     }
 
@@ -214,7 +265,7 @@ const rejectCompanyPurchaseGroup = async (req, res) => {
 
 const expireCompanyPurchaseGroup = async (req, res) => {
   try {
-    if (!requireCompany(req, res)) {
+    if (!await requireCompanySellAccess(req, res, 'expirar grupos de compra')) {
       return;
     }
 
@@ -234,14 +285,45 @@ const expireCompanyPurchaseGroup = async (req, res) => {
   }
 };
 
+const updateCompanyPurchaseGroupDelivery = async (req, res) => {
+  try {
+    if (!await requireCompanySellAccess(req, res, 'actualizar entregas')) {
+      return;
+    }
+
+    const purchase_group = await updatePurchaseGroupDelivery({
+      companyId: req.user.id,
+      groupId: req.params.groupId,
+      deliveryStatus: req.body?.delivery_status,
+      carrierName: req.body?.carrier_name,
+      trackingCode: req.body?.tracking_code,
+      estimatedDeliveryAt: req.body?.estimated_delivery_at,
+      shippedAt: req.body?.shipped_at,
+      deliveredAt: req.body?.delivered_at,
+      note: req.body?.note,
+      isAdmin: req.user.id_role === 1
+    });
+
+    return res.status(200).json({
+      message: 'Seguimiento logístico actualizado correctamente',
+      purchase_group
+    });
+  } catch (error) {
+    console.error('ERROR UPDATE PURCHASE GROUP DELIVERY:', error);
+    return res.status(getErrorStatus(error)).json({ error: error.message });
+  }
+};
+
 module.exports = {
   createCustomerCheckout,
   getCustomerCheckouts,
+  getAdminCheckouts,
   createCustomerPurchaseEvidence,
   getCompanyPurchaseGroups,
   getCompanyMethods,
   createCompanyMethod,
   approveCompanyPurchaseGroup,
   rejectCompanyPurchaseGroup,
-  expireCompanyPurchaseGroup
+  expireCompanyPurchaseGroup,
+  updateCompanyPurchaseGroupDelivery
 };

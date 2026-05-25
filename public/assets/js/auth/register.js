@@ -21,6 +21,24 @@ function register() {
     ? `${API_BASE_URL}/api/company-auth/register`
     : `${API_BASE_URL}/api/auth/register`;
 
+  const missingFields = entity === 'company'
+    ? [
+        ['company_name', 'nombre de la empresa'],
+        ['rif', 'RIF'],
+        ['email', 'correo'],
+        ['password', 'contraseña']
+      ].filter(([id]) => !document.getElementById(id).value.trim())
+    : [
+        ['name', 'nombre'],
+        ['email', 'correo'],
+        ['password', 'contraseña']
+      ].filter(([id]) => !document.getElementById(id).value.trim());
+
+  if (missingFields.length) {
+    alert(`Faltan campos obligatorios: ${missingFields.map(([, label]) => label).join(', ')}`);
+    return;
+  }
+
   const payload = entity === 'company'
     ? {
         company_name: document.getElementById('company_name').value.trim(),
@@ -54,6 +72,11 @@ function register() {
   })
   .then(data => {
     alert(data.message);
+
+    if (entity === 'company') {
+      alert('Luego de iniciar sesión entra a Perfil empresa para cargar los recaudos jurídicos.');
+    }
+
     location.href = '/auth/login.html';
   })
   .catch(err => alert(err.message));

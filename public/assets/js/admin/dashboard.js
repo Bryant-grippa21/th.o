@@ -1,12 +1,19 @@
 const adminCustomerSummary = document.getElementById('admin-customer-summary');
 const adminCustomerList = document.getElementById('admin-customer-list');
+const adminCustomerPagination = document.getElementById('admin-customer-pagination');
 const adminCompanySummary = document.getElementById('admin-company-summary');
 const adminCompanyList = document.getElementById('admin-company-list');
+const adminCompanyPagination = document.getElementById('admin-company-pagination');
+const adminDashboardOverview = document.getElementById('admin-dashboard-overview');
+const adminDashboardReports = document.getElementById('admin-dashboard-reports');
 const adminExchangeSummary = document.getElementById('admin-exchange-summary');
 const adminExchangeForm = document.getElementById('admin-exchange-form');
 const adminExchangeRateInput = document.getElementById('admin-exchange-rate-input');
 const adminExchangeMessage = document.getElementById('admin-exchange-message');
 const adminExchangeList = document.getElementById('admin-exchange-list');
+const adminPurchasesSummary = document.getElementById('admin-purchases-summary');
+const adminPurchasesCheckoutsList = document.getElementById('admin-purchases-checkouts-list');
+const adminPurchasesSalesList = document.getElementById('admin-purchases-sales-list');
 const adminProductSummary = document.getElementById('admin-product-summary');
 const adminProductList = document.getElementById('admin-product-list');
 const adminProductPagination = document.getElementById('admin-product-pagination');
@@ -26,15 +33,54 @@ const adminEditProductMainImagePreview = document.getElementById('admin-edit-pro
 const adminEditProductSecondaryImages = document.getElementById('admin-edit-product-secondary-images');
 const adminEditProductSecondaryImagesPreview = document.getElementById('admin-edit-product-secondary-images-preview');
 const adminEditProductCancel = document.getElementById('admin-edit-product-cancel');
+const adminCustomerModal = document.getElementById('admin-customer-modal');
+const adminCustomerModalForm = document.getElementById('admin-customer-modal-form');
+const adminCustomerModalClose = document.getElementById('admin-customer-modal-close');
+const adminCustomerModalId = document.getElementById('admin-customer-modal-id');
+const adminCustomerModalName = document.getElementById('admin-customer-modal-name');
+const adminCustomerModalEmail = document.getElementById('admin-customer-modal-email');
+const adminCustomerModalPassword = document.getElementById('admin-customer-modal-password');
+const adminCustomerModalRecoverySummary = document.getElementById('admin-customer-modal-recovery-summary');
+const adminCustomerModalRecoveryAction = document.getElementById('admin-customer-modal-recovery-action');
+const adminCustomerModalRecoveryNote = document.getElementById('admin-customer-modal-recovery-note');
+const adminCustomerModalMessage = document.getElementById('admin-customer-modal-message');
+const adminCompanyModal = document.getElementById('admin-company-modal');
+const adminCompanyModalForm = document.getElementById('admin-company-modal-form');
+const adminCompanyModalClose = document.getElementById('admin-company-modal-close');
+const adminCompanyModalId = document.getElementById('admin-company-modal-id');
+const adminCompanyModalName = document.getElementById('admin-company-modal-name');
+const adminCompanyModalRif = document.getElementById('admin-company-modal-rif');
+const adminCompanyModalEmail = document.getElementById('admin-company-modal-email');
+const adminCompanyModalRole = document.getElementById('admin-company-modal-role');
+const adminCompanyModalPassword = document.getElementById('admin-company-modal-password');
+const adminCompanyModalVerificationStatus = document.getElementById('admin-company-modal-verification-status');
+const adminCompanyModalVerificationNote = document.getElementById('admin-company-modal-verification-note');
+const adminCompanyModalCanBuy = document.getElementById('admin-company-modal-can-buy');
+const adminCompanyModalCanSell = document.getElementById('admin-company-modal-can-sell');
+const adminCompanyModalDocumentsList = document.getElementById('admin-company-modal-documents-list');
+const adminCompanyModalHistoryList = document.getElementById('admin-company-modal-history-list');
+const adminCompanyModalMessage = document.getElementById('admin-company-modal-message');
 const adminProductStockHistory = document.getElementById('admin-product-stock-history');
 const adminProductStockHistoryPagination = document.getElementById('admin-product-stock-history-pagination');
+const customerFilterNameInput = document.getElementById('customer-filter-name');
+const customerFilterEmailInput = document.getElementById('customer-filter-email');
+const customerFilterStatusInput = document.getElementById('customer-filter-status');
+const companyFilterNameInput = document.getElementById('company-filter-name');
+const companyFilterDocumentInput = document.getElementById('company-filter-document');
+const companyFilterEmailInput = document.getElementById('company-filter-email');
+const companyFilterVerificationStatusInput = document.getElementById('company-filter-verification-status');
+const productFilterNameInput = document.getElementById('product-filter-name');
+const productFilterCompanyInput = document.getElementById('product-filter-company');
 const productFilterCategory = document.getElementById('product-filter-category');
 const productFilterSubcategory = document.getElementById('product-filter-subcategory');
 const productFilterLine = document.getElementById('product-filter-line');
+const adminModuleButtons = Array.from(document.querySelectorAll('[data-admin-module-button]'));
 const adminModules = {
+  dashboard: document.getElementById('admin-module-dashboard'),
   customers: document.getElementById('admin-module-customers'),
   companies: document.getElementById('admin-module-companies'),
   exchange: document.getElementById('admin-module-exchange'),
+  purchases: document.getElementById('admin-module-purchases'),
   products: document.getElementById('admin-module-products')
 };
 const adminProductSubmenus = {
@@ -45,8 +91,22 @@ const state = {
   customers: [],
   companies: [],
   exchangeRates: [],
-  activeModule: 'customers',
+  adminCheckouts: [],
+  adminSales: [],
+  activeModule: 'dashboard',
   activeProductSubmenu: 'list',
+  customerPagination: {
+    page: 1,
+    limit: 10,
+    total: 0,
+    total_pages: 1
+  },
+  companyPagination: {
+    page: 1,
+    limit: 10,
+    total: 0,
+    total_pages: 1
+  },
   products: [],
   productCategories: [],
   productSubcategories: [],
@@ -67,7 +127,31 @@ const state = {
       total: 0,
       total_pages: 1
     }
+  },
+  customerEditor: {
+    customerId: null,
+    recoveryRequest: null
+  },
+  companyEditor: {
+    companyId: null,
+    verificationSnapshot: null
   }
+};
+
+const COMPANY_VERIFICATION_LABELS = {
+  PENDING_REVIEW: 'Pendiente de revisión',
+  CHANGES_REQUESTED: 'Correcciones solicitadas',
+  APPROVED: 'Aprobado',
+  REJECTED: 'Rechazado'
+};
+
+const COMPANY_DOCUMENT_LABELS = {
+  COMMERCIAL_REGISTER: 'Registro mercantil',
+  LAST_SHAREHOLDERS_MEETING_MINUTES: 'Última acta de asamblea',
+  COMPANY_RIF: 'RIF de la empresa',
+  LEGAL_REPRESENTATIVE_ID: 'Cédula del representante legal',
+  LEGAL_REPRESENTATIVE_RIF: 'RIF del representante legal',
+  ECONOMIC_ACTIVITY_LICENSE: 'Licencia de actividad económica'
 };
 
 const requestJson = async (url, options = {}) => {
@@ -155,11 +239,276 @@ const matchesFilter = (value, filterValue) => {
   return normalizeFilterValue(value).includes(filterValue);
 };
 
+const formatAdminDateTime = (value) => {
+  return formatExchangeDate(value);
+};
+
+const getInitialLetter = (value, fallback = 'U') => String(value || fallback).trim().charAt(0).toUpperCase() || fallback;
+
+const buildProfileMedia = (displayName, imageUrl, altLabel) => imageUrl
+  ? `
+      <div class="admin-entity-media">
+        <img src="${imageUrl}" alt="${altLabel}">
+      </div>
+    `
+  : `
+      <div class="admin-entity-media">${getInitialLetter(displayName)}</div>
+    `;
+
+const getCustomerProfileImageUrl = (customer) => {
+  const imageName = String(customer?.img_profile || '').trim();
+  return imageName ? `/uploads/profiles/customers/${imageName}` : null;
+};
+
+const getCompanyProfileImageUrl = (company) => {
+  const imageName = String(company?.img_profile || '').trim();
+  return imageName ? `/uploads/profiles/companies/${imageName}` : null;
+};
+
+const paginateItems = (items, paginationState) => {
+  const total = items.length;
+  const totalPages = Math.max(1, Math.ceil(total / paginationState.limit));
+  const currentPage = Math.min(Math.max(paginationState.page, 1), totalPages);
+  const startIndex = (currentPage - 1) * paginationState.limit;
+
+  paginationState.page = currentPage;
+  paginationState.total = total;
+  paginationState.total_pages = totalPages;
+
+  return {
+    items: items.slice(startIndex, startIndex + paginationState.limit),
+    pagination: paginationState
+  };
+};
+
+const renderSimplePagination = (container, pagination, handlerName) => {
+  if (!container) {
+    return;
+  }
+
+  if (!pagination.total || pagination.total_pages <= 1) {
+    container.innerHTML = pagination.total
+      ? `<span>Página ${pagination.page} de ${pagination.total_pages}</span>`
+      : '';
+    return;
+  }
+
+  const pageButtons = Array.from({ length: pagination.total_pages }, (_value, index) => {
+    const pageNumber = index + 1;
+
+    if (pageNumber === pagination.page) {
+      return `<b>${pageNumber}</b>`;
+    }
+
+    return `<button type="button" onclick="${handlerName}(${pageNumber})">${pageNumber}</button>`;
+  }).join(' ');
+
+  container.innerHTML = `
+    <button type="button" onclick="${handlerName}(${pagination.page - 1})" ${pagination.page <= 1 ? 'disabled' : ''}>Anterior</button>
+    ${pageButtons}
+    <button type="button" onclick="${handlerName}(${pagination.page + 1})" ${pagination.page >= pagination.total_pages ? 'disabled' : ''}>Siguiente</button>
+  `;
+};
+
+const getVisibleCompanies = () => state.companies.filter((company) => !(company.id_role_fk === 1 || company.role_name === 'ADMIN'));
+
+const renderAdminOverview = () => {
+  if (!adminDashboardOverview || !adminDashboardReports) {
+    return;
+  }
+
+  const visibleCompanies = getVisibleCompanies();
+  const pendingReview = visibleCompanies.filter((company) => company.verification_status === 'PENDING_REVIEW').length;
+  const changesRequested = visibleCompanies.filter((company) => company.verification_status === 'CHANGES_REQUESTED').length;
+
+  adminDashboardOverview.innerHTML = `
+    <div class="admin-overview-grid">
+      <article class="admin-summary-card">
+        <p><b>Clientes</b></p>
+        <p>Total: ${state.customers.length}</p>
+        <p>Bloqueados: ${state.customers.filter((customer) => !customer.is_active).length}</p>
+      </article>
+      <article class="admin-summary-card">
+        <p><b>Jurídicos</b></p>
+        <p>Total: ${visibleCompanies.length}</p>
+        <p>Pendientes: ${pendingReview}</p>
+      </article>
+      <article class="admin-summary-card">
+        <p><b>Productos</b></p>
+        <p>Total: ${state.productPagination.total || 0}</p>
+        <p>Página actual: ${state.productPagination.page || 1}</p>
+      </article>
+      <article class="admin-summary-card">
+        <p><b>Compras y ventas</b></p>
+        <p>Compras: ${state.adminCheckouts.length}</p>
+        <p>Ventas: ${state.adminSales.length}</p>
+      </article>
+      <article class="admin-summary-card">
+        <p><b>Tasa vigente</b></p>
+        <p>${state.exchangeRates[0] ? `Bs.S ${formatExchangeRate(state.exchangeRates[0].rate_bs_per_usd)}` : 'Sin tasa registrada'}</p>
+      </article>
+    </div>
+  `;
+
+  adminDashboardReports.innerHTML = `
+    <article class="admin-report-card">
+      <p><b>Reportes en progreso</b></p>
+      <p>Este espacio queda listo para mostrar métricas ejecutivas, comparativos y paneles operativos del admin.</p>
+    </article>
+    <article class="admin-report-card">
+      <p><b>Alertas rápidas</b></p>
+      <p>Empresas con correcciones solicitadas: ${changesRequested}</p>
+      <p>Empresas pendientes por revisar: ${pendingReview}</p>
+      <p>Clientes bloqueados: ${state.customers.filter((customer) => !customer.is_active).length}</p>
+    </article>
+  `;
+};
+
+const getRecoveryRequestStatusLabel = (status) => {
+  const labels = {
+    PENDING: 'Pendiente',
+    RESOLVED: 'Resuelta',
+    REJECTED: 'Rechazada'
+  };
+
+  return labels[status] || 'Sin solicitudes';
+};
+
+const renderAdminCustomerRecoverySummary = (request) => {
+  if (!adminCustomerModalRecoverySummary) {
+    return;
+  }
+
+  if (!request) {
+    adminCustomerModalRecoverySummary.innerHTML = '<p>No hay solicitudes de recuperación registradas.</p>';
+    return;
+  }
+
+  adminCustomerModalRecoverySummary.innerHTML = `
+    <p><b>Estado:</b> ${request.status}</p>
+    <p><b>Email verificado:</b> ${request.email || 'No disponible'}</p>
+    <p><b>Teléfono verificado:</b> ${request.phone || 'No disponible'}</p>
+    <p><b>Solicitada:</b> ${formatAdminDateTime(request.requested_at)}</p>
+    <p><b>Revisada:</b> ${formatAdminDateTime(request.reviewed_at)}</p>
+    <p><b>Nota:</b> ${request.review_note || 'Sin observaciones.'}</p>
+  `;
+};
+
+const closeCustomerModal = () => {
+  state.customerEditor.customerId = null;
+  state.customerEditor.recoveryRequest = null;
+  adminCustomerModal.hidden = true;
+  adminCustomerModalForm.reset();
+  adminCustomerModalRecoverySummary.innerHTML = '<p>Cargando solicitud...</p>';
+  adminCustomerModalMessage.innerText = '';
+};
+
+const closeCompanyModal = () => {
+  state.companyEditor.companyId = null;
+  state.companyEditor.verificationSnapshot = null;
+  adminCompanyModal.hidden = true;
+  adminCompanyModalForm.reset();
+  adminCompanyModalDocumentsList.innerHTML = '<p>Cargando recaudos...</p>';
+  adminCompanyModalHistoryList.innerHTML = '<p>Cargando historial...</p>';
+  adminCompanyModalMessage.innerText = '';
+};
+
+const openCustomerModal = async (customerId) => {
+  const customer = state.customers.find((item) => Number(item.id_customer) === Number(customerId));
+
+  if (!customer) {
+    return;
+  }
+
+  state.customerEditor.customerId = customer.id_customer;
+  adminCustomerModalId.value = String(customer.id_customer);
+  adminCustomerModalName.value = customer.name || '';
+  adminCustomerModalEmail.value = customer.email || '';
+  adminCustomerModalPassword.value = '';
+  adminCustomerModalRecoveryAction.value = '';
+  adminCustomerModalRecoveryNote.value = '';
+  adminCustomerModalRecoverySummary.innerHTML = '<p>Cargando solicitud...</p>';
+  adminCustomerModalMessage.innerText = '';
+  adminCustomerModal.hidden = false;
+
+  try {
+    const data = await requestJson(`${API_BASE_URL}/api/auth/admin/customers/${customer.id_customer}/recovery-request`);
+    state.customerEditor.recoveryRequest = data.request || null;
+    renderAdminCustomerRecoverySummary(state.customerEditor.recoveryRequest);
+
+    if (state.customerEditor.recoveryRequest?.review_note) {
+      adminCustomerModalRecoveryNote.value = state.customerEditor.recoveryRequest.review_note;
+    }
+  } catch (error) {
+    state.customerEditor.recoveryRequest = null;
+    adminCustomerModalMessage.innerText = error.message;
+    renderAdminCustomerRecoverySummary(null);
+  }
+};
+
+const openCompanyModal = async (companyId) => {
+  const company = state.companies.find((item) => Number(item.id_company) === Number(companyId));
+
+  if (!company) {
+    return;
+  }
+
+  state.companyEditor.companyId = company.id_company;
+  adminCompanyModalId.value = String(company.id_company);
+  adminCompanyModalName.innerText = company.name || 'Sin nombre';
+  adminCompanyModalRif.innerText = company.rif || 'Sin RIF';
+  adminCompanyModalEmail.innerText = company.email || 'Sin email';
+  adminCompanyModalRole.innerHTML = state.companyRoles.map((role) => `
+    <option value="${role.id_role}" ${role.id_role === company.id_role_fk ? 'selected' : ''}>${role.name}</option>
+  `).join('');
+  adminCompanyModalPassword.value = '';
+  adminCompanyModalVerificationStatus.value = company.verification_status || 'PENDING_REVIEW';
+  adminCompanyModalVerificationNote.value = company.verification_note || '';
+  adminCompanyModalCanBuy.checked = Boolean(company.can_buy);
+  adminCompanyModalCanSell.checked = Boolean(company.can_sell);
+  adminCompanyModalDocumentsList.innerHTML = '<p>Cargando recaudos...</p>';
+  adminCompanyModalHistoryList.innerHTML = '<p>Cargando historial...</p>';
+  state.companyEditor.verificationSnapshot = {
+    status: company.verification_status || 'PENDING_REVIEW',
+    note: company.verification_note || '',
+    can_buy: Boolean(company.can_buy),
+    can_sell: Boolean(company.can_sell)
+  };
+  adminCompanyModalMessage.innerText = '';
+  adminCompanyModal.hidden = false;
+
+  try {
+    const data = await requestJson(`${API_BASE_URL}/api/company-auth/admin/companies/${company.id_company}/verification`);
+    const summaryCompany = data.company || company;
+
+    adminCompanyModalVerificationStatus.value = summaryCompany.verification_status || 'PENDING_REVIEW';
+    adminCompanyModalVerificationNote.value = summaryCompany.verification_note || '';
+    adminCompanyModalCanBuy.checked = Boolean(summaryCompany.can_buy);
+    adminCompanyModalCanSell.checked = Boolean(summaryCompany.can_sell);
+    renderAdminCompanyVerificationDocuments(data.documents || []);
+    renderAdminCompanyVerificationHistory(data.history || []);
+    state.companyEditor.verificationSnapshot = {
+      status: summaryCompany.verification_status || 'PENDING_REVIEW',
+      note: summaryCompany.verification_note || '',
+      can_buy: Boolean(summaryCompany.can_buy),
+      can_sell: Boolean(summaryCompany.can_sell)
+    };
+  } catch (error) {
+    adminCompanyModalMessage.innerText = error.message;
+    renderAdminCompanyVerificationDocuments([]);
+    renderAdminCompanyVerificationHistory([]);
+  }
+};
+
 const showAdminModule = (moduleName) => {
   state.activeModule = moduleName;
 
   Object.entries(adminModules).forEach(([key, element]) => {
     element.hidden = key !== moduleName;
+  });
+
+  adminModuleButtons.forEach((button) => {
+    button.dataset.active = button.dataset.adminModuleButton === moduleName ? 'true' : 'false';
   });
 
   if (moduleName === 'products') {
@@ -222,77 +571,88 @@ function handleProductCategoryChange() {
   renderProductSubcategoryOptions();
   productFilterSubcategory.value = '';
   renderProductLineOptions();
+  loadProducts(1);
 }
 
 function handleProductSubcategoryChange() {
   renderProductLineOptions();
   productFilterLine.value = '';
+  loadProducts(1);
 }
 
 const summarizeCustomers = (customers) => {
   const total = customers.length;
   const active = customers.filter((customer) => customer.is_active).length;
   const blocked = customers.filter((customer) => !customer.is_active).length;
-  const googleUsers = customers.filter((customer) => customer.auth_provider === 'google').length;
-  const bothUsers = customers.filter((customer) => customer.auth_provider === 'both').length;
 
   adminCustomerSummary.innerHTML = `
-    <p>Total customers: <b>${total}</b></p>
-    <p>Activos: <b>${active}</b></p>
-    <p>Bloqueados: <b>${blocked}</b></p>
-    <p>Google: <b>${googleUsers}</b></p>
-    <p>Both: <b>${bothUsers}</b></p>
+    <div class="admin-summary-grid">
+      <article class="admin-summary-card">
+        <p><b>Total clientes</b></p>
+        <p>${total}</p>
+      </article>
+      <article class="admin-summary-card">
+        <p><b>Activos</b></p>
+        <p>${active}</p>
+      </article>
+      <article class="admin-summary-card">
+        <p><b>Bloqueados</b></p>
+        <p>${blocked}</p>
+      </article>
+    </div>
   `;
 };
 
 const renderCustomers = (customers) => {
   if (!customers.length) {
     adminCustomerList.innerHTML = '<p>No hay customers registrados.</p>';
+    adminCustomerPagination.innerHTML = '';
     return;
   }
 
-  adminCustomerList.innerHTML = customers.map((customer) => `
-    <div data-customer-id="${customer.id_customer}">
-      <p><b>${customer.name}</b></p>
-      <p>Email actual: ${customer.email}</p>
-      <p>Proveedor auth: ${customer.auth_provider}</p>
-      <p>Estado: ${customer.is_active ? 'Activo' : 'Bloqueado'}</p>
-      <p>Intentos fallidos: ${customer.attempts}</p>
-      <label>
-        Nombre
-        <input id="customer-name-${customer.id_customer}" value="${customer.name}">
-      </label>
-      <br>
-      <label>
-        Email
-        <input id="customer-email-${customer.id_customer}" value="${customer.email}">
-      </label>
-      <br>
-      <label>
-        Nueva contraseña
-        <input id="customer-password-${customer.id_customer}" type="password" placeholder="Nueva contraseña">
-      </label>
-      <br><br>
-      <button onclick="updateCustomerBasic(${customer.id_customer})">Actualizar información</button>
-      <button onclick="resetCustomerAttempts(${customer.id_customer})">Reiniciar intentos</button>
-      <button onclick="updateCustomerPassword(${customer.id_customer})">Actualizar contraseña</button>
-      <button onclick="toggleCustomerStatus(${customer.id_customer}, ${customer.is_active ? 'false' : 'true'})">
-        ${customer.is_active ? 'Bloquear' : 'Desbloquear'}
-      </button>
-      <hr>
-    </div>
+  const { items: visibleCustomers, pagination } = paginateItems(customers, state.customerPagination);
+
+  adminCustomerList.innerHTML = visibleCustomers.map((customer) => `
+    <article class="admin-entity-card" data-customer-id="${customer.id_customer}">
+      ${buildProfileMedia(customer.name, getCustomerProfileImageUrl(customer), `Perfil de ${customer.name || 'cliente'}`)}
+      <div class="admin-entity-content">
+        <p><b>${customer.name || 'Sin nombre'}</b></p>
+        <p>Email actual: ${customer.email}</p>
+        <p>Estado: ${customer.is_active ? 'Activo' : 'Bloqueado'}</p>
+        <p>Recuperación de cuenta: ${getRecoveryRequestStatusLabel(customer.recovery_request_status)}</p>
+        <p>Intentos fallidos: ${customer.attempts}</p>
+        <p>Registrado: ${formatAdminDateTime(customer.created_at)}</p>
+        <div class="admin-card-actions">
+          <button type="button" onclick="openCustomerModal(${customer.id_customer})">Editar</button>
+          <button type="button" onclick="resetCustomerAttempts(${customer.id_customer})">Reiniciar intentos</button>
+          <button type="button" onclick="toggleCustomerStatus(${customer.id_customer}, ${customer.is_active ? 'false' : 'true'})">
+            ${customer.is_active ? 'Bloquear' : 'Desbloquear'}
+          </button>
+        </div>
+      </div>
+    </article>
   `).join('');
+
+  renderSimplePagination(adminCustomerPagination, pagination, 'goToCustomerPage');
 };
 
-const filterCustomers = () => {
-  const nameFilter = normalizeFilterValue(document.getElementById('customer-filter-name').value);
-  const emailFilter = normalizeFilterValue(document.getElementById('customer-filter-email').value);
+const filterCustomers = (resetPage = false) => {
+  if (resetPage) {
+    state.customerPagination.page = 1;
+  }
+
+  const nameFilter = normalizeFilterValue(customerFilterNameInput.value);
+  const emailFilter = normalizeFilterValue(customerFilterEmailInput.value);
+  const statusFilter = customerFilterStatusInput.value;
 
   const filteredCustomers = state.customers.filter((customer) => {
     const matchesName = matchesFilter(customer.name, nameFilter);
     const matchesEmail = matchesFilter(customer.email, emailFilter);
+    const matchesStatus = !statusFilter
+      || (statusFilter === 'blocked' && !customer.is_active)
+      || (statusFilter === 'active' && customer.is_active);
 
-    return matchesName && matchesEmail;
+    return matchesName && matchesEmail && matchesStatus;
   });
 
   summarizeCustomers(filteredCustomers);
@@ -300,82 +660,116 @@ const filterCustomers = () => {
 };
 
 function applyCustomerFilters() {
-  filterCustomers();
+  filterCustomers(true);
 }
 
 function resetCustomerFilters() {
-  document.getElementById('customer-filter-name').value = '';
-  document.getElementById('customer-filter-email').value = '';
+  customerFilterNameInput.value = '';
+  customerFilterEmailInput.value = '';
+  customerFilterStatusInput.value = '';
+  filterCustomers(true);
+}
+
+function goToCustomerPage(page) {
+  if (page < 1 || page > state.customerPagination.total_pages) {
+    return;
+  }
+
+  state.customerPagination.page = page;
   filterCustomers();
 }
 
 const summarizeCompanies = (companies) => {
   const total = companies.length;
   const active = companies.filter((company) => company.is_active).length;
-  const inactive = companies.filter((company) => !company.is_active).length;
-  const admins = companies.filter((company) => company.id_role_fk === 1 || company.role_name === 'ADMIN').length;
-  const blockedByAttempts = companies.filter((company) => (company.attempts ?? 0) > 0).length;
+  const pendingReview = companies.filter((company) => company.verification_status === 'PENDING_REVIEW').length;
+  const changesRequested = companies.filter((company) => company.verification_status === 'CHANGES_REQUESTED').length;
+  const approved = companies.filter((company) => company.verification_status === 'APPROVED').length;
+  const rejected = companies.filter((company) => company.verification_status === 'REJECTED').length;
 
   adminCompanySummary.innerHTML = `
-    <p>Total empresas: <b>${total}</b></p>
-    <p>Activas: <b>${active}</b></p>
-    <p>Inactivas: <b>${inactive}</b></p>
-    <p>Admins: <b>${admins}</b></p>
-    <p>Con intentos acumulados: <b>${blockedByAttempts}</b></p>
+    <div class="admin-summary-grid">
+      <article class="admin-summary-card">
+        <p><b>Total jurídicos</b></p>
+        <p>${total}</p>
+      </article>
+      <article class="admin-summary-card">
+        <p><b>Activos</b></p>
+        <p>${active}</p>
+      </article>
+      <article class="admin-summary-card">
+        <p><b>Pendientes</b></p>
+        <p>${pendingReview}</p>
+      </article>
+      <article class="admin-summary-card">
+        <p><b>Correcciones</b></p>
+        <p>${changesRequested}</p>
+      </article>
+      <article class="admin-summary-card">
+        <p><b>Aprobados</b></p>
+        <p>${approved}</p>
+      </article>
+      <article class="admin-summary-card">
+        <p><b>Rechazados</b></p>
+        <p>${rejected}</p>
+      </article>
+    </div>
   `;
 };
 
 const renderCompanies = (companies) => {
   if (!companies.length) {
     adminCompanyList.innerHTML = '<p>No hay empresas registradas.</p>';
+    adminCompanyPagination.innerHTML = '';
     return;
   }
 
-  adminCompanyList.innerHTML = companies.map((company) => `
-    <div data-company-id="${company.id_company}">
-      <p><b>${company.name}</b>${company.id_role_fk === 1 || company.role_name === 'ADMIN' ? ' (ADMIN)' : ''}</p>
-      <p>RIF actual: ${company.rif}</p>
-      <p>Email actual: ${company.email}</p>
-      <p>Rol: ${company.role_name || company.id_role_fk}</p>
-      <p>Estado: ${company.is_active ? 'Activa' : 'Inactiva'}</p>
-      <p>Intentos fallidos: ${company.attempts}</p>
-      ${company.id_role_fk === 1 || company.role_name === 'ADMIN' ? '' : `
-      <label>
-        Nuevo rol
-        <select id="company-role-${company.id_company}">
-          ${state.companyRoles.map((role) => `
-            <option value="${role.id_role}" ${role.id_role === company.id_role_fk ? 'selected' : ''}>${role.name}</option>
-          `).join('')}
-        </select>
-      </label>
-      <br>`}
-      <label>
-        Nueva contraseña
-        <input id="company-password-${company.id_company}" type="password" placeholder="Nueva contraseña">
-      </label>
-      <br><br>
-      ${company.id_role_fk === 1 || company.role_name === 'ADMIN' ? '' : `<button onclick="updateCompanyRole(${company.id_company})">Actualizar rol</button>`}
-      <button onclick="resetCompanyAttempts(${company.id_company})">Reiniciar intentos</button>
-      <button onclick="updateCompanyPassword(${company.id_company})">Actualizar contraseña</button>
-      <button onclick="toggleCompanyStatus(${company.id_company}, ${company.is_active ? 'false' : 'true'})">
-        ${company.is_active ? 'Desactivar' : 'Activar'}
-      </button>
-      <hr>
-    </div>
+  const { items: visibleCompanies, pagination } = paginateItems(companies, state.companyPagination);
+
+  adminCompanyList.innerHTML = visibleCompanies.map((company) => `
+    <article class="admin-entity-card" data-company-id="${company.id_company}">
+      ${buildProfileMedia(company.name, getCompanyProfileImageUrl(company), `Perfil de ${company.name || 'empresa'}`)}
+      <div class="admin-entity-content">
+        <p><b>${company.name || 'Sin nombre'}</b></p>
+        <p>RIF actual: ${company.rif}</p>
+        <p>Email actual: ${company.email}</p>
+        <p>Estado: ${company.is_active ? 'Activa' : 'Inactiva'}</p>
+        <p>Estado jurídico: ${getCompanyVerificationLabel(company.verification_status)}</p>
+        <p>Permisos: comprar ${company.can_buy ? 'si' : 'no'} | vender ${company.can_sell ? 'si' : 'no'}</p>
+        <p>Nota jurídica: ${company.verification_note || 'Sin observaciones.'}</p>
+        <p>Registrada: ${formatAdminDateTime(company.created_at)}</p>
+        <div class="admin-card-actions">
+          <button type="button" onclick="openCompanyModal(${company.id_company})">Editar y revisar</button>
+          <button type="button" onclick="resetCompanyAttempts(${company.id_company})">Reiniciar intentos</button>
+          <button type="button" onclick="toggleCompanyStatus(${company.id_company}, ${company.is_active ? 'false' : 'true'})">
+            ${company.is_active ? 'Desactivar' : 'Activar'}
+          </button>
+        </div>
+      </div>
+    </article>
   `).join('');
+
+  renderSimplePagination(adminCompanyPagination, pagination, 'goToCompanyPage');
 };
 
-const filterCompanies = () => {
-  const nameFilter = normalizeFilterValue(document.getElementById('company-filter-name').value);
-  const documentFilter = normalizeFilterValue(document.getElementById('company-filter-document').value);
-  const emailFilter = normalizeFilterValue(document.getElementById('company-filter-email').value);
+const filterCompanies = (resetPage = false) => {
+  if (resetPage) {
+    state.companyPagination.page = 1;
+  }
 
-  const filteredCompanies = state.companies.filter((company) => {
+  const visibleCompanies = getVisibleCompanies();
+  const nameFilter = normalizeFilterValue(companyFilterNameInput.value);
+  const documentFilter = normalizeFilterValue(companyFilterDocumentInput.value);
+  const emailFilter = normalizeFilterValue(companyFilterEmailInput.value);
+  const verificationStatusFilter = companyFilterVerificationStatusInput.value;
+
+  const filteredCompanies = visibleCompanies.filter((company) => {
     const matchesName = matchesFilter(company.name, nameFilter);
     const matchesDocument = matchesFilter(company.rif, documentFilter);
     const matchesEmail = matchesFilter(company.email, emailFilter);
+    const matchesVerificationStatus = !verificationStatusFilter || company.verification_status === verificationStatusFilter;
 
-    return matchesName && matchesDocument && matchesEmail;
+    return matchesName && matchesDocument && matchesEmail && matchesVerificationStatus;
   });
 
   summarizeCompanies(filteredCompanies);
@@ -383,13 +777,23 @@ const filterCompanies = () => {
 };
 
 function applyCompanyFilters() {
-  filterCompanies();
+  filterCompanies(true);
 }
 
 function resetCompanyFilters() {
-  document.getElementById('company-filter-name').value = '';
-  document.getElementById('company-filter-document').value = '';
-  document.getElementById('company-filter-email').value = '';
+  companyFilterNameInput.value = '';
+  companyFilterDocumentInput.value = '';
+  companyFilterEmailInput.value = '';
+  companyFilterVerificationStatusInput.value = '';
+  filterCompanies(true);
+}
+
+function goToCompanyPage(page) {
+  if (page < 1 || page > state.companyPagination.total_pages) {
+    return;
+  }
+
+  state.companyPagination.page = page;
   filterCompanies();
 }
 
@@ -412,6 +816,143 @@ const formatExchangeDate = (value) => {
   }
 
   return new Date(value).toLocaleString('es-VE');
+};
+
+const getCompanyVerificationLabel = (status) => COMPANY_VERIFICATION_LABELS[status] || status || 'Sin estado';
+
+const getCompanyDocumentLabel = (documentType) => COMPANY_DOCUMENT_LABELS[documentType] || documentType || 'Documento';
+
+const renderAdminCompanyVerificationDocuments = (documents = []) => {
+  if (!adminCompanyModalDocumentsList) {
+    return;
+  }
+
+  if (!documents.length) {
+    adminCompanyModalDocumentsList.innerHTML = '<p>No hay recaudos cargados.</p>';
+    return;
+  }
+
+  adminCompanyModalDocumentsList.innerHTML = documents.map((document) => `
+    <article style="border:1px solid #ccc; padding:12px; margin-bottom:12px;">
+      <p><b>${getCompanyDocumentLabel(document.document_type)}</b></p>
+      <p>Ronda: ${document.submission_round}</p>
+      <p>Archivo: <a href="${document.file_url}" target="_blank" rel="noopener noreferrer">${document.original_name || 'Ver archivo'}</a></p>
+      <p>Formato: ${document.mime_type || 'No disponible'}</p>
+      <p>Subido: ${formatExchangeDate(document.uploaded_at)}</p>
+      <p>Nota admin: ${document.admin_note || 'Sin observaciones en archivo.'}</p>
+    </article>
+  `).join('');
+};
+
+const renderAdminCompanyVerificationHistory = (history = []) => {
+  if (!adminCompanyModalHistoryList) {
+    return;
+  }
+
+  if (!history.length) {
+    adminCompanyModalHistoryList.innerHTML = '<p>No hay historial jurídico.</p>';
+    return;
+  }
+
+  adminCompanyModalHistoryList.innerHTML = history.map((entry) => `
+    <article style="border:1px solid #ccc; padding:12px; margin-bottom:12px;">
+      <p><b>${getCompanyVerificationLabel(entry.status)}</b></p>
+      <p>Fecha: ${formatExchangeDate(entry.created_at)}</p>
+      <p>Nota: ${entry.note || 'Sin observaciones.'}</p>
+    </article>
+  `).join('');
+};
+
+const formatAmount = (value) => Number(value || 0).toFixed(2);
+
+const buildCurrencyPairLabel = (usdValue, bsValue) => `USD ${formatAmount(usdValue)} | Bs ${formatAmount(bsValue)}`;
+
+const getPurchaseStatusLabel = (status) => {
+  const labels = {
+    OPEN: 'Abierta',
+    PENDING_PAYMENT: 'Pendiente de pago',
+    PAYMENT_SUBMITTED: 'Pago enviado',
+    PARTIAL_SUBMITTED: 'Pago parcial enviado',
+    PARTIAL_APPROVED: 'Pago parcial aprobado',
+    APPROVED: 'Aprobado',
+    REJECTED: 'Rechazado',
+    EXPIRED: 'Expirado',
+    COMPLETED: 'Completada',
+    COMPLETED_WITH_INCIDENTS: 'Completada con incidencias',
+    SUBMITTED: 'Enviada'
+  };
+
+  return labels[status] || status || 'Sin estado';
+};
+
+const renderAdminPurchaseSummary = () => {
+  adminPurchasesSummary.innerHTML = `
+    <p>Compras registradas: <b>${state.adminCheckouts.length}</b></p>
+    <p>Ventas por grupos: <b>${state.adminSales.length}</b></p>
+  `;
+};
+
+const renderAdminCheckouts = () => {
+  if (!state.adminCheckouts.length) {
+    adminPurchasesCheckoutsList.innerHTML = '<p>No hay compras registradas.</p>';
+    return;
+  }
+
+  adminPurchasesCheckoutsList.innerHTML = state.adminCheckouts.map((checkout) => {
+    const groups = Array.isArray(checkout.groups) ? checkout.groups : [];
+
+    return `
+      <details style="border:1px solid #ccc; padding:16px; margin-bottom:16px;">
+        <summary><b>Orden ${checkout.order_code || `#${checkout.id_checkout}`}</b> | ${getPurchaseStatusLabel(checkout.status)} | ${buildCurrencyPairLabel(checkout.total_payable_usd, checkout.total_payable_bs)}</summary>
+        <div style="margin-top:12px;">
+          <p>Cliente: ${checkout.customer?.name || 'Sin nombre'} (${checkout.customer?.email || 'Sin correo'})</p>
+          <p>Total original: ${buildCurrencyPairLabel(checkout.total_usd, checkout.total_bs)}</p>
+          <p>Cashback usado: ${buildCurrencyPairLabel(checkout.cashback_redeemed_usd, checkout.cashback_redeemed_bs)}</p>
+          <p>Total a pagar: ${buildCurrencyPairLabel(checkout.total_payable_usd, checkout.total_payable_bs)}</p>
+          <p>Tasa usada: ${formatExchangeRate(checkout.exchange_rate_snapshot)}</p>
+          <p>Creado: ${formatExchangeDate(checkout.created_at)}</p>
+          <details>
+            <summary>Grupos (${groups.length})</summary>
+            ${groups.map((group) => `
+              <div style="border-top:1px solid #ddd; padding-top:8px; margin-top:8px;">
+                <p><b>Grupo #${group.id_purchase_group}</b> | ${group.company?.name || 'Empresa'} | ${getPurchaseStatusLabel(group.status)}</p>
+                <p>Subtotal: ${buildCurrencyPairLabel(group.subtotal_usd, group.subtotal_bs)}</p>
+                <p>Total a pagar: ${buildCurrencyPairLabel(group.total_payable_usd, group.total_payable_bs)}</p>
+              </div>
+            `).join('')}
+          </details>
+        </div>
+      </details>
+    `;
+  }).join('');
+};
+
+const renderAdminSales = () => {
+  if (!state.adminSales.length) {
+    adminPurchasesSalesList.innerHTML = '<p>No hay ventas registradas.</p>';
+    return;
+  }
+
+  adminPurchasesSalesList.innerHTML = state.adminSales.map((group) => `
+    <details style="border:1px solid #ccc; padding:16px; margin-bottom:16px;">
+      <summary><b>Grupo #${group.id_purchase_group}</b> | ${group.company?.name || 'Empresa'} | ${getPurchaseStatusLabel(group.status)} | ${buildCurrencyPairLabel(group.total_payable_usd, group.total_payable_bs)}</summary>
+      <div style="margin-top:12px;">
+        <p>Orden: ${group.checkout?.order_code || `#${group.id_checkout}`}</p>
+        <p>Cliente: ${group.customer?.name || 'Sin nombre'} (${group.customer?.email || 'Sin correo'})</p>
+        <p>Subtotal: ${buildCurrencyPairLabel(group.subtotal_usd, group.subtotal_bs)}</p>
+        <p>Cashback aplicado: ${buildCurrencyPairLabel(group.cashback_redeemed_usd, group.cashback_redeemed_bs)}</p>
+        <p>Total a pagar: ${buildCurrencyPairLabel(group.total_payable_usd, group.total_payable_bs)}</p>
+        <p>Pago vence: ${formatExchangeDate(group.payment_due_at)}</p>
+        <p>Creado: ${formatExchangeDate(group.created_at)}</p>
+        <details>
+          <summary>Productos (${Array.isArray(group.items) ? group.items.length : 0})</summary>
+          <ul>
+            ${(Array.isArray(group.items) ? group.items : []).map((item) => `<li>${item.product?.name || 'Producto'} x ${item.quantity} | ${buildCurrencyPairLabel(item.subtotal_usd, item.subtotal_bs)}</li>`).join('') || '<li>Sin productos.</li>'}
+          </ul>
+        </details>
+      </div>
+    </details>
+  `).join('');
 };
 
 const renderExchangeSummary = (exchangeRates) => {
@@ -453,9 +994,31 @@ const loadExchangeRates = async () => {
     state.exchangeRates = data.exchange_rates || [];
     renderExchangeSummary(state.exchangeRates);
     renderExchangeList(state.exchangeRates);
+    renderAdminOverview();
   } catch (error) {
     adminExchangeSummary.innerHTML = `<p>${error.message}</p>`;
     adminExchangeList.innerHTML = `<p>${error.message}</p>`;
+  }
+};
+
+const loadAdminPurchaseViews = async () => {
+  try {
+    const [checkoutsData, salesData] = await Promise.all([
+      requestJson(`${API_BASE_URL}/api/purchases/admin/checkouts`),
+      requestJson(`${API_BASE_URL}/api/purchases/company/groups`)
+    ]);
+
+    state.adminCheckouts = Array.isArray(checkoutsData.checkouts) ? checkoutsData.checkouts : [];
+    state.adminSales = Array.isArray(salesData.purchase_groups) ? salesData.purchase_groups : [];
+
+    renderAdminPurchaseSummary();
+    renderAdminCheckouts();
+    renderAdminSales();
+    renderAdminOverview();
+  } catch (error) {
+    adminPurchasesSummary.innerHTML = `<p>${error.message}</p>`;
+    adminPurchasesCheckoutsList.innerHTML = `<p>${error.message}</p>`;
+    adminPurchasesSalesList.innerHTML = `<p>${error.message}</p>`;
   }
 };
 
@@ -675,8 +1238,8 @@ const buildProductQuery = (page = 1) => {
   params.set('page', String(page));
   params.set('limit', String(state.productPagination.limit));
 
-  const name = document.getElementById('product-filter-name').value.trim();
-  const company = document.getElementById('product-filter-company').value.trim();
+  const name = productFilterNameInput.value.trim();
+  const company = productFilterCompanyInput.value.trim();
   const categoryId = productFilterCategory.value.trim();
   const subcategoryId = productFilterSubcategory.value.trim();
   const lineId = productFilterLine.value.trim();
@@ -768,6 +1331,7 @@ const loadProducts = (page = 1) => {
       summarizeProducts(state.productPagination);
       renderProducts(state.products);
       renderProductPagination(state.productPagination);
+      renderAdminOverview();
     })
     .catch((error) => {
       adminProductSummary.innerHTML = `<p>${error.message}</p>`;
@@ -781,8 +1345,8 @@ function applyProductFilters() {
 }
 
 function resetProductFilters() {
-  document.getElementById('product-filter-name').value = '';
-  document.getElementById('product-filter-company').value = '';
+  productFilterNameInput.value = '';
+  productFilterCompanyInput.value = '';
   productFilterCategory.value = '';
   renderProductSubcategoryOptions();
   productFilterSubcategory.value = '';
@@ -907,7 +1471,7 @@ async function deleteAdminProductImage(productId, companyId, imageId) {
 }
 
 const loadCustomers = () => {
-  fetch(`${API_BASE_URL}/api/auth/admin/customers`, {
+  return fetch(`${API_BASE_URL}/api/auth/admin/customers`, {
     headers: getAuthHeaders()
   })
     .then(async (res) => {
@@ -922,6 +1486,7 @@ const loadCustomers = () => {
     .then((data) => {
       state.customers = data.customers || [];
       filterCustomers();
+      renderAdminOverview();
     })
     .catch((error) => {
       adminCustomerSummary.innerHTML = `<p>${error.message}</p>`;
@@ -930,7 +1495,7 @@ const loadCustomers = () => {
 };
 
 const loadCompanies = () => {
-  fetch(`${API_BASE_URL}/api/company-auth/admin/companies`, {
+  return fetch(`${API_BASE_URL}/api/company-auth/admin/companies`, {
     headers: getAuthHeaders()
   })
     .then(async (res) => {
@@ -943,35 +1508,9 @@ const loadCompanies = () => {
       return data;
     })
     .then((data) => {
-      const companies = data.companies || [];
-      const sessionCompanyId = Number(localStorage.getItem('session_company_id') || 0);
-      const sessionCompanyName = localStorage.getItem('session_company_name') || '';
-
-      if (
-        sessionCompanyId > 0 &&
-        sessionCompanyName &&
-        !companies.some((company) => company.id_company === sessionCompanyId)
-      ) {
-        companies.unshift({
-          id_company: sessionCompanyId,
-          name: sessionCompanyName,
-          rif: 'Actualiza desde BD',
-          email: 'Actualiza desde BD',
-          id_role_fk: 1,
-          role_name: 'ADMIN',
-          is_active: true,
-          attempts: 0,
-          can_buy: true,
-          can_sell: true,
-          cell_phone: '',
-          mail_address: '',
-          created_at: null,
-          updated_at: null
-        });
-      }
-
-      state.companies = companies;
+      state.companies = data.companies || [];
       filterCompanies();
+      renderAdminOverview();
     })
     .catch((error) => {
       adminCompanySummary.innerHTML = `<p>${error.message}</p>`;
@@ -993,36 +1532,6 @@ const loadCompanyRoles = () => {
       state.companyRoles = data.roles || [];
     });
 };
-
-function updateCustomerBasic(customerId) {
-  const name = document.getElementById(`customer-name-${customerId}`).value.trim();
-  const email = document.getElementById(`customer-email-${customerId}`).value.trim();
-
-  fetch(`${API_BASE_URL}/api/auth/admin/customers/${customerId}/basic`, {
-    method: 'PUT',
-    headers: {
-      'Content-Type': 'application/json',
-      ...getAuthHeaders()
-    },
-    body: JSON.stringify({ name, email })
-  })
-    .then(async (res) => {
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error || 'No se pudo actualizar el customer');
-      }
-
-      return data;
-    })
-    .then((data) => {
-      alert(data.message);
-      loadCustomers();
-    })
-    .catch((error) => {
-      alert(error.message);
-    });
-}
 
 function toggleCustomerStatus(customerId, isActive) {
   fetch(`${API_BASE_URL}/api/auth/admin/customers/${customerId}/status`, {
@@ -1071,65 +1580,6 @@ function resetCustomerAttempts(customerId) {
     .then((data) => {
       alert(data.message);
       loadCustomers();
-    })
-    .catch((error) => {
-      alert(error.message);
-    });
-}
-
-function updateCustomerPassword(customerId) {
-  const password = document.getElementById(`customer-password-${customerId}`).value.trim();
-
-  fetch(`${API_BASE_URL}/api/auth/admin/customers/${customerId}/password`, {
-    method: 'PUT',
-    headers: {
-      'Content-Type': 'application/json',
-      ...getAuthHeaders()
-    },
-    body: JSON.stringify({ password })
-  })
-    .then(async (res) => {
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error || 'No se pudo actualizar la contraseña');
-      }
-
-      return data;
-    })
-    .then((data) => {
-      alert(data.message);
-      document.getElementById(`customer-password-${customerId}`).value = '';
-      loadCustomers();
-    })
-    .catch((error) => {
-      alert(error.message);
-    });
-}
-
-function updateCompanyRole(companyId) {
-  const role_id = Number(document.getElementById(`company-role-${companyId}`).value);
-
-  fetch(`${API_BASE_URL}/api/company-auth/admin/companies/${companyId}/role`, {
-    method: 'PUT',
-    headers: {
-      'Content-Type': 'application/json',
-      ...getAuthHeaders()
-    },
-    body: JSON.stringify({ role_id })
-  })
-    .then(async (res) => {
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error || 'No se pudo actualizar el rol de la empresa');
-      }
-
-      return data;
-    })
-    .then((data) => {
-      alert(data.message);
-      loadCompanies();
     })
     .catch((error) => {
       alert(error.message);
@@ -1189,34 +1639,135 @@ function resetCompanyAttempts(companyId) {
     });
 }
 
-function updateCompanyPassword(companyId) {
-  const password = document.getElementById(`company-password-${companyId}`).value.trim();
+async function handleCustomerModalSubmit(event) {
+  event.preventDefault();
 
-  fetch(`${API_BASE_URL}/api/company-auth/admin/companies/${companyId}/password`, {
-    method: 'PUT',
-    headers: {
-      'Content-Type': 'application/json',
-      ...getAuthHeaders()
-    },
-    body: JSON.stringify({ password })
-  })
-    .then(async (res) => {
-      const data = await res.json();
+  try {
+    const customerId = Number(adminCustomerModalId.value || 0);
+    const name = adminCustomerModalName.value.trim();
+    const email = adminCustomerModalEmail.value.trim();
+    const password = adminCustomerModalPassword.value.trim();
+    const recoveryAction = adminCustomerModalRecoveryAction.value;
+    const recoveryNote = adminCustomerModalRecoveryNote.value.trim();
 
-      if (!res.ok) {
-        throw new Error(data.error || 'No se pudo actualizar la contraseña de empresa');
+    if (!customerId) {
+      throw new Error('Cliente inválido');
+    }
+
+    adminCustomerModalMessage.innerText = 'Guardando cambios...';
+
+    await requestJson(`${API_BASE_URL}/api/auth/admin/customers/${customerId}/basic`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ name, email })
+    });
+
+    if (password) {
+      await requestJson(`${API_BASE_URL}/api/auth/admin/customers/${customerId}/password`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ password })
+      });
+    }
+
+    const hasPendingRecoveryRequest = state.customerEditor.recoveryRequest?.status === 'PENDING';
+
+    if (recoveryAction) {
+      if (!hasPendingRecoveryRequest) {
+        throw new Error('No hay una solicitud pendiente para revisar');
       }
 
-      return data;
-    })
-    .then((data) => {
-      alert(data.message);
-      document.getElementById(`company-password-${companyId}`).value = '';
-      loadCompanies();
-    })
-    .catch((error) => {
-      alert(error.message);
+      if (recoveryAction === 'RESOLVED' && !password) {
+        throw new Error('Para resolver la solicitud debes indicar una nueva contraseña');
+      }
+
+      await requestJson(`${API_BASE_URL}/api/auth/admin/customers/${customerId}/recovery-request`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          status: recoveryAction,
+          review_note: recoveryNote || null
+        })
+      });
+    }
+
+    adminCustomerModalMessage.innerText = 'Cliente actualizado correctamente.';
+    await loadCustomers();
+    closeCustomerModal();
+  } catch (error) {
+    adminCustomerModalMessage.innerText = error.message;
+  }
+}
+
+async function handleCompanyModalSubmit(event) {
+  event.preventDefault();
+
+  try {
+    const companyId = Number(adminCompanyModalId.value || 0);
+    const roleId = Number(adminCompanyModalRole.value || 0);
+    const password = adminCompanyModalPassword.value.trim();
+    const verificationStatus = adminCompanyModalVerificationStatus.value;
+    const verificationNote = adminCompanyModalVerificationNote.value.trim();
+    const canBuy = adminCompanyModalCanBuy.checked;
+    const canSell = adminCompanyModalCanSell.checked;
+
+    if (!companyId || !roleId) {
+      throw new Error('Empresa o rol inválido');
+    }
+
+    adminCompanyModalMessage.innerText = 'Guardando cambios...';
+
+    await requestJson(`${API_BASE_URL}/api/company-auth/admin/companies/${companyId}/role`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ role_id: roleId })
     });
+
+    if (password) {
+      await requestJson(`${API_BASE_URL}/api/company-auth/admin/companies/${companyId}/password`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ password })
+      });
+    }
+
+    const previousVerification = state.companyEditor.verificationSnapshot || {};
+    const shouldUpdateVerification = previousVerification.status !== verificationStatus
+      || (previousVerification.note || '') !== verificationNote
+      || Boolean(previousVerification.can_buy) !== canBuy
+      || Boolean(previousVerification.can_sell) !== canSell;
+
+    if (shouldUpdateVerification) {
+      await requestJson(`${API_BASE_URL}/api/company-auth/admin/companies/${companyId}/verification`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          status: verificationStatus,
+          note: verificationNote || null,
+          can_buy: canBuy,
+          can_sell: canSell
+        })
+      });
+    }
+
+    adminCompanyModalMessage.innerText = 'Juridico actualizado correctamente.';
+    await loadCompanies();
+    closeCompanyModal();
+  } catch (error) {
+    adminCompanyModalMessage.innerText = error.message;
+  }
 }
 
 async function handleAdminProductEditorSubmit(event) {
@@ -1291,11 +1842,29 @@ async function handleAdminExchangeSubmit(event) {
 }
 
 adminExchangeForm.addEventListener('submit', handleAdminExchangeSubmit);
+adminCustomerModalForm.addEventListener('submit', handleCustomerModalSubmit);
+adminCompanyModalForm.addEventListener('submit', handleCompanyModalSubmit);
 adminProductEditorForm.addEventListener('submit', handleAdminProductEditorSubmit);
+adminCustomerModalClose.addEventListener('click', closeCustomerModal);
+adminCompanyModalClose.addEventListener('click', closeCompanyModal);
 adminEditProductCancel.addEventListener('click', hideAdminProductEditor);
 adminEditProductMainImage.addEventListener('change', renderAdminMainPreview);
 adminEditProductSecondaryImages.addEventListener('change', renderAdminSecondaryPreview);
+customerFilterNameInput.addEventListener('input', filterCustomers);
+customerFilterEmailInput.addEventListener('input', filterCustomers);
+customerFilterStatusInput.addEventListener('change', () => filterCustomers(true));
+companyFilterNameInput.addEventListener('input', filterCompanies);
+companyFilterDocumentInput.addEventListener('input', filterCompanies);
+companyFilterEmailInput.addEventListener('input', filterCompanies);
+companyFilterVerificationStatusInput.addEventListener('change', () => filterCompanies(true));
+productFilterNameInput.addEventListener('input', () => loadProducts(1));
+productFilterCompanyInput.addEventListener('input', () => loadProducts(1));
+productFilterLine.addEventListener('change', () => loadProducts(1));
 window.addEventListener('beforeunload', revokeAdminPreviewUrls);
+globalThis.openCustomerModal = openCustomerModal;
+globalThis.openCompanyModal = openCompanyModal;
+globalThis.goToCustomerPage = goToCustomerPage;
+globalThis.goToCompanyPage = goToCompanyPage;
 
 fetch(`${API_BASE_URL}/api/company-auth/me`, {
   headers: getAuthHeaders()
@@ -1307,9 +1876,6 @@ fetch(`${API_BASE_URL}/api/company-auth/me`, {
       throw new Error(data.error || 'Acceso solo para admin');
     }
 
-    localStorage.setItem('session_company_id', String(data.company.id_company));
-    localStorage.setItem('session_company_name', data.company.name || data.company.company_name || 'Admin');
-
     return data;
   })
   .then(async () => {
@@ -1318,6 +1884,7 @@ fetch(`${API_BASE_URL}/api/company-auth/me`, {
     hideAdminProductEditor();
     await loadCompanyRoles();
     await loadExchangeRates();
+    await loadAdminPurchaseViews();
     await loadProductFilters();
     loadCustomers();
     loadCompanies();

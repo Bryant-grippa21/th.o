@@ -16,7 +16,12 @@ const {
   resetLoginAttemptsCompany,
   toggleCompanyActive,
   updateCompany,
-  updateCompanyImage
+  updateCompanyImage,
+  listCompanyLegalDocuments,
+  listCompanyVerificationHistory,
+  submitCompanyLegalDocuments,
+  reviewCompanyVerification,
+  COMPANY_LEGAL_DOCUMENT_TYPES
 } = require('../services/auth.company.service');
 
 const requireAdminCompany = (req, res) => {
@@ -40,6 +45,8 @@ const buildCompanyToken = (company) => {
       email: company.email,
       company_name: company.name ?? null,
       id_role: company.id_role_fk ?? null,
+      verification_status: company.verification_status ?? null,
+      verification_note: company.verification_note ?? null,
       can_buy: company.can_buy,
       can_sell: company.can_sell,
       entity: 'company'
@@ -124,11 +131,14 @@ const registerLocalCompany = async (req, res) => {
       password_hash,
       phone: phone ?? null,
       address: address ?? null,
-      id_role: retailerRole.id_role
+      id_role: retailerRole.id_role,
+      verification_status: 'PENDING_REVIEW',
+      can_buy: false,
+      can_sell: false
     });
 
     return res.status(201).json({
-      message: 'Empresa registrada correctamente'
+      message: 'Empresa registrada correctamente. Tu solicitud juridica quedo pendiente de revision.'
     });
   } catch (error) {
     console.error('❌ ERROR REGISTER COMPANY:', error);
@@ -243,7 +253,12 @@ const updateCompanyProfile = async (req, res) => {
       password_hash,
       phone: phone ?? currentCompany.cell_phone,
       address: address ?? currentCompany.mail_address,
-      id_role: currentCompany.id_role_fk
+      id_role: currentCompany.id_role_fk,
+      verification_status: currentCompany.verification_status,
+      verification_note: currentCompany.verification_note,
+      verified_by_company_id: currentCompany.verified_by_company_id,
+      can_buy: Boolean(currentCompany.can_buy),
+      can_sell: Boolean(currentCompany.can_sell)
     });
 
     const updatedCompany = await findCompanyById(companyId);
@@ -315,6 +330,124 @@ const getAdminCompanyRoles = async (req, res) => {
     return res.status(200).json({ roles });
   } catch (error) {
     console.error('❌ ERROR GET ADMIN COMPANY ROLES:', error);
+    return res.status(500).json({ error: error.message });
+  }
+};
+
+const getCompanyVerificationSummary = async (req, res) => {
+  try {
+    if (req.user.entity && req.user.entity !== 'company') {
+      return res.status(403).json({ error: 'Token no válido para empresa' });
+    }
+
+    const companyId = req.user.id;
+    const company = await findCompanyById(companyId);
+
+    if (!company) {
+      return res.status(404).json({ error: 'Empresa no encontrada' });
+    }
+
+    const [documents, history] = await Promise.all([
+      listCompanyLegalDocuments(companyId),
+      listCompanyVerificationHistory(companyId)
+    ]);
+
+    return res.status(200).json({
+      company: sanitizeCompany(company),
+      documents,
+      history,
+      allowed_document_types: [...COMPANY_LEGAL_DOCUMENT_TYPES]
+    });
+  } catch (error) {
+    console.error('❌ ERROR GET COMPANY VERIFICATION SUMMARY:', error);
+    return res.status(500).json({ error: error.message });
+  }
+};
+
+const createCompanyVerificationDocuments = async (req, res) => {
+  try {
+    if (req.user.entity && req.user.entity !== 'company') {
+      return res.status(403).json({ error: 'Token no válido para empresa' });
+    }
+
+    const result = await submitCompanyLegalDocuments({
+      companyId: req.user.id,
+      documentType: req.body?.document_type,
+      files: req.files
+    });
+
+    return res.status(201).json({
+      message: 'Recaudos cargados correctamente',
+      company: sanitizeCompany(result.company),
+      documents: result.documents
+    });
+  } catch (error) {
+    console.error('❌ ERROR CREATE COMPANY VERIFICATION DOCUMENTS:', error);
+    return res.status(500).json({ error: error.message });
+  }
+};
+
+const getAdminCompanyVerificationSummary = async (req, res) => {
+  try {
+    if (!requireAdminCompany(req, res)) {
+      return;
+    }
+
+    const companyId = Number(req.params.companyId);
+
+    if (!Number.isInteger(companyId) || companyId <= 0) {
+      return res.status(400).json({ error: 'companyId inválido' });
+    }
+
+    const company = await findCompanyById(companyId);
+
+    if (!company) {
+      return res.status(404).json({ error: 'Empresa no encontrada' });
+    }
+
+    const [documents, history] = await Promise.all([
+      listCompanyLegalDocuments(companyId),
+      listCompanyVerificationHistory(companyId)
+    ]);
+
+    return res.status(200).json({
+      company: sanitizeCompany(company),
+      documents,
+      history
+    });
+  } catch (error) {
+    console.error('❌ ERROR GET ADMIN COMPANY VERIFICATION SUMMARY:', error);
+    return res.status(500).json({ error: error.message });
+  }
+};
+
+const reviewAdminCompanyVerification = async (req, res) => {
+  try {
+    if (!requireAdminCompany(req, res)) {
+      return;
+    }
+
+    const companyId = Number(req.params.companyId);
+
+    if (!Number.isInteger(companyId) || companyId <= 0) {
+      return res.status(400).json({ error: 'companyId inválido' });
+    }
+
+    const company = await reviewCompanyVerification({
+      companyId,
+      status: req.body?.status,
+      note: req.body?.note,
+      adminCompanyId: req.user.id,
+      canBuy: req.body?.can_buy,
+      canSell: req.body?.can_sell
+    });
+
+    return res.status(200).json({
+      message: 'Estado de verificacion actualizado correctamente',
+      company: sanitizeCompany(company)
+    });
+  } catch (error) {
+    console.error('❌ ERROR REVIEW ADMIN COMPANY VERIFICATION:', error);
     return res.status(500).json({ error: error.message });
   }
 };
@@ -484,6 +617,10 @@ module.exports = {
   updateCompanyProfileImage,
   getAdminCompanies,
   getAdminCompanyRoles,
+  getCompanyVerificationSummary,
+  createCompanyVerificationDocuments,
+  getAdminCompanyVerificationSummary,
+  reviewAdminCompanyVerification,
   updateAdminCompanyRole,
   updateAdminCompanyStatus,
   resetAdminCompanyAttempts,

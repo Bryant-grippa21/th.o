@@ -7,19 +7,18 @@
 <body>
 
 <h1>Dashboard empresa</h1>
-<a href="/index.html">Volver al inicio</a><br><br>
+<div id="company-layout-nav"></div>
 
 <p id="company-welcome"></p>
-<button onclick="logout()">Cerrar sesión</button>
 
-<br><br>
+<div id="company-verification-reminder"></div>
 
-<h2>Modulos</h2>
-<div id="company-modules">
-  <p>Cargando modulos...</p>
-</div>
+<section id="company-dashboard-stats">
+  <p>Cargando resumen de empresa...</p>
+</section>
 
 <script src="/assets/js/utils/auth.js"></script>
+<script src="/assets/js/company/layout.js"></script>
 <script src="/assets/js/company/dashboard.js"></script>
 
 </body>

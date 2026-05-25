@@ -7,6 +7,7 @@ const exchangeRateCard = globalThis.document.getElementById('exchange-rate-card'
 const state = {
   session: null,
   exchangeRate: null,
+  cashback: null,
   categories: [],
   categorySearch: '',
   catalog: [],
@@ -25,7 +26,10 @@ const state = {
   suggestionOpen: false,
   cart: null,
   cartVisible: false,
-  cartLoading: false
+  cartLoading: false,
+  notifications: null,
+  notificationOpen: false,
+  notificationsLoading: false
 };
 
 let searchDebounceId = null;
@@ -41,6 +45,14 @@ const formatBsAmount = (value) => Number(value || 0).toLocaleString('es-VE', {
   minimumFractionDigits: 2,
   maximumFractionDigits: 2
 });
+
+const formatNotificationDate = (value) => {
+  if (!value) {
+    return 'Sin fecha';
+  }
+
+  return new Date(value).toLocaleString('es-VE');
+};
 
 const convertUsdToBs = (usdAmount) => {
   if (!state.exchangeRate?.rate_bs_per_usd) {
@@ -90,6 +102,65 @@ const renderExchangeRateInline = () => {
   `;
 };
 
+const renderCashbackInline = () => {
+  if (state.session?.entity !== 'customer') {
+    return '';
+  }
+
+  return `
+    <span>
+      Cashback acumulado <b>USD ${formatAmount(state.cashback?.value || 0)}</b>
+    </span>
+  `;
+};
+
+const renderNotificationsControl = () => {
+  if (!state.session) {
+    return '';
+  }
+
+  const notifications = Array.isArray(state.notifications?.items) ? state.notifications.items : [];
+  const unreadCount = Number(state.notifications?.unread_count || 0);
+  const unreadLabel = unreadCount > 0 ? ` (${unreadCount})` : '';
+  const markAllDisabled = notifications.length ? '' : 'disabled';
+  const loadingMessage = state.notificationsLoading ? '<p>Cargando notificaciones...</p>' : '';
+  const emptyMessage = !state.notificationsLoading && !notifications.length
+    ? '<p>No tienes notificaciones pendientes.</p>'
+    : '';
+  const panelContent = state.notificationOpen
+    ? `
+        <div style="position:absolute; top:100%; right:0; width:340px; max-width:90vw; background:#fff; border:1px solid #ccc; padding:12px; z-index:40;">
+          <div style="display:flex; justify-content:space-between; gap:8px; align-items:center; margin-bottom:12px;">
+            <p style="margin:0;"><b>Notificaciones</b></p>
+            <button type="button" onclick="markAllLandingNotificationsAsRead()" ${markAllDisabled}>Marcar todas</button>
+          </div>
+          ${loadingMessage}
+          ${emptyMessage}
+          ${notifications.map((notification) => `
+            <article style="border-top:1px solid #ccc; padding-top:10px; margin-top:10px;">
+              <p style="margin:0 0 6px 0;"><b>${notification.title || 'Notificación'}</b>${notification.is_read ? ' (leída)' : ''}</p>
+              <p style="margin:0 0 6px 0;">${notification.message || ''}</p>
+              <p style="margin:0 0 8px 0;"><small>${formatNotificationDate(notification.created_at)}</small></p>
+              <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                <button type="button" onclick="markLandingNotificationAsRead('${encodeURIComponent(notification.id)}')" ${notification.is_read ? 'disabled' : ''}>Marcar leída</button>
+                <button type="button" onclick="openLandingNotification('${encodeURIComponent(notification.id)}', '${encodeURIComponent(notification.action_path || '')}')">Abrir</button>
+              </div>
+            </article>
+          `).join('')}
+        </div>
+      `
+    : '';
+
+  return `
+    <div style="position:relative;">
+      <button type="button" onclick="toggleLandingNotifications()" aria-label="Notificaciones">
+        &#128276;${unreadLabel}
+      </button>
+      ${panelContent}
+    </div>
+  `;
+};
+
 const renderExchangeRate = (exchangeRate) => {
   state.exchangeRate = exchangeRate || null;
   exchangeRateCard.innerHTML = '';
@@ -122,6 +193,8 @@ const renderAuthControls = () => {
     <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
       <span>Bienvenido <b>${name}</b></span>
       ${renderExchangeRateInline()}
+      ${renderCashbackInline()}
+      ${renderNotificationsControl()}
       <button type="button" onclick="goDashboard()">${dashboardLabel}</button>
       <button type="button" onclick="logout()">Cerrar sesión</button>
     </div>
@@ -482,6 +555,9 @@ const loadLatestExchangeRate = () => {
 const loadSession = async () => {
   if (!isLogged()) {
     state.session = null;
+    state.cashback = null;
+    state.notifications = null;
+    state.notificationOpen = false;
     renderHeader();
     return;
   }
@@ -491,6 +567,50 @@ const loadSession = async () => {
   } catch {
     clearSession();
     state.session = null;
+    state.cashback = null;
+    state.notifications = null;
+    state.notificationOpen = false;
+  }
+
+  renderHeader();
+};
+
+const loadNotifications = async () => {
+  if (!state.session) {
+    state.notifications = null;
+    state.notificationOpen = false;
+    state.notificationsLoading = false;
+    renderHeader();
+    return;
+  }
+
+  state.notificationsLoading = true;
+  renderHeader();
+
+  try {
+    const data = await requestJson(`${API_BASE_URL}/api/notifications`);
+    state.notifications = data.notifications || { items: [], unread_count: 0 };
+  } catch {
+    state.notifications = { items: [], unread_count: 0 };
+  } finally {
+    state.notificationsLoading = false;
+  }
+
+  renderHeader();
+};
+
+const loadCashback = async () => {
+  if (state.session?.entity !== 'customer') {
+    state.cashback = null;
+    renderHeader();
+    return;
+  }
+
+  try {
+    const data = await requestJson(`${API_BASE_URL}/api/auth/cashback`);
+    state.cashback = data.cashback || null;
+  } catch {
+    state.cashback = null;
   }
 
   renderHeader();
@@ -516,7 +636,66 @@ const loadCart = async () => {
   }
 
   renderCartDrawer();
+  loadNotifications();
 };
+
+async function markLandingNotificationAsRead(encodedNotificationId) {
+  if (!state.session) {
+    return;
+  }
+
+  try {
+    const notificationId = decodeURIComponent(encodedNotificationId);
+    const data = await requestJson(`${API_BASE_URL}/api/notifications/${encodeURIComponent(notificationId)}/read`, {
+      method: 'PUT'
+    });
+    state.notifications = data.notifications || state.notifications;
+  } catch {
+    return;
+  }
+
+  renderHeader();
+}
+
+async function markAllLandingNotificationsAsRead() {
+  if (!state.session) {
+    return;
+  }
+
+  try {
+    const data = await requestJson(`${API_BASE_URL}/api/notifications/read-all`, {
+      method: 'PUT'
+    });
+    state.notifications = data.notifications || state.notifications;
+  } catch {
+    return;
+  }
+
+  renderHeader();
+}
+
+function toggleLandingNotifications() {
+  if (!state.session) {
+    return;
+  }
+
+  state.notificationOpen = !state.notificationOpen;
+  renderHeader();
+}
+
+async function openLandingNotification(encodedNotificationId, encodedActionPath) {
+  await markLandingNotificationAsRead(encodedNotificationId);
+  state.notificationOpen = false;
+
+  const actionPath = decodeURIComponent(encodedActionPath || '');
+
+  if (actionPath) {
+    location.href = actionPath;
+    return;
+  }
+
+  renderHeader();
+}
 
 const getLandingCartItemQuantity = (productId) => {
   const items = Array.isArray(state.cart?.items) ? state.cart.items : [];
@@ -699,13 +878,19 @@ globalThis.decreaseLandingCartItem = decreaseLandingCartItem;
 globalThis.removeLandingCartItem = removeLandingCartItem;
 globalThis.hideCartDrawer = hideCartDrawer;
 globalThis.selectSuggestion = selectSuggestion;
+globalThis.toggleLandingNotifications = toggleLandingNotifications;
+globalThis.markLandingNotificationAsRead = markLandingNotificationAsRead;
+globalThis.markAllLandingNotificationsAsRead = markAllLandingNotificationsAsRead;
+globalThis.openLandingNotification = openLandingNotification;
 
 Promise.all([
   loadSession(),
   loadCategories(),
   loadCatalog()
 ]).then(() => {
+  loadCashback();
   loadCart();
+  loadNotifications();
 });
 
 loadLatestExchangeRate();

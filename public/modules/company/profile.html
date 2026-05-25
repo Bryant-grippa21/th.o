@@ -8,9 +8,22 @@
 
 <h2>Perfil empresa</h2>
 
+<div id="company-layout-nav"></div>
+
+<p id="company-profile-feedback"></p>
+
+<p>Imagen actual</p>
+<div id="company-image-preview">Cargando imagen...</div>
+<input id="company-image" type="file" accept="image/*"><br>
+<button type="button" onclick="uploadCompanyProfileImage()">Actualizar imagen</button>
+
+<br><br>
+
 <p><b>Nombre:</b> <span id="company_name"></span></p>
 <p><b>RIF:</b> <span id="rif"></span></p>
 <p><b>Email:</b> <span id="email"></span></p>
+<p><b>Estado jurídico:</b> <span id="company-verification-status">Cargando...</span></p>
+<p><b>Nota de revisión:</b> <span id="company-verification-note">Sin observaciones.</span></p>
 <input id="phone" placeholder="Teléfono"><br>
 <input id="address" placeholder="Dirección"><br>
 <input id="password" type="password" placeholder="Nueva contraseña"><br>
@@ -19,9 +32,43 @@
 
 <br><br>
 
-<a href="/modules/company/dashboard.html">Volver</a>
+<section>
+  <h3>Recaudos jurídicos</h3>
+  <p>Si tu solicitud queda observada o rechazada, puedes reenviar nuevos recaudos desde esta misma cuenta.</p>
+
+  <form id="company-verification-form">
+    <label for="company-verification-document-type">Tipo de recaudo</label><br>
+    <select id="company-verification-document-type" required>
+      <option value="">Selecciona un recaudo</option>
+    </select>
+    <br><br>
+
+    <label for="company-verification-documents">Archivos</label><br>
+    <input id="company-verification-documents" type="file" accept="image/*,.pdf,application/pdf" multiple required>
+    <br><br>
+
+    <button type="submit">Enviar recaudos</button>
+  </form>
+
+  <p id="company-verification-feedback"></p>
+
+  <div>
+    <h4>Documentos cargados</h4>
+    <div id="company-verification-documents-list">
+      <p>Cargando recaudos...</p>
+    </div>
+  </div>
+
+  <div>
+    <h4>Historial de revisión</h4>
+    <div id="company-verification-history-list">
+      <p>Cargando historial...</p>
+    </div>
+  </div>
+</section>
 
 <script src="/assets/js/utils/auth.js"></script>
+<script src="/assets/js/company/layout.js"></script>
 <script src="/assets/js/company/profile.js"></script>
 
 </body>

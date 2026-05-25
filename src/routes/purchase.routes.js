@@ -5,19 +5,22 @@ const { uploadPurchaseEvidence } = require('../middlewares/upload.middleware');
 const {
   createCustomerCheckout,
   getCustomerCheckouts,
+  getAdminCheckouts,
   createCustomerPurchaseEvidence,
   getCompanyPurchaseGroups,
   getCompanyMethods,
   createCompanyMethod,
   approveCompanyPurchaseGroup,
   rejectCompanyPurchaseGroup,
-  expireCompanyPurchaseGroup
+  expireCompanyPurchaseGroup,
+  updateCompanyPurchaseGroupDelivery
 } = require('../controllers/purchase.controller');
 
 const router = express.Router();
 
 router.post('/checkout', verifyToken, createCustomerCheckout);
 router.get('/my-checkouts', verifyToken, getCustomerCheckouts);
+router.get('/admin/checkouts', verifyToken, getAdminCheckouts);
 router.post(
   '/groups/:groupId/evidence',
   verifyToken,
@@ -31,5 +34,6 @@ router.post('/company/payment-methods', verifyToken, createCompanyMethod);
 router.post('/company/groups/:groupId/approve', verifyToken, approveCompanyPurchaseGroup);
 router.post('/company/groups/:groupId/reject', verifyToken, rejectCompanyPurchaseGroup);
 router.post('/company/groups/:groupId/expire', verifyToken, expireCompanyPurchaseGroup);
+router.put('/company/groups/:groupId/delivery', verifyToken, updateCompanyPurchaseGroupDelivery);
 
 module.exports = router;

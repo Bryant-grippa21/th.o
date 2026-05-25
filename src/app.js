@@ -15,6 +15,7 @@ const authCompanyRoutes = require('./routes/auth.company.routes');
 const exchangeRoutes = require('./routes/exchange.routes');
 const purchaseRoutes = require('./routes/purchase.routes');
 const productRoutes = require('./routes/products.routes');
+const notificationsRoutes = require('./routes/notifications.routes');
 
 app.get('/', (_req, res) => {
   if (fs.existsSync(publicIndexPath)) {
@@ -29,7 +30,8 @@ app.get('/', (_req, res) => {
       company_auth: '/api/company-auth',
       exchange: '/api/exchange-rate',
       purchases: '/api/purchases',
-      products: '/api/products'
+      products: '/api/products',
+      notifications: '/api/notifications'
     }
   });
 });
@@ -43,6 +45,7 @@ app.use('/api/company-auth', authCompanyRoutes);
 app.use('/api/exchange-rate', exchangeRoutes);
 app.use('/api/purchases', purchaseRoutes);
 app.use('/api/products', productRoutes);
+app.use('/api/notifications', notificationsRoutes);
 
 app.use(express.static(publicDir));
 app.use('/uploads', express.static(path.join(publicDir, 'uploads')));

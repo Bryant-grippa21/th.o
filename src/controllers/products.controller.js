@@ -1,5 +1,6 @@
 const fs = require('node:fs');
 const path = require('node:path');
+const { findCompanyById } = require('../services/auth.company.service');
 
 const {
   listCategories,
@@ -34,6 +35,35 @@ const {
 const requireCompanyToken = (req, res) => {
   if (req.user?.entity !== 'company') {
     res.status(403).json({ error: 'Token no válido para productos' });
+    return false;
+  }
+
+  return true;
+};
+
+const requireCompanySellAccess = async (req, res, actionLabel = 'usar este módulo') => {
+  if (!requireCompanyToken(req, res)) {
+    return false;
+  }
+
+  if (Number(req.user.id_role) === 1) {
+    return true;
+  }
+
+  const company = await findCompanyById(Number(req.user.id));
+
+  if (!company) {
+    res.status(404).json({ error: 'Empresa no encontrada' });
+    return false;
+  }
+
+  if (company.verification_status !== 'APPROVED') {
+    res.status(403).json({ error: `Tu empresa debe estar jurídicamente aprobada para ${actionLabel}` });
+    return false;
+  }
+
+  if (!company.can_sell) {
+    res.status(403).json({ error: `Tu empresa no tiene permiso comercial para ${actionLabel}` });
     return false;
   }
 
@@ -195,7 +225,7 @@ const getSubcategoriesByCategory = async (req, res) => {
 
 const getManagedSubcategories = async (req, res) => {
   try {
-    if (!requireCompanyToken(req, res)) {
+    if (!await requireCompanySellAccess(req, res, 'gestionar subcategorías')) {
       return;
     }
 
@@ -216,7 +246,7 @@ const getManagedSubcategories = async (req, res) => {
 
 const getManagedLines = async (req, res) => {
   try {
-    if (!requireCompanyToken(req, res)) {
+    if (!await requireCompanySellAccess(req, res, 'gestionar líneas')) {
       return;
     }
 
@@ -245,7 +275,7 @@ const getManagedLines = async (req, res) => {
 
 const getLineReferences = async (req, res) => {
   try {
-    if (!requireCompanyToken(req, res)) {
+    if (!await requireCompanySellAccess(req, res, 'consultar líneas de referencia')) {
       return;
     }
 
@@ -260,7 +290,7 @@ const getLineReferences = async (req, res) => {
 
 const getManagedProducts = async (req, res) => {
   try {
-    if (!requireCompanyToken(req, res)) {
+    if (!await requireCompanySellAccess(req, res, 'gestionar productos')) {
       return;
     }
 
@@ -309,7 +339,7 @@ const getManagedProducts = async (req, res) => {
 
 const getManagedProductDetail = async (req, res) => {
   try {
-    if (!requireCompanyToken(req, res)) {
+    if (!await requireCompanySellAccess(req, res, 'consultar productos gestionados')) {
       return;
     }
 
@@ -334,7 +364,7 @@ const getManagedProductDetail = async (req, res) => {
 
 const getManagedProductStockHistory = async (req, res) => {
   try {
-    if (!requireCompanyToken(req, res)) {
+    if (!await requireCompanySellAccess(req, res, 'consultar historial de stock')) {
       return;
     }
 
@@ -700,7 +730,7 @@ const toggleSubcategoryStatusManual = async (req, res) => {
 
 const createProductManual = async (req, res) => {
   try {
-    if (!requireCompanyToken(req, res)) {
+    if (!await requireCompanySellAccess(req, res, 'crear productos')) {
       return;
     }
 
@@ -782,7 +812,7 @@ const createProductManual = async (req, res) => {
 
 const addVariantManual = async (req, res) => {
   try {
-    if (!requireCompanyToken(req, res)) {
+    if (!await requireCompanySellAccess(req, res, 'crear variantes')) {
       return;
     }
 
@@ -830,7 +860,7 @@ const addVariantManual = async (req, res) => {
 
 const updateProductManual = async (req, res) => {
   try {
-    if (!requireCompanyToken(req, res)) {
+    if (!await requireCompanySellAccess(req, res, 'actualizar productos')) {
       return;
     }
 
@@ -866,7 +896,7 @@ const updateProductManual = async (req, res) => {
 
 const toggleProductStatusManual = async (req, res) => {
   try {
-    if (!requireCompanyToken(req, res)) {
+    if (!await requireCompanySellAccess(req, res, 'cambiar el estado de productos')) {
       return;
     }
 
@@ -900,7 +930,7 @@ const toggleProductStatusManual = async (req, res) => {
 
 const updateVariantManual = async (req, res) => {
   try {
-    if (!requireCompanyToken(req, res)) {
+    if (!await requireCompanySellAccess(req, res, 'actualizar variantes')) {
       return;
     }
 
@@ -933,7 +963,7 @@ const updateVariantManual = async (req, res) => {
 
 const syncVariantStock = async (req, res) => {
   try {
-    if (!requireCompanyToken(req, res)) {
+    if (!await requireCompanySellAccess(req, res, 'sincronizar stock')) {
       return;
     }
 
@@ -969,7 +999,7 @@ const syncVariantStock = async (req, res) => {
 
 const adjustProductStockManual = async (req, res) => {
   try {
-    if (!requireCompanyToken(req, res)) {
+    if (!await requireCompanySellAccess(req, res, 'ajustar stock')) {
       return;
     }
 
@@ -1005,7 +1035,7 @@ const adjustProductStockManual = async (req, res) => {
 
 const deleteProductImageManual = async (req, res) => {
   try {
-    if (!requireCompanyToken(req, res)) {
+    if (!await requireCompanySellAccess(req, res, 'eliminar imágenes de productos')) {
       return;
     }
 

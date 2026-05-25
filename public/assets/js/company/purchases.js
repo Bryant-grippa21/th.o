@@ -7,11 +7,13 @@ const feedbackElement = document.getElementById('company-purchases-feedback');
 const paymentMethodForm = document.getElementById('company-payment-method-form');
 const paymentMethodsList = document.getElementById('company-payment-methods-list');
 const purchaseGroupsList = document.getElementById('company-purchase-groups-list');
+const companyPurchasesSearchInput = document.getElementById('company-purchases-search');
 
 const state = {
   session: null,
   paymentMethods: [],
-  purchaseGroups: []
+  purchaseGroups: [],
+  search: ''
 };
 
 const requestJson = async (url, options = {}) => {
@@ -63,6 +65,8 @@ const formatDateTime = (value) => {
 };
 
 const buildCurrencyPairLabel = (usdValue, bsValue) => `USD ${formatAmount(usdValue)} | Bs ${formatAmount(bsValue)}`;
+
+const normalizeSearchValue = (value) => String(value || '').trim().toLowerCase();
 
 const setFeedback = (message, type = 'info') => {
   feedbackElement.textContent = message || '';
@@ -133,12 +137,14 @@ const renderGroupEvidences = (evidences) => {
 };
 
 const renderPurchaseGroups = () => {
-  if (!state.purchaseGroups.length) {
+  const filteredGroups = getFilteredPurchaseGroups();
+
+  if (!filteredGroups.length) {
     purchaseGroupsList.innerHTML = '<p>No hay grupos de compra para revisar.</p>';
     return;
   }
 
-  purchaseGroupsList.innerHTML = state.purchaseGroups.map((group) => `
+  purchaseGroupsList.innerHTML = filteredGroups.map((group) => `
     <details style="border:1px solid #ccc; padding:16px; margin-bottom:16px;">
       <summary><b>Grupo #${group.id_purchase_group}</b> | ${group.checkout?.order_code || `#${group.checkout?.id_checkout || group.id_checkout}`} | ${getPurchaseStatusLabel(group.status)} | Total ${buildCurrencyPairLabel(group.total_payable_usd, group.total_payable_bs)}</summary>
       <div style="margin-top:12px;">
@@ -169,12 +175,37 @@ const renderPurchaseGroups = () => {
   `).join('');
 };
 
+const getFilteredPurchaseGroups = () => {
+  const searchValue = normalizeSearchValue(state.search);
+
+  if (!searchValue) {
+    return state.purchaseGroups;
+  }
+
+  return state.purchaseGroups.filter((group) => {
+    const items = Array.isArray(group.items) ? group.items : [];
+    const itemMatches = items.some((item) => normalizeSearchValue(item.product?.name || item.product_name).includes(searchValue));
+
+    return [
+      group.id_purchase_group,
+      group.status,
+      getPurchaseStatusLabel(group.status),
+      group.customer?.name,
+      group.customer?.email,
+      group.checkout?.order_code,
+      group.checkout?.id_checkout
+    ].some((value) => normalizeSearchValue(value).includes(searchValue)) || itemMatches;
+  });
+};
+
 const renderSummary = () => {
   const companyName = state.session?.data?.company?.name || state.session?.data?.company?.email || 'Empresa';
+  const filteredGroups = getFilteredPurchaseGroups();
+
   summaryElement.innerHTML = `
     Empresa: <b>${companyName}</b> |
     Metodos de pago: <b>${state.paymentMethods.length}</b> |
-    Grupos de compra: <b>${state.purchaseGroups.length}</b>
+    Grupos de compra visibles: <b>${filteredGroups.length}</b>${state.search ? ` | Filtro: <b>${state.search}</b>` : ''}
   `;
 };
 
@@ -190,6 +221,12 @@ const refreshView = async () => {
   renderPaymentMethods();
   renderPurchaseGroups();
 };
+
+function handleCompanyPurchasesSearch(event) {
+  state.search = event.target.value.trim();
+  renderSummary();
+  renderPurchaseGroups();
+}
 
 const handlePaymentMethodSubmit = async (event) => {
   event.preventDefault();
@@ -290,6 +327,7 @@ purchaseGroupsList.addEventListener('click', async (event) => {
 });
 
 paymentMethodForm.addEventListener('submit', handlePaymentMethodSubmit);
+companyPurchasesSearchInput.addEventListener('input', handleCompanyPurchasesSearch);
 
 fetchCurrentSession()
   .then((session) => {
@@ -297,11 +335,14 @@ fetchCurrentSession()
       throw new Error('Sesion no valida para empresa');
     }
 
+    if (session.data.company.id_role_fk !== 1 && !globalThis.canUseCompanySellModules?.(session.data.company)) {
+      throw new Error('Tu empresa aún no está habilitada jurídicamente para gestionar compras empresariales');
+    }
+
     state.session = session;
     return refreshView();
   })
   .catch((error) => {
     alert(error.message);
-    clearSession();
-    redirectToLogin();
+    redirectToDashboard();
   });

@@ -26,10 +26,7 @@ function login() {
     const data = await res.json();
 
     if (!res.ok) {
-      if (data.attempts_left !== undefined) {
-        throw new Error(`${data.error} (Intentos restantes: ${data.attempts_left})`);
-      }
-      throw new Error(data.error);
+      throw new Error(data.error || 'No se pudo iniciar sesión');
     }
 
     return data;

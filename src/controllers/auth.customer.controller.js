@@ -29,6 +29,11 @@ const {
   removeCartItem,
   clearCart
 } = require('../services/customer.collections.service');
+const {
+  getLatestRecoveryRequest,
+  submitRecoveryRequest,
+  reviewRecoveryRequest
+} = require('../services/account.recovery.service');
 
 const requireAdminCompany = (req, res) => {
   if (req.user?.entity !== 'company') {
@@ -62,9 +67,24 @@ const requireCustomer = (req, res) => {
 const registerLocal = async (req, res) => {
   try {
     const { name, email, password, cell_phone, mail_address } = req.body;
+    const missingFields = [];
 
-    if (!name || !email || !password) {
-      return res.status(400).json({ error: 'Datos incompletos' });
+    if (!String(name || '').trim()) {
+      missingFields.push('nombre');
+    }
+
+    if (!String(email || '').trim()) {
+      missingFields.push('correo');
+    }
+
+    if (!String(password || '').trim()) {
+      missingFields.push('contraseña');
+    }
+
+    if (missingFields.length) {
+      return res.status(400).json({
+        error: `Faltan campos obligatorios: ${missingFields.join(', ')}`
+      });
     }
 
     const existingUser = await findUserByEmail(email);
@@ -137,8 +157,7 @@ const loginLocal = async (req, res) => {
       }
 
       return res.status(400).json({
-        error: 'Contraseña incorrecta',
-        attempts_left: 3 - updatedUser.attempts
+        error: 'Correo o contraseña incorrectos'
       });
     }
 
@@ -154,6 +173,31 @@ const loginLocal = async (req, res) => {
 
   } catch (error) {
     res.status(500).json({ error: error.message });
+  }
+};
+
+const createAccountRecoveryRequest = async (req, res) => {
+  try {
+    const { email, phone } = req.body;
+
+    const result = await submitRecoveryRequest({ email, phone });
+
+    return res.status(201).json({
+      message: 'Solicitud de recuperación enviada. Un administrador revisará tus datos.',
+      request: result.request
+    });
+  } catch (error) {
+    console.error('❌ ERROR CREATE ACCOUNT RECOVERY REQUEST:', error);
+    const statusCode = [
+      'Debes indicar email y número telefónico',
+      'No se encontró un usuario con esos datos',
+      'Los datos no coinciden con el usuario registrado',
+      'La recuperación solo está disponible para clientes bloqueados'
+    ].includes(error.message)
+      ? 400
+      : 500;
+
+    return res.status(statusCode).json({ error: error.message });
   }
 };
 
@@ -200,6 +244,28 @@ const loginGoogle = async (req, res) => {
 };
 
 // 👤 PROFILE GET
+const getCurrentCustomerSession = async (req, res) => {
+  try {
+    if (!requireCustomer(req, res)) {
+      return;
+    }
+
+    const user = await findUserById(Number(req.user.id));
+
+    if (!user) {
+      return res.status(404).json({ error: 'Usuario no encontrado' });
+    }
+
+    const safeUser = { ...user };
+    delete safeUser.password_hash;
+
+    return res.status(200).json({ user: safeUser });
+  } catch (error) {
+    console.error('❌ ERROR GET CURRENT CUSTOMER SESSION:', error);
+    return res.status(500).json({ error: error.message });
+  }
+};
+
 const getProfile = async (req, res) => {
   try {
     const userId = req.user.id;
@@ -454,11 +520,56 @@ const getAdminCustomers = async (req, res) => {
       return;
     }
 
-    const customers = await listCustomersForAdmin();
+    const baseCustomers = await listCustomersForAdmin();
+    const customers = await Promise.all(baseCustomers.map(async (customer) => {
+      const request = await getLatestRecoveryRequest(customer.id_customer);
+
+      return {
+        ...customer,
+        recovery_request_status: request?.status || null,
+        recovery_request_requested_at: request?.requested_at || null
+      };
+    }));
 
     return res.status(200).json({ customers });
   } catch (error) {
     console.error('❌ ERROR GET ADMIN CUSTOMERS:', error);
+    return res.status(500).json({ error: error.message });
+  }
+};
+
+const getAdminCustomerRecoveryRequest = async (req, res) => {
+  try {
+    if (!requireAdminCompany(req, res)) {
+      return;
+    }
+
+    const customerId = Number(req.params.customerId);
+
+    if (!Number.isInteger(customerId) || customerId <= 0) {
+      return res.status(400).json({ error: 'customerId inválido' });
+    }
+
+    const customer = await findUserById(customerId);
+
+    if (!customer) {
+      return res.status(404).json({ error: 'Usuario no encontrado' });
+    }
+
+    const request = await getLatestRecoveryRequest(customerId);
+
+    return res.status(200).json({
+      customer: {
+        id_customer: customer.id_customer,
+        name: customer.name,
+        email: customer.email,
+        cell_phone: customer.cell_phone,
+        mail_address: customer.mail_address
+      },
+      request
+    });
+  } catch (error) {
+    console.error('❌ ERROR GET ADMIN CUSTOMER RECOVERY REQUEST:', error);
     return res.status(500).json({ error: error.message });
   }
 };
@@ -622,10 +733,47 @@ const updateAdminCustomerPassword = async (req, res) => {
   }
 };
 
+const reviewAdminCustomerRecoveryRequest = async (req, res) => {
+  try {
+    if (!requireAdminCompany(req, res)) {
+      return;
+    }
+
+    const customerId = Number(req.params.customerId);
+    const status = String(req.body?.status || '').trim().toUpperCase();
+    const reviewNote = req.body?.review_note;
+
+    if (!Number.isInteger(customerId) || customerId <= 0) {
+      return res.status(400).json({ error: 'customerId inválido' });
+    }
+
+    if (!['RESOLVED', 'REJECTED'].includes(status)) {
+      return res.status(400).json({ error: 'status inválido' });
+    }
+
+    const result = await reviewRecoveryRequest({
+      customerId,
+      status,
+      reviewNote,
+      reviewedByCompanyId: req.user.id
+    });
+
+    return res.status(200).json({
+      message: 'Solicitud de recuperación actualizada correctamente',
+      request: result.request
+    });
+  } catch (error) {
+    console.error('❌ ERROR REVIEW ADMIN CUSTOMER RECOVERY REQUEST:', error);
+    return res.status(500).json({ error: error.message });
+  }
+};
+
 module.exports = {
   registerLocal,
   loginLocal,
+  createAccountRecoveryRequest,
   loginGoogle,
+  getCurrentCustomerSession,
   getProfile,
   updateProfile,
   updateCustomerProfileImage,
@@ -638,8 +786,10 @@ module.exports = {
   clearCustomerCart,
   getCustomerCashback,
   getAdminCustomers,
+  getAdminCustomerRecoveryRequest,
   updateAdminCustomerStatus,
   updateAdminCustomerBasic,
   resetAdminCustomerAttempts,
-  updateAdminCustomerPassword
+  updateAdminCustomerPassword,
+  reviewAdminCustomerRecoveryRequest
 };

@@ -360,6 +360,10 @@ fetchCurrentSession()
       throw new Error('Sesion no valida para empresa');
     }
 
+    if (session.data.company.id_role_fk !== 1 && !globalThis.canUseCompanySellModules?.(session.data.company)) {
+      throw new Error('Tu empresa aún no está habilitada jurídicamente para gestionar catálogo');
+    }
+
     state.session = session;
     state.isAdmin = session.data.company.id_role_fk === 1;
 
@@ -377,6 +381,5 @@ fetchCurrentSession()
   })
   .catch((error) => {
     alert(error.message);
-    clearSession();
-    redirectToLogin();
+    redirectToDashboard();
   });

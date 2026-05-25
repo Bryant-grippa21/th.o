@@ -100,6 +100,12 @@ CREATE TABLE Company (
     -- 👑 rol
     id_role_fk INT NOT NULL,
 
+    -- 🧾 verificación jurídica
+    verification_status ENUM('PENDING_REVIEW', 'CHANGES_REQUESTED', 'APPROVED', 'REJECTED') NOT NULL DEFAULT 'PENDING_REVIEW',
+    verification_note VARCHAR(255) NULL,
+    verified_at TIMESTAMP NULL,
+    verified_by_company_id INT NULL,
+
     -- 🔒 seguridad
     attempts INT DEFAULT 0,
     is_active BOOLEAN DEFAULT TRUE,
@@ -109,6 +115,44 @@ CREATE TABLE Company (
     -- 🕒 auditoría
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+CREATE TABLE Company_Legal_Document (
+
+    id_company_legal_document INT AUTO_INCREMENT PRIMARY KEY,
+
+    id_company_fk INT NOT NULL,
+    document_type ENUM(
+        'COMMERCIAL_REGISTER',
+        'LAST_SHAREHOLDERS_MEETING_MINUTES',
+        'COMPANY_RIF',
+        'LEGAL_REPRESENTATIVE_ID',
+        'LEGAL_REPRESENTATIVE_RIF',
+        'ECONOMIC_ACTIVITY_LICENSE'
+    ) NOT NULL,
+    file_url VARCHAR(255) NOT NULL,
+    original_name VARCHAR(255) NULL,
+    mime_type VARCHAR(100) NULL,
+    submission_round INT NOT NULL DEFAULT 1,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    admin_note VARCHAR(255) NULL,
+    uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    FOREIGN KEY (id_company_fk) REFERENCES Company(id_company)
+);
+
+CREATE TABLE Company_Verification_History (
+
+    id_company_verification_history INT AUTO_INCREMENT PRIMARY KEY,
+
+    id_company_fk INT NOT NULL,
+    status ENUM('PENDING_REVIEW', 'CHANGES_REQUESTED', 'APPROVED', 'REJECTED') NOT NULL,
+    note VARCHAR(255) NULL,
+    reviewed_by_company_id INT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    FOREIGN KEY (id_company_fk) REFERENCES Company(id_company),
+    FOREIGN KEY (reviewed_by_company_id) REFERENCES Company(id_company)
 );
 
 -- =========================================
@@ -163,6 +207,10 @@ ALTER TABLE Company
 ADD CONSTRAINT fk_company_role
 FOREIGN KEY (id_role_fk) REFERENCES Role(id_role);
 
+ALTER TABLE Company
+ADD CONSTRAINT fk_company_verified_by
+FOREIGN KEY (verified_by_company_id) REFERENCES Company(id_company);
+
 ALTER TABLE Credit_Limit
 ADD CONSTRAINT fk_credit_limit_retailer
 FOREIGN KEY (id_retailer_fk) REFERENCES Company(id_company);
@@ -198,7 +246,10 @@ INSERT INTO Company (
     password_hash,
     cell_phone,
     mail_address,
-    id_role_fk
+    id_role_fk,
+    verification_status,
+    can_buy,
+    can_sell
 ) VALUES (
     'Admin',
     'J-00000000-0',
@@ -206,7 +257,10 @@ INSERT INTO Company (
     '$2b$10$daXc069JWmMgW42CmSuUOuZDdxrdTWoy2n44o0eRq6fxMBV3ooXxW',
     '000-000-0000',
     'Caracas Venezuela',
-    1
+    1,
+    'APPROVED',
+    TRUE,
+    TRUE
 );
 
 -- =========================================
@@ -497,7 +551,10 @@ CREATE PROCEDURE sp_register_company (
     IN p_password_hash VARCHAR(255),
     IN p_cell_phone VARCHAR(20),
     IN p_mail_address VARCHAR(255),
-    IN p_id_role_fk INT
+    IN p_id_role_fk INT,
+    IN p_verification_status VARCHAR(30),
+    IN p_can_buy BOOLEAN,
+    IN p_can_sell BOOLEAN
 )
 BEGIN
 
@@ -511,11 +568,27 @@ BEGIN
 
     INSERT INTO Company (
         name, rif, email, password_hash,
-        cell_phone, mail_address, id_role_fk
+        cell_phone, mail_address, id_role_fk,
+        verification_status, can_buy, can_sell
     )
     VALUES (
         p_name, p_rif, p_email, p_password_hash,
-        p_cell_phone, p_mail_address, p_id_role_fk
+        p_cell_phone, p_mail_address, p_id_role_fk,
+        COALESCE(NULLIF(TRIM(p_verification_status), ''), 'PENDING_REVIEW'),
+        COALESCE(p_can_buy, FALSE),
+        COALESCE(p_can_sell, FALSE)
+    );
+
+    INSERT INTO Company_Verification_History (
+        id_company_fk,
+        status,
+        note,
+        reviewed_by_company_id
+    ) VALUES (
+        LAST_INSERT_ID(),
+        COALESCE(NULLIF(TRIM(p_verification_status), ''), 'PENDING_REVIEW'),
+        'Solicitud jurídica creada',
+        NULL
     );
 
 
@@ -538,7 +611,12 @@ CREATE PROCEDURE sp_update_company (
     IN p_password_hash VARCHAR(255),
     IN p_cell_phone VARCHAR(20),
     IN p_mail_address VARCHAR(255),
-    IN p_id_role_fk INT
+    IN p_id_role_fk INT,
+    IN p_verification_status VARCHAR(30),
+    IN p_verification_note VARCHAR(255),
+    IN p_verified_by_company_id INT,
+    IN p_can_buy BOOLEAN,
+    IN p_can_sell BOOLEAN
 )
 BEGIN
 
@@ -555,12 +633,26 @@ BEGIN
         cell_phone = COALESCE(p_cell_phone, cell_phone),
         mail_address = COALESCE(p_mail_address, mail_address),
         id_role_fk = COALESCE(p_id_role_fk, id_role_fk),
+        verification_status = COALESCE(NULLIF(TRIM(p_verification_status), ''), verification_status),
+        verification_note = p_verification_note,
+        verified_at = CASE
+            WHEN COALESCE(NULLIF(TRIM(p_verification_status), ''), verification_status) = 'APPROVED' THEN CURRENT_TIMESTAMP
+            WHEN COALESCE(NULLIF(TRIM(p_verification_status), ''), verification_status) IN ('CHANGES_REQUESTED', 'REJECTED', 'PENDING_REVIEW') THEN NULL
+            ELSE verified_at
+        END,
+        verified_by_company_id = p_verified_by_company_id,
+        can_buy = COALESCE(p_can_buy, can_buy),
+        can_sell = COALESCE(p_can_sell, can_sell),
         updated_at = CURRENT_TIMESTAMP
     WHERE id_company = p_id_company;
 
 END //
 
 DELIMITER ;
+
+CREATE INDEX idx_company_verification_status ON Company(verification_status);
+CREATE INDEX idx_company_legal_document_company_type_round ON Company_Legal_Document(id_company_fk, document_type, submission_round);
+CREATE INDEX idx_company_verification_history_company_created ON Company_Verification_History(id_company_fk, created_at);
 
 -- =========================================
 -- 🔒 SEGURIDAD LOGIN COMPANY
@@ -6349,6 +6441,14 @@ CREATE TABLE Purchase_Checkout (
     total_usd DECIMAL(12,2) NOT NULL DEFAULT 0,
     total_bs DECIMAL(14,2) NOT NULL DEFAULT 0,
 
+    shipping_contact_name VARCHAR(150) NULL,
+    shipping_phone VARCHAR(20) NULL,
+    shipping_address_snapshot VARCHAR(255) NULL,
+    shipping_reference VARCHAR(255) NULL,
+    shipping_city VARCHAR(120) NULL,
+    shipping_state VARCHAR(120) NULL,
+    shipping_notes VARCHAR(255) NULL,
+
     status ENUM(
         'OPEN',
         'PARTIAL_SUBMITTED',
@@ -6380,6 +6480,24 @@ CREATE TABLE Purchase_Group (
         'REJECTED',
         'EXPIRED'
     ) NOT NULL DEFAULT 'PENDING_PAYMENT',
+
+    delivery_status ENUM(
+        'ORDER_CONFIRMED',
+        'PAYMENT_SUBMITTED',
+        'APPROVED',
+        'REJECTED',
+        'EXPIRED',
+        'PREPARING',
+        'SHIPPED',
+        'DELIVERED',
+        'INCIDENT'
+    ) NOT NULL DEFAULT 'ORDER_CONFIRMED',
+
+    carrier_name VARCHAR(120) NULL,
+    tracking_code VARCHAR(120) NULL,
+    estimated_delivery_at TIMESTAMP NULL,
+    shipped_at TIMESTAMP NULL,
+    delivered_at TIMESTAMP NULL,
 
     payment_due_at TIMESTAMP NULL,
     reviewed_at TIMESTAMP NULL,
@@ -6432,14 +6550,42 @@ CREATE TABLE Purchase_Evidence (
     FOREIGN KEY (id_purchase_group_fk) REFERENCES Purchase_Group(id_purchase_group)
 );
 
+CREATE TABLE Purchase_Group_Status_History (
+    id_purchase_group_status_history INT AUTO_INCREMENT PRIMARY KEY,
+
+    id_purchase_group_fk INT NOT NULL,
+
+    status ENUM(
+        'ORDER_CONFIRMED',
+        'PAYMENT_SUBMITTED',
+        'APPROVED',
+        'REJECTED',
+        'EXPIRED',
+        'PREPARING',
+        'SHIPPED',
+        'DELIVERED',
+        'INCIDENT'
+    ) NOT NULL,
+
+    note VARCHAR(255) NULL,
+    created_by_entity ENUM('customer', 'company', 'admin', 'system') NOT NULL DEFAULT 'system',
+    created_by_id INT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    FOREIGN KEY (id_purchase_group_fk) REFERENCES Purchase_Group(id_purchase_group)
+);
+
 CREATE INDEX idx_payment_method_company_active ON Company_Payment_Method(id_company_fk, is_active);
 CREATE INDEX idx_purchase_checkout_customer_status ON Purchase_Checkout(id_customer_fk, status);
 CREATE INDEX idx_purchase_group_checkout_status ON Purchase_Group(id_checkout_fk, status);
 CREATE INDEX idx_purchase_group_company_status ON Purchase_Group(id_company_fk, status);
 CREATE INDEX idx_purchase_group_due_at ON Purchase_Group(payment_due_at);
+CREATE INDEX idx_purchase_group_delivery_status ON Purchase_Group(delivery_status);
+CREATE INDEX idx_purchase_group_tracking_code ON Purchase_Group(tracking_code);
 CREATE INDEX idx_purchase_item_group ON Purchase_Item(id_purchase_group_fk);
 CREATE INDEX idx_purchase_item_product ON Purchase_Item(id_product_fk);
 CREATE INDEX idx_purchase_evidence_group_status ON Purchase_Evidence(id_purchase_group_fk, review_status);
+CREATE INDEX idx_purchase_group_status_history_group_created ON Purchase_Group_Status_History(id_purchase_group_fk, created_at);
 
 DELIMITER //
 
@@ -6510,7 +6656,14 @@ CREATE PROCEDURE sp_create_purchase_checkout (
     IN p_id_exchange_rate INT,
     IN p_exchange_rate_snapshot DECIMAL(12,4),
     IN p_total_usd DECIMAL(12,2),
-    IN p_total_bs DECIMAL(14,2)
+    IN p_total_bs DECIMAL(14,2),
+    IN p_shipping_contact_name VARCHAR(150),
+    IN p_shipping_phone VARCHAR(20),
+    IN p_shipping_address_snapshot VARCHAR(255),
+    IN p_shipping_reference VARCHAR(255),
+    IN p_shipping_city VARCHAR(120),
+    IN p_shipping_state VARCHAR(120),
+    IN p_shipping_notes VARCHAR(255)
 )
 BEGIN
 
@@ -6543,14 +6696,28 @@ BEGIN
         id_exchange_rate_fk,
         exchange_rate_snapshot,
         total_usd,
-        total_bs
+        total_bs,
+        shipping_contact_name,
+        shipping_phone,
+        shipping_address_snapshot,
+        shipping_reference,
+        shipping_city,
+        shipping_state,
+        shipping_notes
     )
     VALUES (
         p_id_customer,
         p_id_exchange_rate,
         p_exchange_rate_snapshot,
         p_total_usd,
-        p_total_bs
+        p_total_bs,
+        NULLIF(TRIM(p_shipping_contact_name), ''),
+        NULLIF(TRIM(p_shipping_phone), ''),
+        NULLIF(TRIM(p_shipping_address_snapshot), ''),
+        NULLIF(TRIM(p_shipping_reference), ''),
+        NULLIF(TRIM(p_shipping_city), ''),
+        NULLIF(TRIM(p_shipping_state), ''),
+        NULLIF(TRIM(p_shipping_notes), '')
     );
 
     SELECT *
@@ -6610,6 +6777,7 @@ BEGIN
         id_company_fk,
         subtotal_usd,
         subtotal_bs,
+        delivery_status,
         payment_due_at
     )
     VALUES (
@@ -6617,7 +6785,21 @@ BEGIN
         p_id_company,
         p_subtotal_usd,
         p_subtotal_bs,
+        'ORDER_CONFIRMED',
         v_payment_due_at
+    );
+
+    INSERT INTO Purchase_Group_Status_History (
+        id_purchase_group_fk,
+        status,
+        note,
+        created_by_entity
+    )
+    VALUES (
+        LAST_INSERT_ID(),
+        'ORDER_CONFIRMED',
+        'Pedido confirmado',
+        'system'
     );
 
     SELECT *
@@ -6746,6 +6928,19 @@ BEGIN
         updated_at = CURRENT_TIMESTAMP
     WHERE id_purchase_group = p_id_purchase_group;
 
+    INSERT INTO Purchase_Group_Status_History (
+        id_purchase_group_fk,
+        status,
+        note,
+        created_by_entity
+    )
+    VALUES (
+        p_id_purchase_group,
+        'PAYMENT_SUBMITTED',
+        'Pago enviado por el cliente',
+        'customer'
+    );
+
     SELECT *
     FROM Purchase_Evidence
     WHERE id_purchase_evidence = LAST_INSERT_ID()
@@ -6849,6 +7044,19 @@ BEGIN
     WHERE id_purchase_group_fk = p_id_purchase_group
       AND review_status = 'SUBMITTED';
 
+    INSERT INTO Purchase_Group_Status_History (
+        id_purchase_group_fk,
+        status,
+        note,
+        created_by_entity
+    )
+    VALUES (
+        p_id_purchase_group,
+        'APPROVED',
+        COALESCE(NULLIF(TRIM(p_review_note), ''), 'Pago aprobado'),
+        'company'
+    );
+
     SELECT *
     FROM Purchase_Group
     WHERE id_purchase_group = p_id_purchase_group
@@ -6898,6 +7106,19 @@ BEGIN
     WHERE id_purchase_group_fk = p_id_purchase_group
       AND review_status = 'SUBMITTED';
 
+    INSERT INTO Purchase_Group_Status_History (
+        id_purchase_group_fk,
+        status,
+        note,
+        created_by_entity
+    )
+    VALUES (
+        p_id_purchase_group,
+        'REJECTED',
+        COALESCE(NULLIF(TRIM(p_review_note), ''), 'Pago rechazado'),
+        'company'
+    );
+
     SELECT *
     FROM Purchase_Group
     WHERE id_purchase_group = p_id_purchase_group
@@ -6937,6 +7158,19 @@ BEGIN
     SET status = 'EXPIRED',
         updated_at = CURRENT_TIMESTAMP
     WHERE id_purchase_group = p_id_purchase_group;
+
+    INSERT INTO Purchase_Group_Status_History (
+        id_purchase_group_fk,
+        status,
+        note,
+        created_by_entity
+    )
+    VALUES (
+        p_id_purchase_group,
+        'EXPIRED',
+        'Pago expirado por falta de confirmacion',
+        'system'
+    );
 
     SELECT *
     FROM Purchase_Group

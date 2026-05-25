@@ -4,6 +4,7 @@ const companyProductFormMessage = document.getElementById('company-product-form-
 const companyProductsSummary = document.getElementById('company-products-summary');
 const companyProductsList = document.getElementById('company-products-list');
 const companyProductsPagination = document.getElementById('company-products-pagination');
+const companyProductsSearchInput = document.getElementById('company-products-search');
 const productLineSearchInput = document.getElementById('product-line-search');
 const productLineSelect = document.getElementById('product-line');
 const productLineContext = document.getElementById('product-line-context');
@@ -37,6 +38,7 @@ const state = {
   session: null,
   lines: [],
   filteredLines: [],
+  productSearch: '',
   secondaryImageFiles: [],
   mainImagePreviewUrl: null,
   secondaryImagePreviewUrls: [],
@@ -212,9 +214,14 @@ const loadLines = async () => {
 };
 
 const summarizeProducts = (pagination) => {
+  const searchLabel = state.productSearch
+    ? `<p>Búsqueda actual: <b>${state.productSearch}</b></p>`
+    : '';
+
   companyProductsSummary.innerHTML = `
     <p>Total productos propios: <b>${pagination.total}</b></p>
     <p>Página actual: <b>${pagination.page}</b> de <b>${pagination.total_pages}</b></p>
+    ${searchLabel}
   `;
 };
 
@@ -323,12 +330,28 @@ const renderPagination = (pagination) => {
 };
 
 const loadOwnProducts = async (page = 1) => {
-  const data = await requestJson(`${API_BASE_URL}/api/products/management/products?page=${page}&limit=${state.pagination.limit}`);
+  const query = new URLSearchParams({
+    page: String(page),
+    limit: String(state.pagination.limit)
+  });
+
+  if (state.productSearch) {
+    query.set('name', state.productSearch);
+  }
+
+  const data = await requestJson(`${API_BASE_URL}/api/products/management/products?${query.toString()}`);
   state.pagination = data.pagination || state.pagination;
   summarizeProducts(state.pagination);
   renderProducts(data.products || []);
   renderPagination(state.pagination);
 };
+
+function handleOwnProductsSearch(event) {
+  state.productSearch = event.target.value.trim();
+  loadOwnProducts(1).catch((error) => {
+    companyProductFormMessage.innerText = error.message;
+  });
+}
 
 const renderMainImagePreview = () => {
   const mainImage = productMainImageInput.files[0];
@@ -769,6 +792,7 @@ globalThis.toggleManagedProductStatus = toggleManagedProductStatus;
 globalThis.adjustManagedProductStock = adjustManagedProductStock;
 
 productLineSearchInput.addEventListener('input', filterLines);
+companyProductsSearchInput.addEventListener('input', handleOwnProductsSearch);
 productLineSelect.addEventListener('change', renderSelectedLineContext);
 productMainImageInput.addEventListener('change', renderMainImagePreview);
 productSecondaryImagesInput.addEventListener('change', handleSecondaryImagesChange);
@@ -793,6 +817,10 @@ fetchCurrentSession()
     const company = session.data.company;
     if (company.id_role_fk === 1) {
       throw new Error('Este módulo es solo para detallistas y mayoristas');
+    }
+
+    if (!globalThis.canUseCompanySellModules?.(company)) {
+      throw new Error('Tu empresa aún no está habilitada jurídicamente para gestionar productos');
     }
 
     state.session = session;

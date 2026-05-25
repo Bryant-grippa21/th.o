@@ -7,21 +7,27 @@
 
 <h2>Perfil</h2>
 
+<div id="customer-layout-nav">
+  <p>Cargando navegación...</p>
+</div>
+
+<p id="profile-feedback"></p>
+
+<p>Imagen actual</p>
+<div id="profile-image-preview">Cargando imagen...</div>
+<input id="profile-image" type="file" accept="image/*"><br>
+<button type="button" onclick="uploadProfileImage()">Actualizar imagen</button>
+
+<br><br>
+
 <input id="phone" placeholder="Teléfono"><br>
 <input id="address" placeholder="Dirección"><br>
 <input id="password" placeholder="Nueva contraseña"><br>
 
 <button onclick="update()">Actualizar</button>
 
-<br><br>
-
-<a href="/modules/customer/cashback.html">Ver mi cashback</a>
-
-<br><br>
-
-<a href="/modules/customer/dashboard.html">Volver</a>
-
 <script src="/assets/js/utils/auth.js"></script>
+<script src="/assets/js/customer/layout.js"></script>
 <script src="/assets/js/customer/profile.js"></script>
 
 </body>

@@ -2,25 +2,68 @@ if (!requireCompanySession()) {
   throw new Error('Sesion requerida');
 }
 
-const companyModulesElement = document.getElementById('company-modules');
+const companyVerificationReminder = document.getElementById('company-verification-reminder');
+const companyDashboardStats = document.getElementById('company-dashboard-stats');
 
-const renderCompanyModules = (company) => {
-  const modules = [
-    { label: 'Perfil', path: '/modules/company/profile.html' },
-    { label: 'Compras', path: '/modules/company/purchases.html' }
-  ];
+const COMPANY_VERIFICATION_LABELS = {
+  PENDING_REVIEW: 'pendiente de revisión',
+  CHANGES_REQUESTED: 'con correcciones solicitadas',
+  APPROVED: 'aprobada',
+  REJECTED: 'rechazada'
+};
 
-  if (company.id_role_fk !== 1) {
-    modules.splice(1, 0, { label: 'Productos', path: '/modules/company/products.html' });
+const renderVerificationReminder = (company) => {
+  if (!companyVerificationReminder) {
+    return;
   }
 
-  if (company.id_role_fk === 1) {
-    modules.push({ label: 'Admin', path: '/modules/admin/dashboard.html' });
+  const status = company?.verification_status;
+
+  if (!status || status === 'APPROVED' || Number(company?.id_role_fk) === 1) {
+    companyVerificationReminder.innerHTML = '';
+    return;
   }
 
-  companyModulesElement.innerHTML = modules
-    .map((module) => `<button type="button" onclick="location.href='${module.path}'">${module.label}</button>`)
-    .join('\n');
+  const note = company?.verification_note || 'Revisa tu perfil y carga o actualiza los recaudos jurídicos.';
+  const label = COMPANY_VERIFICATION_LABELS[status] || status;
+
+  companyVerificationReminder.innerHTML = `
+    <section>
+      <p><b>Tu solicitud jurídica está ${label}.</b></p>
+      <p>${note}</p>
+      <button type="button" onclick="location.href='/modules/company/profile.html'">Ir a perfil de empresa</button>
+    </section>
+  `;
+};
+
+const renderCompanyDashboardStats = (company) => {
+  if (!companyDashboardStats) {
+    return;
+  }
+
+  const legalStatus = COMPANY_VERIFICATION_LABELS[company?.verification_status] || 'Sin estado';
+  const canBuy = company?.can_buy ? 'Habilitado' : 'No habilitado';
+  const canSell = company?.can_sell ? 'Habilitado' : 'No habilitado';
+
+  companyDashboardStats.innerHTML = `
+    <section>
+      <h2>Resumen</h2>
+      <div style="display:flex; gap:12px; flex-wrap:wrap;">
+        <article style="border:1px solid #ccc; padding:12px; min-width:180px;">
+          <p><b>Estado jurídico</b></p>
+          <p>${legalStatus}</p>
+        </article>
+        <article style="border:1px solid #ccc; padding:12px; min-width:180px;">
+          <p><b>Permiso de compra</b></p>
+          <p>${canBuy}</p>
+        </article>
+        <article style="border:1px solid #ccc; padding:12px; min-width:180px;">
+          <p><b>Permiso de venta</b></p>
+          <p>${canSell}</p>
+        </article>
+      </div>
+    </section>
+  `;
 };
 
 fetchCurrentSession()
@@ -30,10 +73,13 @@ fetchCurrentSession()
     }
 
     const company = session.data.company;
-    const companyName = company.name || company.email;
+    const companyName = company.name || company.company_name || company.email;
 
+    document.title = companyName;
     document.getElementById('company-welcome').innerText = `Bienvenido ${companyName}`;
-    renderCompanyModules(company);
+    globalThis.refreshCompanyLayout?.(company);
+    renderVerificationReminder(company);
+    renderCompanyDashboardStats(company);
   })
   .catch(() => {
     clearSession();

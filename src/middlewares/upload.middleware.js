@@ -15,11 +15,29 @@ const customerDir = path.join(__dirname, '../../public/uploads/profiles/customer
 const companyDir = path.join(__dirname, '../../public/uploads/profiles/companies');
 const productDir = path.join(__dirname, '../../public/uploads/products');
 const purchaseEvidenceDir = path.join(__dirname, '../../public/uploads/purchases/evidences');
+const companyLegalDocumentsDir = path.join(__dirname, '../../public/uploads/company/legal-documents');
 
 ensureDir(customerDir);
 ensureDir(companyDir);
 ensureDir(productDir);
 ensureDir(purchaseEvidenceDir);
+ensureDir(companyLegalDocumentsDir);
+
+const companyLegalMimeTypes = new Set([
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'application/pdf'
+]);
+
+const createFileFilter = (allowedMimeTypes, errorMessage) => (_req, file, cb) => {
+  if (!allowedMimeTypes.has(file.mimetype)) {
+    cb(new Error(errorMessage));
+    return;
+  }
+
+  cb(null, true);
+};
 
 const createStorage = (folder, prefix) =>
   multer.diskStorage({
@@ -55,6 +73,12 @@ const uploadPurchaseEvidence = multer({
   limits: { fileSize: 8 * 1024 * 1024 }
 });
 
+const uploadCompanyLegalDocuments = multer({
+  storage: createStorage(companyLegalDocumentsDir, 'company_legal_document'),
+  limits: { fileSize: 8 * 1024 * 1024 },
+  fileFilter: createFileFilter(companyLegalMimeTypes, 'Solo se permiten imagenes y archivos PDF')
+});
+
 const uploadProductImages = uploadProductImage.fields([
   { name: 'main_image', maxCount: 1 },
   { name: 'secondary_images', maxCount: MAX_SECONDARY_PRODUCT_IMAGES }
@@ -65,5 +89,6 @@ module.exports = {
   uploadCompanyImage,
   uploadProductImage,
   uploadProductImages,
-  uploadPurchaseEvidence
+  uploadPurchaseEvidence,
+  uploadCompanyLegalDocuments
 };

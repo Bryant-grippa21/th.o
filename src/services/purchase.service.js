@@ -124,6 +124,12 @@ const getGroupRows = async (connection, whereSql, params = []) => {
             pg.subtotal_usd,
             pg.subtotal_bs,
             pg.status,
+            pg.delivery_status,
+            pg.carrier_name,
+            pg.tracking_code,
+            pg.estimated_delivery_at,
+            pg.shipped_at,
+            pg.delivered_at,
             pg.payment_due_at,
             pg.reviewed_at,
             pg.review_note,
@@ -135,6 +141,13 @@ const getGroupRows = async (connection, whereSql, params = []) => {
             pc.total_usd,
             pc.total_bs,
             pc.status AS checkout_status,
+            pc.shipping_contact_name,
+            pc.shipping_phone,
+            pc.shipping_address_snapshot,
+            pc.shipping_reference,
+            pc.shipping_city,
+            pc.shipping_state,
+            pc.shipping_notes,
             pc.created_at AS checkout_created_at,
             pc.updated_at AS checkout_updated_at,
             co.name AS company_name,
@@ -218,6 +231,123 @@ const getEvidenceByGroupIds = async (connection, groupIds) => {
   );
 
   return rows;
+};
+
+const getStatusHistoryByGroupIds = async (connection, groupIds) => {
+  if (!Array.isArray(groupIds) || !groupIds.length) {
+    return [];
+  }
+
+  const placeholders = buildInClause(groupIds);
+  const [rows] = await connection.query(
+    `SELECT id_purchase_group_status_history,
+            id_purchase_group_fk,
+            status,
+            note,
+            created_by_entity,
+            created_by_id,
+            created_at
+     FROM Purchase_Group_Status_History
+     WHERE id_purchase_group_fk IN (${placeholders})
+     ORDER BY created_at ASC, id_purchase_group_status_history ASC`,
+    groupIds
+  );
+
+  return rows;
+};
+
+const createPurchaseGroupStatusHistory = async (
+  connection,
+  { groupId, status, note = null, createdByEntity = 'system', createdById = null }
+) => {
+  await connection.query(
+    `INSERT INTO Purchase_Group_Status_History (
+       id_purchase_group_fk,
+       status,
+       note,
+       created_by_entity,
+       created_by_id
+     )
+     VALUES (?, ?, ?, ?, ?)`,
+    [
+      Number(groupId),
+      String(status || '').trim(),
+      String(note || '').trim() || null,
+      String(createdByEntity || 'system').trim(),
+      Number.isInteger(Number(createdById)) && Number(createdById) > 0 ? Number(createdById) : null
+    ]
+  );
+};
+
+const PURCHASE_DELIVERY_STATUS_TRANSITIONS = {
+  ORDER_CONFIRMED: new Set(['PREPARING', 'INCIDENT']),
+  PREPARING: new Set(['SHIPPED', 'INCIDENT']),
+  SHIPPED: new Set(['DELIVERED', 'INCIDENT']),
+  DELIVERED: new Set([]),
+  INCIDENT: new Set(['PREPARING', 'SHIPPED', 'DELIVERED'])
+};
+
+const normalizeNullableText = (value, maxLength = 255) => {
+  const normalizedValue = String(value || '').trim();
+
+  if (!normalizedValue) {
+    return null;
+  }
+
+  return normalizedValue.slice(0, maxLength);
+};
+
+const normalizeOptionalDateTime = (value, fieldName) => {
+  if (value == null || value === '') {
+    return null;
+  }
+
+  const normalizedDate = new Date(value);
+
+  if (Number.isNaN(normalizedDate.getTime())) {
+    throw new TypeError(`${fieldName} invalida`);
+  }
+
+  return normalizedDate;
+};
+
+const validateDeliveryTransition = (currentStatus, nextStatus) => {
+  const normalizedCurrentStatus = String(currentStatus || 'ORDER_CONFIRMED').trim().toUpperCase();
+  const normalizedNextStatus = String(nextStatus || '').trim().toUpperCase();
+  const allowedTransitions = PURCHASE_DELIVERY_STATUS_TRANSITIONS[normalizedCurrentStatus];
+
+  if (!allowedTransitions) {
+    throw new Error('Estado logístico actual invalido');
+  }
+
+  if (!allowedTransitions.has(normalizedNextStatus)) {
+    throw new Error(`La transicion ${normalizedCurrentStatus} -> ${normalizedNextStatus} no esta permitida`);
+  }
+
+  return normalizedNextStatus;
+};
+
+const getCustomerCheckoutSnapshot = async (connection, customerId) => {
+  const [rows] = await connection.query(
+    `SELECT id_customer,
+            name,
+            cell_phone,
+            mail_address
+     FROM Customer
+     WHERE id_customer = ?
+     LIMIT 1`,
+    [Number(customerId)]
+  );
+
+  if (!rows.length) {
+    throw new Error('Customer no encontrado');
+  }
+
+  return {
+    contact_name: rows[0].name,
+    phone: rows[0].cell_phone || null,
+    address: rows[0].mail_address || null
+  };
 };
 
 const getPaymentMethodsByCompanyIds = async (connection, companyIds) => {
@@ -355,15 +485,17 @@ const hydrateGroupCollection = async (connection, groupRows) => {
 
   const groupIds = groupRows.map((group) => group.id_purchase_group);
   const companyIds = [...new Set(groupRows.map((group) => group.id_company_fk))];
-  const [items, evidences, paymentMethods] = await Promise.all([
+  const [items, evidences, paymentMethods, statusHistory] = await Promise.all([
     getItemsByGroupIds(connection, groupIds),
     getEvidenceByGroupIds(connection, groupIds),
-    getPaymentMethodsByCompanyIds(connection, companyIds)
+    getPaymentMethodsByCompanyIds(connection, companyIds),
+    getStatusHistoryByGroupIds(connection, groupIds)
   ]);
 
   const itemsByGroupId = new Map();
   const evidencesByGroupId = new Map();
   const methodsByCompanyId = new Map();
+  const statusHistoryByGroupId = new Map();
 
   for (const item of items) {
     const currentItems = itemsByGroupId.get(item.id_purchase_group_fk) || [];
@@ -419,12 +551,33 @@ const hydrateGroupCollection = async (connection, groupRows) => {
     methodsByCompanyId.set(paymentMethod.id_company_fk, currentMethods);
   }
 
+  for (const historyEntry of statusHistory) {
+    const currentHistory = statusHistoryByGroupId.get(historyEntry.id_purchase_group_fk) || [];
+    currentHistory.push({
+      id_purchase_group_status_history: historyEntry.id_purchase_group_status_history,
+      status: historyEntry.status,
+      note: historyEntry.note,
+      created_by_entity: historyEntry.created_by_entity,
+      created_by_id: historyEntry.created_by_id,
+      created_at: historyEntry.created_at
+    });
+    statusHistoryByGroupId.set(historyEntry.id_purchase_group_fk, currentHistory);
+  }
+
   return groupRows.map((group) => ({
     id_purchase_group: group.id_purchase_group,
     id_checkout: group.id_checkout_fk,
     subtotal_usd: group.subtotal_usd,
     subtotal_bs: group.subtotal_bs,
     status: group.status,
+    delivery: {
+      status: group.delivery_status,
+      carrier_name: group.carrier_name,
+      tracking_code: group.tracking_code,
+      estimated_delivery_at: group.estimated_delivery_at,
+      shipped_at: group.shipped_at,
+      delivered_at: group.delivered_at
+    },
     payment_due_at: group.payment_due_at,
     reviewed_at: group.reviewed_at,
     review_note: group.review_note,
@@ -447,11 +600,19 @@ const hydrateGroupCollection = async (connection, groupRows) => {
       total_usd: group.total_usd,
       total_bs: group.total_bs,
       status: group.checkout_status,
+      shipping_contact_name: group.shipping_contact_name,
+      shipping_phone: group.shipping_phone,
+      shipping_address_snapshot: group.shipping_address_snapshot,
+      shipping_reference: group.shipping_reference,
+      shipping_city: group.shipping_city,
+      shipping_state: group.shipping_state,
+      shipping_notes: group.shipping_notes,
       created_at: group.checkout_created_at,
       updated_at: group.checkout_updated_at
     },
     items: itemsByGroupId.get(group.id_purchase_group) || [],
-    evidences: evidencesByGroupId.get(group.id_purchase_group) || []
+    evidences: evidencesByGroupId.get(group.id_purchase_group) || [],
+    status_history: statusHistoryByGroupId.get(group.id_purchase_group) || []
   }));
 };
 
@@ -467,6 +628,13 @@ const listCustomerCheckouts = async (customerId) => {
               total_usd,
               total_bs,
               status,
+              shipping_contact_name,
+              shipping_phone,
+              shipping_address_snapshot,
+              shipping_reference,
+              shipping_city,
+              shipping_state,
+              shipping_notes,
               created_at,
               updated_at
        FROM Purchase_Checkout
@@ -512,6 +680,100 @@ const listCustomerCheckouts = async (customerId) => {
       total_payable_usd: roundAmount(Number(row.total_usd || 0) - Number(checkoutCashbackRedemptionMap.get(row.id_checkout) || 0), 2),
       total_payable_bs: roundAmount(Number(row.total_bs || 0) - ((checkoutCashbackRedemptionMap.get(row.id_checkout) || 0) * Number(row.exchange_rate_snapshot || 0)), 2),
       status: row.status,
+      shipping_contact_name: row.shipping_contact_name,
+      shipping_phone: row.shipping_phone,
+      shipping_address_snapshot: row.shipping_address_snapshot,
+      shipping_reference: row.shipping_reference,
+      shipping_city: row.shipping_city,
+      shipping_state: row.shipping_state,
+      shipping_notes: row.shipping_notes,
+      created_at: row.created_at,
+      updated_at: row.updated_at,
+      groups: groupsByCheckoutId.get(row.id_checkout) || []
+    }));
+  } finally {
+    connection.release();
+  }
+};
+
+const listAdminCheckouts = async () => {
+  const connection = await pool.getConnection();
+
+  try {
+    const [checkoutRows] = await connection.query(
+      `SELECT pc.id_checkout,
+              pc.id_customer_fk,
+              pc.id_exchange_rate_fk,
+              pc.exchange_rate_snapshot,
+              pc.total_usd,
+              pc.total_bs,
+              pc.status,
+              pc.shipping_contact_name,
+              pc.shipping_phone,
+              pc.shipping_address_snapshot,
+              pc.shipping_reference,
+              pc.shipping_city,
+              pc.shipping_state,
+              pc.shipping_notes,
+              pc.created_at,
+              pc.updated_at,
+              cu.name AS customer_name,
+              cu.email AS customer_email
+       FROM Purchase_Checkout pc
+       INNER JOIN Customer cu ON cu.id_customer = pc.id_customer_fk
+       ORDER BY pc.created_at DESC, pc.id_checkout DESC`
+    );
+
+    if (!checkoutRows.length) {
+      return [];
+    }
+
+    const checkoutIds = checkoutRows.map((row) => row.id_checkout);
+    const placeholders = buildInClause(checkoutIds);
+    const groupRows = await getGroupRows(connection, `WHERE pg.id_checkout_fk IN (${placeholders})`, checkoutIds);
+    const [checkoutCashbackRedemptionMap, groupCashbackRestoreMap, hydratedBaseGroups] = await Promise.all([
+      getCheckoutCashbackRedemptionMap(connection, checkoutIds),
+      getGroupCashbackRestoreMap(connection, groupRows.map((group) => group.id_purchase_group)),
+      hydrateGroupCollection(connection, groupRows)
+    ]);
+    const hydratedGroups = enrichPurchaseGroupsWithDerivedCheckoutData(
+      hydratedBaseGroups,
+      checkoutCashbackRedemptionMap,
+      groupCashbackRestoreMap
+    );
+    const groupsByCheckoutId = new Map();
+
+    for (const group of hydratedGroups) {
+      const currentGroups = groupsByCheckoutId.get(group.id_checkout) || [];
+      currentGroups.push(group);
+      groupsByCheckoutId.set(group.id_checkout, currentGroups);
+    }
+
+    return checkoutRows.map((row) => ({
+      id_checkout: row.id_checkout,
+      order_code: buildOrderCode(row.id_checkout, row.created_at),
+      id_customer: row.id_customer_fk,
+      customer: {
+        id_customer: row.id_customer_fk,
+        name: row.customer_name,
+        email: row.customer_email
+      },
+      id_exchange_rate: row.id_exchange_rate_fk,
+      exchange_rate_snapshot: Number(row.exchange_rate_snapshot),
+      total_usd: Number(row.total_usd),
+      total_bs: Number(row.total_bs),
+      cashback_redeemed_usd: roundAmount(checkoutCashbackRedemptionMap.get(row.id_checkout) || 0, 2),
+      cashback_redeemed_bs: roundAmount((checkoutCashbackRedemptionMap.get(row.id_checkout) || 0) * Number(row.exchange_rate_snapshot || 0), 2),
+      total_payable_usd: roundAmount(Number(row.total_usd || 0) - Number(checkoutCashbackRedemptionMap.get(row.id_checkout) || 0), 2),
+      total_payable_bs: roundAmount(Number(row.total_bs || 0) - ((checkoutCashbackRedemptionMap.get(row.id_checkout) || 0) * Number(row.exchange_rate_snapshot || 0)), 2),
+      status: row.status,
+      shipping_contact_name: row.shipping_contact_name,
+      shipping_phone: row.shipping_phone,
+      shipping_address_snapshot: row.shipping_address_snapshot,
+      shipping_reference: row.shipping_reference,
+      shipping_city: row.shipping_city,
+      shipping_state: row.shipping_state,
+      shipping_notes: row.shipping_notes,
       created_at: row.created_at,
       updated_at: row.updated_at,
       groups: groupsByCheckoutId.get(row.id_checkout) || []
@@ -986,6 +1248,7 @@ const createCheckoutFromCart = async (customerId, options = {}) => {
     await connection.beginTransaction();
 
     const exchangeRate = await getLatestExchangeRateForConnection(connection);
+    const shippingSnapshot = await getCustomerCheckoutSnapshot(connection, normalizedCustomerId);
     const cartItems = cart.items.map((item) => ({
       id_product: Number(item.id_product),
       quantity: Number(item.quantity)
@@ -1059,15 +1322,22 @@ const createCheckoutFromCart = async (customerId, options = {}) => {
          exchange_rate_snapshot,
          total_usd,
          total_bs,
+         shipping_contact_name,
+         shipping_phone,
+         shipping_address_snapshot,
          status
        )
-       VALUES (?, ?, ?, ?, ?, 'OPEN')`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'OPEN')`,
       [
         normalizedCustomerId,
         exchangeRate.id_exchange_rate,
         exchangeRate.rate_bs_per_usd,
         totals.total_usd,
         totals.total_bs
+        ,
+        shippingSnapshot.contact_name,
+        shippingSnapshot.phone,
+        shippingSnapshot.address
       ]
     );
 
@@ -1126,9 +1396,10 @@ const createCheckoutFromCart = async (customerId, options = {}) => {
            subtotal_usd,
            subtotal_bs,
            status,
+           delivery_status,
            payment_due_at
          )
-         VALUES (?, ?, ?, ?, ?, ?)`,
+         VALUES (?, ?, ?, ?, ?, 'ORDER_CONFIRMED', ?)`,
         [
           checkoutId,
           companyId,
@@ -1143,6 +1414,12 @@ const createCheckoutFromCart = async (customerId, options = {}) => {
 
       const groupId = groupResult.insertId;
       createdGroupIds.push(groupId);
+      await createPurchaseGroupStatusHistory(connection, {
+        groupId,
+        status: 'ORDER_CONFIRMED',
+        note: 'Pedido confirmado',
+        createdByEntity: 'system'
+      });
 
       for (const item of items) {
         await connection.query(
@@ -1204,6 +1481,13 @@ const createCheckoutFromCart = async (customerId, options = {}) => {
                 total_usd,
                 total_bs,
                 status,
+          shipping_contact_name,
+          shipping_phone,
+          shipping_address_snapshot,
+          shipping_reference,
+          shipping_city,
+          shipping_state,
+          shipping_notes,
                 created_at,
                 updated_at
          FROM Purchase_Checkout
@@ -1237,6 +1521,13 @@ const createCheckoutFromCart = async (customerId, options = {}) => {
         total_payable_usd: roundAmount(Number(checkoutRow.total_usd || 0) - cashbackRedeemedUsd, 2),
         total_payable_bs: roundAmount(Number(checkoutRow.total_bs || 0) - cashbackRedeemedBs, 2),
         status: checkoutRow.status,
+        shipping_contact_name: checkoutRow.shipping_contact_name,
+        shipping_phone: checkoutRow.shipping_phone,
+        shipping_address_snapshot: checkoutRow.shipping_address_snapshot,
+        shipping_reference: checkoutRow.shipping_reference,
+        shipping_city: checkoutRow.shipping_city,
+        shipping_state: checkoutRow.shipping_state,
+        shipping_notes: checkoutRow.shipping_notes,
         created_at: checkoutRow.created_at,
         updated_at: checkoutRow.updated_at,
         groups: enrichedGroups
@@ -1307,6 +1598,14 @@ const submitPurchaseEvidence = async ({ customerId, groupId, file, note }) => {
       [normalizedGroupId]
     );
 
+    await createPurchaseGroupStatusHistory(connection, {
+      groupId: normalizedGroupId,
+      status: 'PAYMENT_SUBMITTED',
+      note: 'Pago enviado por el cliente',
+      createdByEntity: 'customer',
+      createdById: normalizedCustomerId
+    });
+
     await syncCheckoutStatus(connection, group.id_checkout_fk);
     await connection.commit();
 
@@ -1358,6 +1657,14 @@ const approvePurchaseGroup = async ({ companyId, groupId, reviewNote, isAdmin = 
          AND review_status = 'SUBMITTED'`,
       [group.id_purchase_group]
     );
+
+    await createPurchaseGroupStatusHistory(connection, {
+      groupId: group.id_purchase_group,
+      status: 'APPROVED',
+      note: String(reviewNote || '').trim() || 'Pago aprobado',
+      createdByEntity: isAdmin ? 'admin' : 'company',
+      createdById: companyId
+    });
 
     await syncCheckoutStatus(connection, group.id_checkout_fk);
     await connection.commit();
@@ -1412,6 +1719,14 @@ const rejectPurchaseGroup = async ({ companyId, groupId, reviewNote, isAdmin = f
       [group.id_purchase_group]
     );
 
+    await createPurchaseGroupStatusHistory(connection, {
+      groupId: group.id_purchase_group,
+      status: 'REJECTED',
+      note: String(reviewNote || '').trim() || 'Pago rechazado',
+      createdByEntity: isAdmin ? 'admin' : 'company',
+      createdById: companyId
+    });
+
     await syncCheckoutStatus(connection, group.id_checkout_fk);
     await connection.commit();
 
@@ -1454,7 +1769,103 @@ const expirePurchaseGroup = async ({ companyId, groupId, isAdmin = false }) => {
       [group.id_purchase_group]
     );
 
+    await createPurchaseGroupStatusHistory(connection, {
+      groupId: group.id_purchase_group,
+      status: 'EXPIRED',
+      note: 'Pago expirado por falta de confirmacion',
+      createdByEntity: isAdmin ? 'admin' : 'company',
+      createdById: companyId
+    });
+
     await syncCheckoutStatus(connection, group.id_checkout_fk);
+    await connection.commit();
+
+    return getHydratedGroupById(connection, group.id_purchase_group, { companyId, isAdmin });
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally {
+    connection.release();
+  }
+};
+
+const updatePurchaseGroupDelivery = async ({
+  companyId,
+  groupId,
+  deliveryStatus,
+  carrierName,
+  trackingCode,
+  estimatedDeliveryAt,
+  shippedAt,
+  deliveredAt,
+  note,
+  isAdmin = false
+}) => {
+  const connection = await pool.getConnection();
+
+  try {
+    await connection.beginTransaction();
+    const group = await getGroupForActor(connection, {
+      groupId,
+      companyId,
+      isAdmin
+    });
+
+    if (!group) {
+      throw new Error('Grupo de compra no encontrado');
+    }
+
+    if (group.status !== 'APPROVED') {
+      throw new Error('El grupo debe estar aprobado para actualizar el envio');
+    }
+
+    const normalizedDeliveryStatus = validateDeliveryTransition(group.delivery_status, deliveryStatus);
+    const normalizedCarrierName = normalizeNullableText(carrierName, 120);
+    const normalizedTrackingCode = normalizeNullableText(trackingCode, 120);
+    const normalizedEstimatedDeliveryAt = normalizeOptionalDateTime(estimatedDeliveryAt, 'estimated_delivery_at');
+    const normalizedShippedAt = normalizeOptionalDateTime(shippedAt, 'shipped_at');
+    const normalizedDeliveredAt = normalizeOptionalDateTime(deliveredAt, 'delivered_at');
+    const normalizedNote = normalizeNullableText(note, 255);
+
+    if (normalizedDeliveryStatus === 'SHIPPED' && !normalizedShippedAt) {
+      throw new Error('shipped_at es requerido cuando el pedido pasa a SHIPPED');
+    }
+
+    if (normalizedDeliveryStatus === 'DELIVERED' && !normalizedDeliveredAt) {
+      throw new Error('delivered_at es requerido cuando el pedido pasa a DELIVERED');
+    }
+
+    await connection.query(
+      `UPDATE Purchase_Group
+       SET delivery_status = ?,
+           carrier_name = COALESCE(?, carrier_name),
+           tracking_code = COALESCE(?, tracking_code),
+           estimated_delivery_at = COALESCE(?, estimated_delivery_at),
+           shipped_at = CASE WHEN ? IS NULL THEN shipped_at ELSE ? END,
+           delivered_at = CASE WHEN ? IS NULL THEN delivered_at ELSE ? END,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id_purchase_group = ?`,
+      [
+        normalizedDeliveryStatus,
+        normalizedCarrierName,
+        normalizedTrackingCode,
+        normalizedEstimatedDeliveryAt,
+        normalizedShippedAt,
+        normalizedShippedAt,
+        normalizedDeliveredAt,
+        normalizedDeliveredAt,
+        group.id_purchase_group
+      ]
+    );
+
+    await createPurchaseGroupStatusHistory(connection, {
+      groupId: group.id_purchase_group,
+      status: normalizedDeliveryStatus,
+      note: normalizedNote || `Estado logístico actualizado a ${normalizedDeliveryStatus}`,
+      createdByEntity: isAdmin ? 'admin' : 'company',
+      createdById: companyId
+    });
+
     await connection.commit();
 
     return getHydratedGroupById(connection, group.id_purchase_group, { companyId, isAdmin });
@@ -1469,11 +1880,13 @@ const expirePurchaseGroup = async ({ companyId, groupId, isAdmin = false }) => {
 module.exports = {
   createCheckoutFromCart,
   listCustomerCheckouts,
+  listAdminCheckouts,
   listCompanyGroups,
   listCompanyPaymentMethods,
   createCompanyPaymentMethod,
   submitPurchaseEvidence,
   approvePurchaseGroup,
   rejectPurchaseGroup,
-  expirePurchaseGroup
+  expirePurchaseGroup,
+  updatePurchaseGroupDelivery
 };
