@@ -1,0 +1,63 @@
+﻿<!DOCTYPE html>
+<html lang="es" xml:lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Cotizaciones B2B detallista</title>
+  <link rel="stylesheet" href="/assets/css/base.css">
+  <link rel="stylesheet" href="/assets/css/company.css">
+</head>
+<body>
+
+<h1>Cotizaciones B2B (Detallista)</h1>
+<div id="company-layout-nav"></div>
+
+<p id="b2b-retailer-summary">Cargando informacion...</p>
+<p id="b2b-retailer-feedback"></p>
+
+<section>
+  <details open>
+    <summary><b>Crear borrador</b></summary>
+    <br>
+    <form id="b2b-create-draft-form">
+      <label>
+        ID mayorista
+        <input name="id_wholesaler_fk" type="number" min="1" required>
+      </label>
+      <br><br>
+      <label>
+        Moneda
+        <input name="currency_code" type="text" value="USD" maxlength="10">
+      </label>
+      <br><br>
+      <label>
+        Nota
+        <textarea name="notes" rows="3" placeholder="Nota opcional"></textarea>
+      </label>
+      <br><br>
+      <button type="submit">Crear borrador</button>
+    </form>
+  </details>
+</section>
+
+<section>
+  <h2>Mis borradores</h2>
+  <div id="b2b-retailer-drafts-list"><p>Cargando borradores...</p></div>
+</section>
+
+<section>
+  <h2>Mis cotizaciones enviadas</h2>
+  <div id="b2b-retailer-quotes-list"><p>Cargando cotizaciones...</p></div>
+</section>
+
+<script src="/assets/js/js_front/utils/auth.js"></script>
+<script src="/assets/js/js_front/utils/global-header.js"></script>
+<script src="/assets/js/js_front/company/layout.js"></script>
+<script src="/assets/js/js_front/company/b2b-retailer.js"></script>
+
+</body>
+</html>
+
+
+
+
+

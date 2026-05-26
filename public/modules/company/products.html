@@ -1,8 +1,10 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="es" xml:lang="es">
 <head>
   <meta charset="UTF-8">
   <title>Mis productos</title>
+  <link rel="stylesheet" href="/assets/css/base.css">
+  <link rel="stylesheet" href="/assets/css/company.css">
 </head>
 <body>
 
@@ -13,7 +15,7 @@
 
 <label>
   Buscar producto registrado
-  <input id="company-products-search" type="search" placeholder="Buscar por nombre, SKU, línea o categoría">
+  <input id="company-products-search" type="search" placeholder="Buscar por nombre, SKU, lÃ­nea o categorÃ­a">
 </label>
 
 <br><br>
@@ -24,23 +26,23 @@
     <br>
   <form id="company-product-form">
     <label>
-      Buscar línea
-      <input id="product-line-search" type="text" placeholder="Busca por línea, categoría o subcategoría">
+      Buscar lÃ­nea
+      <input id="product-line-search" type="text" placeholder="Busca por lÃ­nea, categorÃ­a o subcategorÃ­a">
     </label>
     <br><br>
 
     <label>
-      Línea
+      LÃ­nea
       <select id="product-line" required>
-        <option value="">Seleccione una línea</option>
+        <option value="">Seleccione una lÃ­nea</option>
       </select>
     </label>
     <br><br>
 
     <div id="product-line-context">
-      <p><b>Categoría:</b> No seleccionada</p>
-      <p><b>Subcategoría:</b> No seleccionada</p>
-      <p><b>Línea:</b> No seleccionada</p>
+      <p><b>CategorÃ­a:</b> No seleccionada</p>
+      <p><b>SubcategorÃ­a:</b> No seleccionada</p>
+      <p><b>LÃ­nea:</b> No seleccionada</p>
     </div>
     <br><br>
 
@@ -57,7 +59,7 @@
     <br><br>
 
     <label>
-      Descripción
+      DescripciÃ³n
       <textarea id="product-description" name="description" rows="4"></textarea>
     </label>
     <br><br>
@@ -75,7 +77,7 @@
     <br><br>
 
     <label>
-      Stock mínimo
+      Stock mÃ­nimo
       <input id="product-min-stock" name="min_stock" type="number" min="0" step="1">
     </label>
     <br><br>
@@ -135,13 +137,13 @@
     <br><br>
 
     <label>
-      Imágenes secundarias (hasta 7)
+      ImÃ¡genes secundarias (hasta 7)
       <input id="product-secondary-images" name="secondary_images" type="file" accept="image/*" multiple>
     </label>
     <p>Puedes cargar varias fotos secundarias para el mismo producto.</p>
-    <button id="product-secondary-images-clear" type="button">Limpiar imágenes secundarias</button>
+    <button id="product-secondary-images-clear" type="button">Limpiar imÃ¡genes secundarias</button>
     <div id="product-secondary-images-preview">
-      <p>No has seleccionado imágenes secundarias.</p>
+      <p>No has seleccionado imÃ¡genes secundarias.</p>
     </div>
     <br><br>
 
@@ -181,7 +183,7 @@
       <br><br>
 
       <label>
-        Descripción
+        DescripciÃ³n
         <textarea id="edit-product-description" name="description" rows="4"></textarea>
       </label>
       <br><br>
@@ -193,7 +195,7 @@
       <br><br>
 
       <label>
-        Stock mínimo
+        Stock mÃ­nimo
         <input id="edit-product-min-stock" name="min_stock" type="number" min="0" step="1">
       </label>
       <br><br>
@@ -227,11 +229,11 @@
       <br><br>
 
       <label>
-        Nuevas imágenes secundarias
+        Nuevas imÃ¡genes secundarias
         <input id="edit-product-secondary-images" name="secondary_images" type="file" accept="image/*" multiple>
       </label>
       <div id="edit-product-secondary-images-preview">
-        <p>No has seleccionado nuevas imágenes secundarias.</p>
+        <p>No has seleccionado nuevas imÃ¡genes secundarias.</p>
       </div>
       <br><br>
 
@@ -248,9 +250,14 @@
   </section>
 </section>
 
-<script src="/assets/js/utils/auth.js"></script>
-<script src="/assets/js/company/layout.js"></script>
-<script src="/assets/js/company/products.js"></script>
+<script src="/assets/js/js_front/utils/auth.js"></script>
+<script src="/assets/js/js_front/utils/global-header.js"></script>
+<script src="/assets/js/js_front/company/layout.js"></script>
+<script src="/assets/js/js_front/company/products.js"></script>
 
 </body>
 </html>
+
+
+
+

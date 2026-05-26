@@ -12,11 +12,13 @@ const {
   getManagedProductDetail,
   getManagedProductStockHistory,
   getPublicCatalog,
+  getWholesaleCatalogForCompany,
   getRecommendedProducts,
   getProductReviews,
   createPublicProductReview,
   getPublicProduct,
   getPublicProductBySku,
+  getWholesaleProductBySku,
   createCategoryManual,
   updateCategoryManual,
   toggleCategoryStatusManual,
@@ -36,11 +38,13 @@ const {
 const router = express.Router();
 
 router.get('/catalog', getPublicCatalog);
+router.get('/company/wholesale-catalog', verifyToken, getWholesaleCatalogForCompany);
 router.get('/recommended', getRecommendedProducts);
 router.get('/:productId/reviews', getProductReviews);
 router.post('/:productId/reviews', verifyToken, createPublicProductReview);
 router.get('/catalog/sku/:sku', getPublicProductBySku);
 router.get('/catalog/:productId', getPublicProduct);
+router.get('/company/wholesale-catalog/sku/:sku', verifyToken, getWholesaleProductBySku);
 router.get('/categories', getCategories);
 router.get('/categories/:categoryId/subcategories', getSubcategoriesByCategory);
 router.get('/management/subcategories', verifyToken, getManagedSubcategories);

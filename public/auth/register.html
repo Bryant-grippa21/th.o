@@ -1,8 +1,10 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="es">
 
 <head>
   <title>Registro</title>
+  <link rel="stylesheet" href="/assets/css/base.css">
+  <link rel="stylesheet" href="/assets/css/auth.css">
 </head>
 
 <body>
@@ -21,15 +23,15 @@
 
   <div id="company-register-fields" hidden>
     <input id="company_name" placeholder="Nombre de la empresa"><br>
-    <input id="rif" placeholder="RIF (solo números)" inputmode="numeric" maxlength="12"><br>
+    <input id="rif" placeholder="RIF (solo nÃºmeros)" inputmode="numeric" maxlength="12"><br>
     <p>El registro juridico queda pendiente hasta que ingreses y cargues tus recaudos en el perfil de empresa.</p>
     <p>Recaudos permitidos: registro mercantil, acta de asamblea, RIF, cedula y RIF del representante, licencia de actividad economica.</p>
   </div>
 
   <input id="email" placeholder="Email"><br>
   <input id="password" type="password" placeholder="Password"><br>
-  <input id="phone" placeholder="Teléfono"><br>
-  <input id="address" placeholder="Dirección"><br>
+  <input id="phone" placeholder="TelÃ©fono"><br>
+  <input id="address" placeholder="DirecciÃ³n"><br>
 
   <button onclick="register()">Registrar</button>
 
@@ -41,10 +43,15 @@
     <div id="google-signin-root"></div>
   </div>
 
-  <script src="/assets/js/utils/auth.js"></script>
-  <script src="/assets/js/auth/google.js"></script>
-  <script src="/assets/js/auth/register.js"></script>
+  <script src="/assets/js/js_front/utils/auth.js"></script>
+<script src="/assets/js/js_front/utils/global-header.js"></script>
+  <script src="/assets/js/js_front/auth/google.js"></script>
+  <script src="/assets/js/js_front/auth/register.js"></script>
 
 </body>
 
 </html>
+
+
+
+

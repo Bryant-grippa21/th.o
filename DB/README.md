@@ -149,8 +149,6 @@ Indices importantes en el script consolidado:
 | `Role` | Roles del sistema: `ADMIN`, `MAYORISTA`, `DETALLISTA` |
 | `Cashback` | Saldo de cashback por customer |
 | `Cashback_History` | Historial de movimientos de cashback |
-| `Credit_Limit` | Límite de crédito entre mayorista y detallista |
-| `Credit_History` | Historial de pagos y asignaciones de crédito |
 
 #### Columnas clave — `Customer`:
 | Columna | Tipo | Notas |
@@ -174,18 +172,10 @@ Indices importantes en el script consolidado:
 | `attempts` | INT | Intentos fallidos login |
 | `is_active` | BOOLEAN | Bloqueo de cuenta |
 
-#### Columnas clave — `Credit_Limit`:
-| Columna | Tipo | Notas |
-|---|---|---|
-| `id_retailer_fk` | INT FK | → `Company` (detallista) |
-| `id_wholesaler_fk` | INT FK | → `Company` (mayorista) |
-| `status` | ENUM | `ACTIVE` / `PAID` / `LATE` |
-| `due_date` | DATE | Fecha límite de pago |
 
 #### Notas importantes:
 - `Customer` soporta autenticación **local** y **Google OAuth**
 - `Company` maneja roles mediante FK a tabla `Role`
-- `Credit_Limit` solo permite **1 crédito ACTIVE** por detallista
 - Todos los movimientos financieros tienen historial
 
 ---
@@ -313,7 +303,6 @@ Customer ──── Cashback ──── Cashback_History
 
 Company ──── Role
   │
-  ├── Credit_Limit ──── Credit_History
   │
   └── Line
         └── Product

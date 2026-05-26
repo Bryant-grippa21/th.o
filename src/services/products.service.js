@@ -563,7 +563,8 @@ const listPublicCatalog = async (filters = {}) => {
   const conditions = [
     'l.is_active = TRUE',
     'p.is_active = TRUE',
-    's.quantity > 0'
+    's.quantity > 0',
+    "ro.name = 'DETALLISTA'"
   ];
   const values = [];
 
@@ -593,6 +594,8 @@ const listPublicCatalog = async (filters = {}) => {
   const [countRows] = await pool.query(
     `SELECT COUNT(*) AS total
      FROM Product p
+     INNER JOIN Company co ON co.id_company = p.id_company_fk
+     INNER JOIN Role ro ON ro.id_role = co.id_role_fk
      INNER JOIN Line l ON l.id_line = p.id_line_fk
      INNER JOIN Subcategory sc ON sc.id_subcategory = l.id_subcategory_fk
      INNER JOIN Category c ON c.id_category = sc.id_category_fk
@@ -620,6 +623,8 @@ const listPublicCatalog = async (filters = {}) => {
        COALESCE(rs.total_reviews, 0) AS total_reviews,
        COALESCE(rs.average_rating, 0) AS average_rating
      FROM Product p
+    INNER JOIN Company co ON co.id_company = p.id_company_fk
+    INNER JOIN Role ro ON ro.id_role = co.id_role_fk
      INNER JOIN Line l ON l.id_line = p.id_line_fk
      INNER JOIN Subcategory sc ON sc.id_subcategory = l.id_subcategory_fk
      INNER JOIN Category c ON c.id_category = sc.id_category_fk
@@ -672,7 +677,8 @@ const listRecommendedProducts = async ({ limit = 10, excludeSku = null } = {}) =
   const conditions = [
     'l.is_active = TRUE',
     'p.is_active = TRUE',
-    's.quantity > 0'
+    's.quantity > 0',
+    "ro.name = 'DETALLISTA'"
   ];
   const values = [];
 
@@ -694,6 +700,8 @@ const listRecommendedProducts = async ({ limit = 10, excludeSku = null } = {}) =
        l.name AS line_name,
        pi.image_url AS image_url
      FROM Product p
+    INNER JOIN Company co ON co.id_company = p.id_company_fk
+    INNER JOIN Role ro ON ro.id_role = co.id_role_fk
      INNER JOIN Line l ON l.id_line = p.id_line_fk
      INNER JOIN Stock s ON s.id_product_fk = p.id_product
      LEFT JOIN Product_Image pi ON pi.id_product_fk = p.id_product AND pi.is_main = TRUE
@@ -715,8 +723,11 @@ const ensurePublicProductExists = async (productId, connection = pool) => {
        p.name,
        p.sku,
        p.is_active,
-       l.is_active AS line_is_active
+       l.is_active AS line_is_active,
+       ro.name AS company_role
      FROM Product p
+     INNER JOIN Company co ON co.id_company = p.id_company_fk
+     INNER JOIN Role ro ON ro.id_role = co.id_role_fk
      INNER JOIN Line l ON l.id_line = p.id_line_fk
      WHERE p.id_product = ?
      LIMIT 1`,
@@ -727,7 +738,135 @@ const ensurePublicProductExists = async (productId, connection = pool) => {
     throw new Error('Producto no encontrado');
   }
 
+  if (rows[0].company_role !== 'DETALLISTA') {
+    throw new Error('Producto no disponible en catálogo público');
+  }
+
   return rows[0];
+};
+
+const listWholesaleCatalog = async (filters = {}) => {
+  const safePage = Number.isInteger(filters.page) && filters.page > 0 ? filters.page : 1;
+  const safeLimit = Number.isInteger(filters.limit) && filters.limit > 0 ? filters.limit : 20;
+  const safeOffset = (safePage - 1) * safeLimit;
+  const normalizedQuery = String(filters.query || '').trim();
+  const normalizedCategoryId = Number.isInteger(filters.categoryId) && filters.categoryId > 0
+    ? filters.categoryId
+    : null;
+  const normalizedSort = String(filters.sort || 'recent').trim().toLowerCase();
+  const conditions = [
+    'l.is_active = TRUE',
+    'p.is_active = TRUE',
+    's.quantity > 0',
+    "ro.name = 'MAYORISTA'"
+  ];
+  const values = [];
+
+  if (normalizedCategoryId) {
+    conditions.push('c.id_category = ?');
+    values.push(normalizedCategoryId);
+  }
+
+  if (normalizedQuery) {
+    const queryLike = `%${normalizedQuery}%`;
+    conditions.push(`(
+      p.name LIKE ?
+      OR p.brand LIKE ?
+      OR p.sku LIKE ?
+      OR l.name LIKE ?
+      OR c.name LIKE ?
+      OR sc.name LIKE ?
+      OR co.name LIKE ?
+    )`);
+    values.push(queryLike, queryLike, queryLike, queryLike, queryLike, queryLike, queryLike);
+  }
+
+  const whereClause = `WHERE ${conditions.join(' AND ')}`;
+  const sortClause = normalizedSort === 'reviews_desc'
+    ? 'ORDER BY COALESCE(rs.average_rating, 0) DESC, COALESCE(rs.total_reviews, 0) DESC, p.created_at DESC, p.id_product DESC'
+    : 'ORDER BY p.created_at DESC, p.id_product DESC';
+
+  const [countRows] = await pool.query(
+    `SELECT COUNT(*) AS total
+     FROM Product p
+     INNER JOIN Company co ON co.id_company = p.id_company_fk
+     INNER JOIN Role ro ON ro.id_role = co.id_role_fk
+     INNER JOIN Line l ON l.id_line = p.id_line_fk
+     INNER JOIN Subcategory sc ON sc.id_subcategory = l.id_subcategory_fk
+     INNER JOIN Category c ON c.id_category = sc.id_category_fk
+     INNER JOIN Stock s ON s.id_product_fk = p.id_product
+     ${whereClause}`,
+    values
+  );
+
+  const [rows] = await pool.query(
+    `SELECT
+       p.id_product,
+       p.sku,
+       p.name,
+       p.brand,
+       p.price,
+       p.description,
+       p.id_company_fk,
+       co.name AS company_name,
+       l.id_line,
+       l.name AS line_name,
+       c.id_category,
+       c.name AS category_name,
+       sc.id_subcategory,
+       sc.name AS subcategory_name,
+       s.quantity,
+       pi.image_url AS image_url,
+       COALESCE(rs.total_reviews, 0) AS total_reviews,
+       COALESCE(rs.average_rating, 0) AS average_rating
+     FROM Product p
+     INNER JOIN Company co ON co.id_company = p.id_company_fk
+     INNER JOIN Role ro ON ro.id_role = co.id_role_fk
+     INNER JOIN Line l ON l.id_line = p.id_line_fk
+     INNER JOIN Subcategory sc ON sc.id_subcategory = l.id_subcategory_fk
+     INNER JOIN Category c ON c.id_category = sc.id_category_fk
+     INNER JOIN Stock s ON s.id_product_fk = p.id_product
+     LEFT JOIN Product_Image pi ON pi.id_product_fk = p.id_product AND pi.is_main = TRUE
+     LEFT JOIN (
+       SELECT
+         id_product_fk,
+         COUNT(*) AS total_reviews,
+         ROUND(AVG(rating), 1) AS average_rating
+       FROM Product_Review
+       GROUP BY id_product_fk
+     ) rs ON rs.id_product_fk = p.id_product
+     ${whereClause}
+     ${sortClause}
+     LIMIT ? OFFSET ?`,
+    [...values, safeLimit, safeOffset]
+  );
+
+  const products = rows
+    .map(mapProductImageFields)
+    .map((product) => normalizeProductName(product, product.line_name))
+    .map((product) => ({
+      ...product,
+      quantity: Number(product.quantity || 0),
+      reviews: {
+        total_reviews: Number(product.total_reviews || 0),
+        average_rating: Number(product.average_rating || 0)
+      }
+    }));
+
+  return {
+    products,
+    pagination: {
+      page: safePage,
+      limit: safeLimit,
+      total: countRows[0]?.total ?? 0,
+      total_pages: Math.max(1, Math.ceil((countRows[0]?.total ?? 0) / safeLimit))
+    },
+    filters: {
+      query: normalizedQuery,
+      category_id: normalizedCategoryId,
+      sort: normalizedSort
+    }
+  };
 };
 
 const listProductReviews = async (productId) => {
@@ -897,9 +1036,11 @@ const getPublicProductDetail = async (productId) => {
      FROM Product p
      INNER JOIN Stock s ON s.id_product_fk = p.id_product
      INNER JOIN Company co ON co.id_company = p.id_company_fk
+     INNER JOIN Role ro ON ro.id_role = co.id_role_fk
      LEFT JOIN Product_Image pi ON pi.id_product_fk = p.id_product AND pi.is_main = TRUE
      WHERE p.id_line_fk = ?
        AND p.is_active = TRUE
+       AND ro.name = 'DETALLISTA'
      ORDER BY p.id_product ASC`,
     [productId]
   );
@@ -927,10 +1068,13 @@ const getPublicProductDetailBySku = async (sku) => {
   const [rows] = await pool.query(
     `SELECT p.id_line_fk
      FROM Product p
+     INNER JOIN Company co ON co.id_company = p.id_company_fk
+     INNER JOIN Role ro ON ro.id_role = co.id_role_fk
      INNER JOIN Line l ON l.id_line = p.id_line_fk
      WHERE p.sku = ?
        AND p.is_active = TRUE
        AND l.is_active = TRUE
+       AND ro.name = 'DETALLISTA'
      LIMIT 1`,
     [normalizedSku]
   );
@@ -940,6 +1084,111 @@ const getPublicProductDetailBySku = async (sku) => {
   }
 
   const detail = await getPublicProductDetail(rows[0].id_line_fk);
+
+  if (!detail) {
+    return null;
+  }
+
+  const selectedProducts = detail.products.filter((product) => product.sku === normalizedSku);
+  const remainingProducts = detail.products.filter((product) => product.sku !== normalizedSku);
+
+  return {
+    ...detail,
+    products: selectedProducts.concat(remainingProducts)
+  };
+};
+
+const getWholesaleProductDetail = async (productId) => {
+  const [lineRows] = await pool.query(
+    `SELECT
+       l.id_line,
+       l.name,
+       l.id_subcategory_fk,
+       sc.name AS subcategory_name,
+       c.name AS category_name,
+       l.created_at,
+       l.updated_at
+     FROM Line l
+     INNER JOIN Subcategory sc ON sc.id_subcategory = l.id_subcategory_fk
+     INNER JOIN Category c ON c.id_category = sc.id_category_fk
+     WHERE l.id_line = ?
+       AND l.is_active = TRUE
+     LIMIT 1`,
+    [productId]
+  );
+
+  if (lineRows.length === 0) {
+    return null;
+  }
+
+  const [productRows] = await pool.query(
+    `SELECT
+       p.id_product,
+       p.sku,
+       p.name,
+       p.brand,
+       p.description,
+       p.price,
+       p.attributes,
+       p.is_active,
+       p.id_company_fk,
+       s.quantity,
+       s.min_stock,
+       pi.image_url,
+       co.name AS company_name,
+       co.email AS company_email,
+       co.rif AS company_rif
+     FROM Product p
+     INNER JOIN Stock s ON s.id_product_fk = p.id_product
+     INNER JOIN Company co ON co.id_company = p.id_company_fk
+     INNER JOIN Role ro ON ro.id_role = co.id_role_fk
+     LEFT JOIN Product_Image pi ON pi.id_product_fk = p.id_product AND pi.is_main = TRUE
+     WHERE p.id_line_fk = ?
+       AND p.is_active = TRUE
+       AND ro.name = 'MAYORISTA'
+     ORDER BY p.id_product ASC`,
+    [productId]
+  );
+
+  const mappedProducts = await attachProductGalleries(
+    productRows
+      .map(mapProductImageFields)
+      .map((product) => normalizeProductName(product, lineRows[0]?.name))
+  );
+
+  return {
+    ...lineRows[0],
+    brand: mappedProducts[0]?.brand ?? null,
+    products: mappedProducts
+  };
+};
+
+const getWholesaleProductDetailBySku = async (sku) => {
+  const normalizedSku = String(sku || '').trim();
+
+  if (!normalizedSku) {
+    return null;
+  }
+
+  const [rows] = await pool.query(
+    `SELECT p.id_line_fk
+     FROM Product p
+     INNER JOIN Company co ON co.id_company = p.id_company_fk
+     INNER JOIN Role ro ON ro.id_role = co.id_role_fk
+     INNER JOIN Line l ON l.id_line = p.id_line_fk
+     WHERE p.sku = ?
+       AND p.is_active = TRUE
+       AND l.is_active = TRUE
+       AND ro.name = 'MAYORISTA'
+     LIMIT 1`,
+    [normalizedSku]
+  );
+
+  if (!rows.length) {
+    return null;
+  }
+
+  const detail = await getWholesaleProductDetail(rows[0].id_line_fk);
 
   if (!detail) {
     return null;
@@ -1579,11 +1828,14 @@ module.exports = {
   getManagedProductById,
   listManagedProductStockHistory,
   listPublicCatalog,
+  listWholesaleCatalog,
   listRecommendedProducts,
   listProductReviews,
   createProductReview,
   getPublicProductDetail,
   getPublicProductDetailBySku,
+  getWholesaleProductDetail,
+  getWholesaleProductDetailBySku,
   createCategory,
   updateCategory,
   toggleCategory,

@@ -217,13 +217,11 @@ Tambien existen carpetas por dominio dentro de `DB/` para trabajo incremental o 
 - `Company_Payment_Method`
 
 ### Creditos B2B
-El script consolidado ya contiene `Credit_Limit` y `Credit_History` como base heredada de credito entre empresas.
 
 Hoy esas tablas se toman como referencia para el siguiente modulo, pero el producto de prestamos monetarios B2B no esta cerrado ni implementado de punta a punta.
 
 La decision actual de analisis es:
 - no tratarlo todavia como parte del checkout normal
-- no asumir que `Credit_Limit` por si sola resuelve prestamos puntuales multiples
 - evaluar el modulo como cartera/prestamos B2B con pagos por evidencia y reglas de mora separadas
 
 ---
@@ -302,7 +300,6 @@ Este modulo esta en fase de analisis funcional.
 - ambiguedad entre prestamo monetario y credito comercial
 - dificultad para amarrar el dinero a una compra real
 - bloqueo total del detallista puede afectar clientes finales y pedidos activos
-- `Credit_Limit` no parece suficiente por si sola para modelar prestamos puntuales multiples
 
 ### Criterio actual de producto
 - no bloquear por completo la administracion del detallista en caso de mora

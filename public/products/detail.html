@@ -1,20 +1,27 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="es" xml:lang="es">
 <head>
   <meta charset="UTF-8">
   <title>Detalle de producto</title>
+  <link rel="stylesheet" href="/assets/css/base.css">
+  <link rel="stylesheet" href="/assets/css/products.css">
 </head>
 <body>
 
 <h1>Detalle de producto</h1>
-<p><a href="/index.html">Volver al inicio</a></p>
+<p>
+  <a href="/index.html" aria-label="Volver al landing">
+    <img src="/uploads/default/Logo.png" alt="Logo tuherramienta.online" style="height:44px; width:auto; display:block;">
+  </a>
+</p>
 
 <div id="product-detail-feedback"></div>
 <div id="product-detail">
   <p>Cargando producto...</p>
 </div>
 
-<script src="/assets/js/utils/auth.js"></script>
+<script src="/assets/js/js_front/utils/auth.js"></script>
+<script src="/assets/js/js_front/utils/global-header.js"></script>
 <script>
   const params = new URLSearchParams(location.search);
   const sku = params.get('sku');
@@ -119,7 +126,7 @@
     }
 
     if (stock <= 5) {
-      return 'Últimas unidades';
+      return 'Ãšltimas unidades';
     }
 
     return 'Disponible';
@@ -171,7 +178,7 @@
 
   const renderStars = (rating) => {
     const safeRating = Math.max(0, Math.min(5, Number(rating || 0)));
-    return `${'★'.repeat(safeRating)}${'☆'.repeat(5 - safeRating)}`;
+    return `${'â˜…'.repeat(safeRating)}${'â˜†'.repeat(5 - safeRating)}`;
   };
 
   const renderProductAverageLabel = (reviewSummary) => {
@@ -179,7 +186,7 @@
     const averageRating = Number(reviewSummary?.average_rating || 0);
 
     if (!totalReviews) {
-      return 'Sin reseñas';
+      return 'Sin reseÃ±as';
     }
 
     return `${renderStars(Math.round(averageRating))} (${averageRating.toFixed(1)} / 5 - ${totalReviews})`;
@@ -222,12 +229,12 @@
 
   const renderGallery = (images, fallbackAlt) => {
     if (!Array.isArray(images) || !images.length) {
-      return '<p>Sin imágenes registradas.</p>';
+      return '<p>Sin imÃ¡genes registradas.</p>';
     }
 
     return `
       <div>
-        <h3>Galería</h3>
+        <h3>GalerÃ­a</h3>
         <div>
         ${images.map((image, index) => `
           <img
@@ -249,13 +256,45 @@
     </section>
   `;
 
+  const isRetailerCompanySession = () => {
+    if (state.session?.entity !== 'company') {
+      return false;
+    }
+
+    const company = state.session.data?.company || {};
+    const roleId = Number(company.id_role_fk || company.id_role || 0);
+
+    return roleId === 3 && company.verification_status === 'APPROVED' && Boolean(company.can_buy);
+  };
+
+  const renderCompanyActions = (item) => {
+    if (!isRetailerCompanySession()) {
+      return '';
+    }
+
+    return `
+      <section>
+        <h2>Acciones B2B</h2>
+        <label>
+          Cantidad
+          <input id="b2b-quote-quantity" type="number" min="1" step="1" value="1">
+        </label>
+        <p>
+          <button type="button" onclick="createRetailerQuoteFromDetail(${item.id_product}, ${item.id_company_fk})">Cotizar este producto</button>
+          <a href="/modules/company/b2b-retailer.html">Ir a mis cotizaciones</a>
+        </p>
+        <p>Esta acciÃ³n crea un borrador B2B con el mayorista de este producto y agrega la linea seleccionada.</p>
+      </section>
+    `;
+  };
+
   const renderPriceBlock = (item) => {
     const priceBs = convertUsdToBs(item.price);
     const stock = Number(item.quantity || 0);
 
     return `
       <section>
-        <h2>Información de compra</h2>
+        <h2>InformaciÃ³n de compra</h2>
         <p><b>Precio USD:</b> USD ${formatAmount(item.price)}</p>
         <p><b>Precio referencial Bs:</b> ${priceBs === null ? 'Tasa no disponible' : `Bs.S ${formatBsAmount(priceBs)}`}</p>
         <p><b>Tasa actual:</b> ${state.exchangeRate?.rate_bs_per_usd ? `Bs.S ${formatExchangeRate(state.exchangeRate.rate_bs_per_usd)}` : 'No disponible'}</p>
@@ -269,7 +308,7 @@
       return `
         <section>
           <h2>Acciones</h2>
-          <p>Inicia sesión como cliente para usar favoritos y carrito.</p>
+          <p>Inicia sesiÃ³n como cliente para usar favoritos y carrito.</p>
           <p><a href="/auth/login.html">Ir a login</a></p>
         </section>
       `;
@@ -279,7 +318,7 @@
       return `
         <section>
           <h2>Acciones</h2>
-          <p>Estas acciones solo están disponibles para clientes.</p>
+          <p>Estas acciones solo estÃ¡n disponibles para clientes.</p>
         </section>
       `;
     }
@@ -353,16 +392,16 @@
 
   const renderReviewForm = (currentUserReview) => {
     const helperText = currentUserReview
-      ? 'Ya tienes una reseña en este producto. Si envías otra, se actualiza.'
-      : 'Aún no has dejado reseña en este producto.';
-    const submitLabel = currentUserReview ? 'Actualizar reseña' : 'Publicar reseña';
+      ? 'Ya tienes una reseÃ±a en este producto. Si envÃ­as otra, se actualiza.'
+      : 'AÃºn no has dejado reseÃ±a en este producto.';
+    const submitLabel = currentUserReview ? 'Actualizar reseÃ±a' : 'Publicar reseÃ±a';
 
     return `
       <form id="product-review-form">
-        <p><b>Reseñando como:</b> ${getCurrentSessionLabel()}</p>
+        <p><b>ReseÃ±ando como:</b> ${getCurrentSessionLabel()}</p>
         <p>${helperText}</p>
         <p>
-          <label for="product-review-rating">Calificación</label>
+          <label for="product-review-rating">CalificaciÃ³n</label>
           <select id="product-review-rating" name="rating" required>
             ${renderReviewRatingOptions(currentUserReview?.rating)}
           </select>
@@ -378,7 +417,7 @@
 
   const renderReviewList = (reviews) => {
     if (!reviews.length) {
-      return '<p>Todavía no hay reseñas para este producto.</p>';
+      return '<p>TodavÃ­a no hay reseÃ±as para este producto.</p>';
     }
 
     return `
@@ -386,7 +425,7 @@
         ${reviews.map((review) => `
           <article>
             <p><b>${review.author_name}</b> (${review.author_entity})</p>
-            <p><b>Calificación:</b> ${renderStars(review.rating)} (${review.rating}/5)</p>
+            <p><b>CalificaciÃ³n:</b> ${renderStars(review.rating)} (${review.rating}/5)</p>
             <p><b>Comentario:</b> ${review.comment || 'Sin comentario.'}</p>
             <p><b>Fecha:</b> ${new Date(review.created_at).toLocaleString('es-VE')}</p>
           </article>
@@ -406,13 +445,13 @@
     const averageRating = Number(summary.average_rating || 0);
     const reviewFormHtml = isLogged()
       ? renderReviewForm(currentUserReview)
-      : '<p>Inicia sesión para dejar una reseña.</p>';
+      : '<p>Inicia sesiÃ³n para dejar una reseÃ±a.</p>';
 
     return `
       <section>
-        <h2>Reseñas</h2>
+        <h2>ReseÃ±as</h2>
         <p><b>Promedio:</b> ${renderStars(Math.round(averageRating))} (${averageRating.toFixed(1)} / 5)</p>
-        <p><b>Total de reseñas:</b> ${Number(summary.total_reviews || 0)}</p>
+        <p><b>Total de reseÃ±as:</b> ${Number(summary.total_reviews || 0)}</p>
         <ul>
           <li>5 estrellas: ${Number(summary.distribution?.[5] || 0)}</li>
           <li>4 estrellas: ${Number(summary.distribution?.[4] || 0)}</li>
@@ -435,7 +474,7 @@
 
     return `
       <section>
-        <h2>Otros productos de esta línea</h2>
+        <h2>Otros productos de esta lÃ­nea</h2>
         ${otherProducts.map((item) => `
           <article>
             <p><b>Nombre:</b> ${item.name || 'Sin nombre'}</p>
@@ -453,7 +492,7 @@
     const selectedProduct = getSelectedProduct(product);
 
     if (!selectedProduct) {
-      detailContainer.innerHTML = '<p>No hay productos activos disponibles para esta línea.</p>';
+      detailContainer.innerHTML = '<p>No hay productos activos disponibles para esta lÃ­nea.</p>';
       return;
     }
 
@@ -462,7 +501,7 @@
     detailContainer.innerHTML = `
       <section>
         <h2>Resumen del producto</h2>
-        <p><b>Línea:</b> ${product.name}</p>
+        <p><b>LÃ­nea:</b> ${product.name}</p>
         <p>${selectedProduct.name || 'Sin nombre'}</p>
         <p><b>SKU:</b> ${selectedProduct.sku}</p>
         <p><b>Marca:</b> ${mainBrand || 'Sin marca'}</p>
@@ -470,11 +509,12 @@
       ${renderGallery(selectedProduct.images, selectedProduct.name || product.name)}
       ${renderPriceBlock(selectedProduct)}
       <section>
-        <h2>Descripción</h2>
-        <p>${selectedProduct.description || 'Sin descripción registrada.'}</p>
+        <h2>DescripciÃ³n</h2>
+        <p>${selectedProduct.description || 'Sin descripciÃ³n registrada.'}</p>
       </section>
       ${renderAttributes(selectedProduct.attributes)}
       ${renderVendorBlock(selectedProduct)}
+      ${renderCompanyActions(selectedProduct)}
       ${renderCustomerActions(selectedProduct)}
       ${renderOtherProducts(product)}
       ${renderRecommendedProducts()}
@@ -567,16 +607,26 @@
   };
 
   let detailEndpoint = null;
+  let useAuthenticatedDetailRequest = false;
 
   if (sku) {
-    detailEndpoint = `${API_BASE_URL}/api/products/catalog/sku/${encodeURIComponent(sku)}`;
+    if (getAuthEntity() === 'company') {
+      detailEndpoint = `${API_BASE_URL}/api/products/company/wholesale-catalog/sku/${encodeURIComponent(sku)}`;
+      useAuthenticatedDetailRequest = true;
+    } else {
+      detailEndpoint = `${API_BASE_URL}/api/products/catalog/sku/${encodeURIComponent(sku)}`;
+    }
   } else if (lineId) {
     detailEndpoint = `${API_BASE_URL}/api/products/catalog/${lineId}`;
   }
 
   if (detailEndpoint) {
+    const detailRequest = useAuthenticatedDetailRequest
+      ? requestCustomerJson(detailEndpoint)
+      : requestPublicJson(detailEndpoint);
+
     Promise.all([
-      requestPublicJson(detailEndpoint),
+      detailRequest,
       loadCustomerCollections(),
       loadLatestExchangeRate(),
       loadRecommendedProducts()
@@ -652,6 +702,56 @@
     }
   }
 
+  async function createRetailerQuoteFromDetail(productId, wholesalerId) {
+    try {
+      if (!isRetailerCompanySession()) {
+        throw new Error('Acceso solo para detallista');
+      }
+
+      const quantityInput = document.getElementById('b2b-quote-quantity');
+      const requestedQuantity = Number(quantityInput?.value || 1);
+
+      if (!Number.isInteger(requestedQuantity) || requestedQuantity <= 0) {
+        throw new Error('Cantidad invÃ¡lida');
+      }
+
+      const draftResponse = await requestCustomerJson(`${API_BASE_URL}/api/b2b-quotes/drafts`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          id_wholesaler_fk: wholesalerId,
+          currency_code: 'USD',
+          notes: `CotizaciÃ³n iniciada desde la ficha de ${state.product?.name || 'producto'}`
+        })
+      });
+
+      const draftId = draftResponse.draft?.id_quote_draft;
+
+      if (!draftId) {
+        throw new Error('No se pudo crear el borrador');
+      }
+
+      await requestCustomerJson(`${API_BASE_URL}/api/b2b-quotes/drafts/${draftId}/items`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          id_product_fk: productId,
+          requested_quantity: requestedQuantity,
+          notes: 'Agregado desde ficha de producto'
+        })
+      });
+
+      setFeedback(`Borrador B2B #${draftId} creado y producto agregado.`, 'success');
+      location.href = `/modules/company/b2b-retailer.html?draftId=${encodeURIComponent(draftId)}`;
+    } catch (error) {
+      setFeedback(error.message, 'error');
+    }
+  }
+
   async function submitReview(event) {
     event.preventDefault();
 
@@ -664,7 +764,7 @@
       const productId = getCurrentReviewProductId();
 
       if (!productId) {
-        throw new Error('Producto no disponible para reseña');
+        throw new Error('Producto no disponible para reseÃ±a');
       }
 
       const formData = new FormData(event.currentTarget);
@@ -680,7 +780,7 @@
       });
 
       await loadProductReviews(productId);
-      setFeedback('Reseña publicada correctamente.', 'success');
+      setFeedback('ReseÃ±a publicada correctamente.', 'success');
       renderProductDetail(state.product);
     } catch (error) {
       setFeedback(error.message, 'error');
@@ -703,7 +803,13 @@
   globalThis.addToCart = addToCart;
   globalThis.buyNow = buyNow;
   globalThis.changeDetailCartQuantity = changeDetailCartQuantity;
+  globalThis.createRetailerQuoteFromDetail = createRetailerQuoteFromDetail;
 </script>
 
 </body>
 </html>
+
+
+
+
+

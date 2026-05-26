@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="es" xml:lang="es">
 <head>
   <meta charset="UTF-8">
@@ -107,14 +107,18 @@
       margin-top: 12px;
     }
   </style>
+  <link rel="stylesheet" href="/assets/css/base.css">
+  <link rel="stylesheet" href="/assets/css/admin.css">
 </head>
 <body>
 
 <h1>Dashboard admin</h1>
 
 <div class="admin-toolbar">
-  <a href="/index.html">Volver al inicio</a>
-  <button onclick="logout()">Cerrar sesión</button>
+  <a href="/index.html" aria-label="Volver al landing">
+    <img src="/uploads/default/Logo.png" alt="Logo tuherramienta.online" style="height:40px; width:auto; display:block;">
+  </a>
+  <button onclick="logout()">Cerrar sesiÃ³n</button>
 </div>
 
 <h2>Modulos</h2>
@@ -136,8 +140,8 @@
 
   <div id="admin-dashboard-reports" class="admin-overview-grid">
     <article class="admin-report-card">
-      <p><b>Reportes y estadísticas</b></p>
-      <p>Este módulo queda reservado para los reportes ejecutivos y métricas consolidadas que están en progreso.</p>
+      <p><b>Reportes y estadÃ­sticas</b></p>
+      <p>Este mÃ³dulo queda reservado para los reportes ejecutivos y mÃ©tricas consolidadas que estÃ¡n en progreso.</p>
     </article>
   </div>
 </section>
@@ -192,10 +196,10 @@
       <input id="company-filter-email" type="text" placeholder="Correo de la empresa">
     </label>
     <label>
-      Estado jurídico
+      Estado jurÃ­dico
       <select id="company-filter-verification-status">
         <option value="">Todos</option>
-        <option value="PENDING_REVIEW">Pendiente de revisión</option>
+        <option value="PENDING_REVIEW">Pendiente de revisiÃ³n</option>
         <option value="CHANGES_REQUESTED">Correcciones solicitadas</option>
         <option value="APPROVED">Aprobado</option>
         <option value="REJECTED">Rechazado</option>
@@ -306,7 +310,7 @@
         <br><br>
 
         <label>
-          Descripción
+          DescripciÃ³n
           <textarea id="admin-edit-product-description" rows="4"></textarea>
         </label>
         <br><br>
@@ -316,7 +320,7 @@
           <input id="admin-edit-product-price" type="number" min="0" step="0.01" required>
         </label>
         <label>
-          Stock mínimo
+          Stock mÃ­nimo
           <input id="admin-edit-product-min-stock" type="number" min="0" step="1">
         </label>
         <br><br>
@@ -348,7 +352,7 @@
         <br>
 
         <label>
-          Nuevas imágenes secundarias
+          Nuevas imÃ¡genes secundarias
           <input id="admin-edit-product-secondary-images" type="file" accept="image/*" multiple>
         </label>
         <div id="admin-edit-product-secondary-images-preview"></div>
@@ -410,20 +414,20 @@
       <br><br>
 
       <label>
-        Nueva contraseña
+        Nueva contraseÃ±a
         <input id="admin-customer-modal-password" type="password" placeholder="Opcional">
       </label>
       <br><br>
 
       <div>
-        <h4>Recuperación de cuenta</h4>
+        <h4>RecuperaciÃ³n de cuenta</h4>
         <div id="admin-customer-modal-recovery-summary">
           <p>Cargando solicitud...</p>
         </div>
       </div>
 
       <label>
-        Acción sobre recuperación
+        AcciÃ³n sobre recuperaciÃ³n
         <select id="admin-customer-modal-recovery-action">
           <option value="">Sin cambios</option>
           <option value="RESOLVED">Marcar como resuelta</option>
@@ -433,7 +437,7 @@
       <br><br>
 
       <label>
-        Nota de revisión
+        Nota de revisiÃ³n
         <textarea id="admin-customer-modal-recovery-note" rows="3" placeholder="Observaciones del admin"></textarea>
       </label>
       <br><br>
@@ -466,15 +470,15 @@
       <br><br>
 
       <label>
-        Nueva contraseña
+        Nueva contraseÃ±a
         <input id="admin-company-modal-password" type="password" placeholder="Opcional">
       </label>
       <br><br>
 
       <label>
-        Estado jurídico
+        Estado jurÃ­dico
         <select id="admin-company-modal-verification-status">
-          <option value="PENDING_REVIEW">Pendiente de revisión</option>
+          <option value="PENDING_REVIEW">Pendiente de revisiÃ³n</option>
           <option value="CHANGES_REQUESTED">Solicitar correcciones</option>
           <option value="APPROVED">Aprobar</option>
           <option value="REJECTED">Rechazar</option>
@@ -483,7 +487,7 @@
       <br><br>
 
       <label>
-        Nota de revisión
+        Nota de revisiÃ³n
         <textarea id="admin-company-modal-verification-note" rows="4" placeholder="Observaciones para la empresa"></textarea>
       </label>
       <br><br>
@@ -507,7 +511,7 @@
       </div>
 
       <div>
-        <h4>Historial jurídico</h4>
+        <h4>Historial jurÃ­dico</h4>
         <div id="admin-company-modal-history-list">
           <p>Cargando historial...</p>
         </div>
@@ -521,8 +525,14 @@
   </div>
 </div>
 
-<script src="/assets/js/utils/auth.js"></script>
-<script src="/assets/js/admin/dashboard.js"></script>
+<script src="/assets/js/js_front/utils/auth.js"></script>
+<script src="/assets/js/js_front/utils/global-header.js"></script>
+<script src="/assets/js/js_front/admin/dashboard.js"></script>
 
 </body>
 </html>
+
+
+
+
+

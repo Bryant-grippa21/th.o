@@ -54,7 +54,9 @@ const renderCustomerLayout = (session) => {
         `).join('')}
       </div>
       <div style="display:flex; gap:8px; flex-wrap:wrap;">
-        <a href="/index.html">Volver al inicio</a>
+        <a href="/index.html" aria-label="Volver al landing">
+          <img src="/uploads/default/Logo.png" alt="Logo tuherramienta.online" style="height:40px; width:auto; display:block;">
+        </a>
         <button type="button" onclick="logout()">Cerrar sesión</button>
       </div>
     </div>

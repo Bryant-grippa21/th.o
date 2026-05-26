@@ -3,6 +3,8 @@ const categoriesContainer = globalThis.document.getElementById('landing-categori
 const productsContainer = globalThis.document.getElementById('landing-products');
 const cartDrawer = globalThis.document.getElementById('landing-cart-drawer');
 const exchangeRateCard = globalThis.document.getElementById('exchange-rate-card');
+const landingQueryParams = new URLSearchParams(globalThis.location.search);
+const initialLandingQuery = String(landingQueryParams.get('q') || '').trim();
 
 const state = {
   session: null,
@@ -18,7 +20,7 @@ const state = {
     total_pages: 1
   },
   filters: {
-    query: '',
+    query: initialLandingQuery,
     categoryId: null,
     sort: 'reviews_desc'
   },
@@ -129,19 +131,19 @@ const renderNotificationsControl = () => {
     : '';
   const panelContent = state.notificationOpen
     ? `
-        <div style="position:absolute; top:100%; right:0; width:340px; max-width:90vw; background:#fff; border:1px solid #ccc; padding:12px; z-index:40;">
-          <div style="display:flex; justify-content:space-between; gap:8px; align-items:center; margin-bottom:12px;">
-            <p style="margin:0;"><b>Notificaciones</b></p>
+        <div class="landing-notifications-panel" style="position:absolute; top:100%; right:0; width:340px; max-width:90vw; background:#fff; border:1px solid #ccc; padding:12px; z-index:40;">
+          <div class="landing-notifications-panel__header" style="display:flex; justify-content:space-between; gap:8px; align-items:center; margin-bottom:12px;">
+            <p class="landing-notifications-panel__title" style="margin:0;"><b>Notificaciones</b></p>
             <button type="button" onclick="markAllLandingNotificationsAsRead()" ${markAllDisabled}>Marcar todas</button>
           </div>
           ${loadingMessage}
           ${emptyMessage}
           ${notifications.map((notification) => `
-            <article style="border-top:1px solid #ccc; padding-top:10px; margin-top:10px;">
-              <p style="margin:0 0 6px 0;"><b>${notification.title || 'Notificación'}</b>${notification.is_read ? ' (leída)' : ''}</p>
-              <p style="margin:0 0 6px 0;">${notification.message || ''}</p>
-              <p style="margin:0 0 8px 0;"><small>${formatNotificationDate(notification.created_at)}</small></p>
-              <div style="display:flex; gap:8px; flex-wrap:wrap;">
+            <article class="landing-notification-item" style="border-top:1px solid #ccc; padding-top:10px; margin-top:10px;">
+              <p class="landing-notification-item__title" style="margin:0 0 6px 0;"><b>${notification.title || 'Notificación'}</b>${notification.is_read ? ' (leída)' : ''}</p>
+              <p class="landing-notification-item__message" style="margin:0 0 6px 0;">${notification.message || ''}</p>
+              <p class="landing-notification-item__date" style="margin:0 0 8px 0;"><small>${formatNotificationDate(notification.created_at)}</small></p>
+              <div class="landing-notification-item__actions" style="display:flex; gap:8px; flex-wrap:wrap;">
                 <button type="button" onclick="markLandingNotificationAsRead('${encodeURIComponent(notification.id)}')" ${notification.is_read ? 'disabled' : ''}>Marcar leída</button>
                 <button type="button" onclick="openLandingNotification('${encodeURIComponent(notification.id)}', '${encodeURIComponent(notification.action_path || '')}')">Abrir</button>
               </div>
@@ -152,8 +154,8 @@ const renderNotificationsControl = () => {
     : '';
 
   return `
-    <div style="position:relative;">
-      <button type="button" onclick="toggleLandingNotifications()" aria-label="Notificaciones">
+    <div class="landing-notifications" style="position:relative;">
+      <button class="landing-notifications__toggle" type="button" onclick="toggleLandingNotifications()" aria-label="Notificaciones">
         &#128276;${unreadLabel}
       </button>
       ${panelContent}
@@ -257,7 +259,9 @@ const renderHeader = () => {
 
   headerContainer.innerHTML = `
     <div style="display:flex; gap:16px; align-items:flex-start; flex-wrap:wrap; padding:16px; border:1px solid #ccc; margin-bottom:16px;">
-      <a href="/index.html">Volver al inicio</a>
+      <a href="/index.html" class="landing-header-logo" aria-label="Volver al landing">
+        <img src="/uploads/default/Logo.png" alt="Logo tuherramienta.online" style="height:48px; width:auto; display:block;">
+      </a>
       <div style="position:relative; flex:1 1 360px; min-width:280px;">
         <form id="landing-search-form" style="display:flex; gap:8px; align-items:center;">
           <input id="landing-search-input" type="search" placeholder="Buscar productos, líneas o categorías" value="${state.filters.query}">

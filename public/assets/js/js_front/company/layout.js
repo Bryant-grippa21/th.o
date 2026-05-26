@@ -5,9 +5,11 @@ if (!requireCompanySession()) {
 const COMPANY_MODULES = [
   { label: 'Dashboard', path: '/modules/company/dashboard.html' },
   { label: 'Perfil', path: '/modules/company/profile.html' },
+  { label: 'Cotizaciones B2B (Detallista)', path: '/modules/company/b2b-retailer.html', requiredRole: 3, requiresApprovedBuy: true },
+  { label: 'Cotizaciones B2B (Mayorista)', path: '/modules/company/b2b-wholesaler.html', requiredRole: 2, requiresApprovedSell: true },
   { label: 'Productos', path: '/modules/company/products.html', hideForAdmin: true, requiresApprovedSell: true },
   { label: 'Compras', path: '/modules/company/purchases.html', requiresApprovedSell: true },
-  { label: 'Catalogo', path: '/modules/company/catalog-management.html', requiresApprovedSell: true },
+  { label: 'Catalogo', path: '/modules/company/catalog-management.html', requiredRole: 3, requiresApprovedBuy: true },
   { label: 'Admin', path: '/modules/admin/dashboard.html', adminOnly: true }
 ];
 
@@ -25,6 +27,7 @@ const getCompanyAvatarFallback = (session) => {
 
 const hasApprovedVerification = (company) => company?.verification_status === 'APPROVED';
 const canUseSellModules = (company) => hasApprovedVerification(company) && Boolean(company?.can_sell);
+const canUseBuyModules = (company) => hasApprovedVerification(company) && Boolean(company?.can_buy);
 
 const getCompanyModulesForSession = (session) => {
   const roleId = Number(session?.data?.company?.id_role_fk || 0);
@@ -37,6 +40,14 @@ const getCompanyModulesForSession = (session) => {
 
     if (module.hideForAdmin) {
       return roleId !== 1;
+    }
+
+    if (module.requiredRole && roleId !== module.requiredRole) {
+      return false;
+    }
+
+    if (roleId !== 1 && module.requiresApprovedBuy) {
+      return canUseBuyModules(company);
     }
 
     if (roleId !== 1 && module.requiresApprovedSell) {
@@ -79,7 +90,9 @@ const renderCompanyLayout = (session) => {
         `).join('')}
       </div>
       <div style="display:flex; gap:8px; flex-wrap:wrap;">
-        <a href="/index.html">Volver al inicio</a>
+        <a href="/index.html" aria-label="Volver al landing">
+          <img src="/uploads/default/Logo.png" alt="Logo tuherramienta.online" style="height:40px; width:auto; display:block;">
+        </a>
         <button type="button" onclick="logout()">Cerrar sesion</button>
       </div>
     </div>

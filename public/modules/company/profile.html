@@ -1,8 +1,10 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="es" xml:lang="es">
 <head>
   <meta charset="UTF-8">
   <title>Perfil empresa</title>
+  <link rel="stylesheet" href="/assets/css/base.css">
+  <link rel="stylesheet" href="/assets/css/company.css">
 </head>
 <body>
 
@@ -22,18 +24,18 @@
 <p><b>Nombre:</b> <span id="company_name"></span></p>
 <p><b>RIF:</b> <span id="rif"></span></p>
 <p><b>Email:</b> <span id="email"></span></p>
-<p><b>Estado jurídico:</b> <span id="company-verification-status">Cargando...</span></p>
-<p><b>Nota de revisión:</b> <span id="company-verification-note">Sin observaciones.</span></p>
-<input id="phone" placeholder="Teléfono"><br>
-<input id="address" placeholder="Dirección"><br>
-<input id="password" type="password" placeholder="Nueva contraseña"><br>
+<p><b>Estado jurÃ­dico:</b> <span id="company-verification-status">Cargando...</span></p>
+<p><b>Nota de revisiÃ³n:</b> <span id="company-verification-note">Sin observaciones.</span></p>
+<input id="phone" placeholder="TelÃ©fono"><br>
+<input id="address" placeholder="DirecciÃ³n"><br>
+<input id="password" type="password" placeholder="Nueva contraseÃ±a"><br>
 
 <button onclick="updateCompanyProfile()">Actualizar</button>
 
 <br><br>
 
 <section>
-  <h3>Recaudos jurídicos</h3>
+  <h3>Recaudos jurÃ­dicos</h3>
   <p>Si tu solicitud queda observada o rechazada, puedes reenviar nuevos recaudos desde esta misma cuenta.</p>
 
   <form id="company-verification-form">
@@ -60,16 +62,22 @@
   </div>
 
   <div>
-    <h4>Historial de revisión</h4>
+    <h4>Historial de revisiÃ³n</h4>
     <div id="company-verification-history-list">
       <p>Cargando historial...</p>
     </div>
   </div>
 </section>
 
-<script src="/assets/js/utils/auth.js"></script>
-<script src="/assets/js/company/layout.js"></script>
-<script src="/assets/js/company/profile.js"></script>
+<script src="/assets/js/js_front/utils/auth.js"></script>
+<script src="/assets/js/js_front/utils/global-header.js"></script>
+<script src="/assets/js/js_front/company/layout.js"></script>
+<script src="/assets/js/js_front/company/profile.js"></script>
 
 </body>
 </html>
+
+
+
+
+
