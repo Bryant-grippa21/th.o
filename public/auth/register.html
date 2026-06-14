@@ -1,50 +1,97 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="es">
 
 <head>
+  <meta charset="UTF-8">
   <title>Registro</title>
+  <link rel="stylesheet" href="/assets/css/base.css">
+  <link rel="stylesheet" href="/assets/css/auth.css">
 </head>
 
-<body>
+<body class="auth-page">
+  <main class="auth-shell">
+    <section class="auth-left-panel">
+      <span class="auth-kicker"></span>
+      <h1 class="auth-title">Crear cuenta</h1>
+      <p class="auth-subtitle">Regístrate como usuario o como comercio</p>
 
-  <h2>Registro</h2>
+      <nav class="auth-top-tabs" aria-label="Acceso">
+        <a class="auth-top-tab" href="/auth/login.html">Iniciar sesión</a>
+        <a class="auth-top-tab is-active" href="/auth/register.html">Registrarse</a>
+      </nav>
 
-  <label for="register-entity">Tipo de registro</label><br>
-  <select id="register-entity" onchange="onRegisterEntityChange()">
-    <option value="customer">Customer</option>
-    <option value="company">Company</option>
-  </select><br><br>
+      <div class="auth-entity-switch" role="tablist" aria-label="Tipo de registro">
+        <button id="register-entity-customer" class="auth-entity-btn is-active" type="button" onclick="setRegisterEntity('customer')" aria-pressed="true">Registrar usuario</button>
+        <button id="register-entity-company" class="auth-entity-btn" type="button" onclick="setRegisterEntity('company')" aria-pressed="false">Registrar comercio</button>
+      </div>
 
-  <div id="customer-register-fields">
-    <input id="name" placeholder="Nombre"><br>
+      <form class="auth-form" onsubmit="event.preventDefault(); register();">
+        <div id="customer-register-fields">
+          <label for="name">Nombre completo</label>
+          <input id="name" placeholder="Tu nombre">
+        </div>
+
+        <div id="company-register-fields" hidden>
+          <label for="company_name">Nombre de la empresa</label>
+          <input id="company_name" placeholder="Empresa C.A.">
+          <label for="rif">RIF</label>
+          <input id="rif" placeholder="RIF (solo números)" inputmode="numeric" maxlength="12">
+          <p class="auth-helper-note">El registro jurídico queda pendiente hasta que ingreses y cargues tus recaudos en el perfil de empresa.</p>
+        </div>
+
+        <label for="email">Correo electrónico</label>
+        <input id="email" type="email" placeholder="correo@ejemplo.com" autocomplete="email">
+
+        <label for="password">Contraseña</label>
+        <input id="password" type="password" placeholder="********" autocomplete="new-password">
+
+        <label for="phone">Teléfono</label>
+        <input id="phone" placeholder="0412-0000000">
+
+        <label for="address">Dirección</label>
+        <input id="address" placeholder="Ciudad, estado">
+
+        <button id="register-submit" class="auth-primary-btn" type="submit">Registrar usuario →</button>
+      </form>
+
+      <div id="register-google-section" class="auth-google-block">
+        <div id="google-signin-root"></div>
+      </div>
+
+      <a class="auth-secondary-btn" href="/auth/login.html">← Volver a login</a>
+      <p id="register-feedback" class="auth-feedback"></p>
+    </section>
+
+    <section class="auth-right-panel" aria-hidden="true">
+      <div class="auth-right-visual"></div>
+      <div class="auth-right-copy">
+        <span class="auth-right-icon">🧰</span>
+        <div>
+          <h2>Gestiona compras y ventas en un solo lugar</h2>
+          <p>Activa tu cuenta y empieza a conectar con proveedores, clientes y catálogo especializado.</p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <input id="register-entity" type="hidden" value="customer">
+
+  <div style="display:none">
+    <select>
+      <option value="customer">Customer</option>
+      <option value="company">Company</option>
+    </select>
   </div>
 
-  <div id="company-register-fields" hidden>
-    <input id="company_name" placeholder="Nombre de la empresa"><br>
-    <input id="rif" placeholder="RIF (solo números)" inputmode="numeric" maxlength="12"><br>
-    <p>El registro juridico queda pendiente hasta que ingreses y cargues tus recaudos en el perfil de empresa.</p>
-    <p>Recaudos permitidos: registro mercantil, acta de asamblea, RIF, cedula y RIF del representante, licencia de actividad economica.</p>
-  </div>
-
-  <input id="email" placeholder="Email"><br>
-  <input id="password" type="password" placeholder="Password"><br>
-  <input id="phone" placeholder="Teléfono"><br>
-  <input id="address" placeholder="Dirección"><br>
-
-  <button onclick="register()">Registrar</button>
-
-  <br><br>
-
-  <a href="/auth/login.html">Volver a login</a>
-
-  <div id="register-google-section">
-    <div id="google-signin-root"></div>
-  </div>
-
-  <script src="/assets/js/utils/auth.js"></script>
-  <script src="/assets/js/auth/google.js"></script>
-  <script src="/assets/js/auth/register.js"></script>
+  <script src="/assets/js/js_front/utils/auth.js"></script>
+  <script src="/assets/js/js_front/utils/global-header.js"></script>
+  <script src="/assets/js/js_front/auth/google.js"></script>
+  <script src="/assets/js/js_front/auth/register.js"></script>
 
 </body>
 
 </html>
+
+
+
+

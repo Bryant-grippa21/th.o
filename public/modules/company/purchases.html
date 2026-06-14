@@ -1,84 +1,186 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="es" xml:lang="es">
 <head>
   <meta charset="UTF-8">
   <title>Compras y pagos</title>
+  <link rel="stylesheet" href="/assets/css/base.css">
+  <link rel="stylesheet" href="/assets/css/company.css">
 </head>
 <body>
 
-<h1>Compras y pagos</h1>
-<div id="company-layout-nav"></div>
+<main class="company-page company-purchases-page">
+  <h1>Compras y pagos</h1>
+  <div id="company-layout-nav"></div>
 
-<label>
-  Buscar compra
-  <input id="company-purchases-search" type="search" placeholder="Buscar por grupo, orden, cliente, producto o estado">
-</label>
+  <p id="company-purchases-feedback" class="company-panel-feedback"></p>
 
-<br><br>
+  <section class="company-panel">
+    <div class="company-panel-header-row">
+      <h2>Filtros de búsqueda</h2>
+      <button id="company-purchases-toggle-filters" type="button" class="company-layout-nav-button">Ocultar filtros</button>
+    </div>
 
-<p id="company-purchases-summary">Cargando informacion...</p>
-<p id="company-purchases-feedback"></p>
+    <div id="company-purchases-filters" class="company-purchases-filters">
+      <label>
+        Buscar por número de orden
+        <input id="company-purchases-search" type="search" placeholder="Ej: ORD-2024-001">
+      </label>
 
-<section>
-  <details>
-    <summary><b>Metodos de pago</b></summary>
-    <br>
-  <form id="company-payment-method-form">
-    <label>
-      Tipo
-      <input name="method_type" type="text" placeholder="Ej: transferencia" required>
-    </label>
-    <br><br>
+      <label>
+        Estado del pedido
+        <select id="company-purchases-status-filter">
+          <option value="">Todos</option>
+          <option value="PENDING_PAYMENT">Pendiente de pago</option>
+          <option value="PAYMENT_SUBMITTED">Pago enviado</option>
+          <option value="APPROVED">Aprobado</option>
+          <option value="REJECTED">Rechazado</option>
+          <option value="EXPIRED">Expirado</option>
+          <option value="SUBMITTED">Enviada</option>
+        </select>
+      </label>
 
-    <label>
-      Etiqueta
-      <input name="label" type="text" placeholder="Ej: Banco Provincial" required>
-    </label>
-    <br><br>
+      <label>
+        Fecha desde
+        <input id="company-purchases-date-from" type="date">
+      </label>
 
-    <label>
-      Titular
-      <input name="account_holder" type="text">
-    </label>
-    <br><br>
+      <label>
+        Fecha hasta
+        <input id="company-purchases-date-to" type="date">
+      </label>
+    </div>
+  </section>
 
-    <label>
-      Numero de cuenta o referencia
-      <input name="account_number" type="text">
-    </label>
-    <br><br>
+  <p id="company-purchases-summary" class="company-panel-message">Cargando información...</p>
 
-    <label>
-      Banco
-      <input name="bank_name" type="text">
-    </label>
-    <br><br>
+  <section class="company-panel">
+    <div class="company-panel-header-row">
+      <h2>Métodos de pago</h2>
+      <button id="open-company-payment-method-modal" type="button">Nuevo método</button>
+    </div>
+    <div id="company-payment-methods-list">
+      <p>Cargando métodos...</p>
+    </div>
+  </section>
 
-    <label>
-      Instrucciones
-      <textarea name="instructions" rows="3"></textarea>
-    </label>
-    <br><br>
+  <section class="company-panel">
+    <h2>Historial de compras realizadas</h2>
+    <div id="company-purchase-groups-list">
+      <p>Cargando grupos...</p>
+    </div>
+  </section>
 
-    <button type="submit">Guardar metodo</button>
-  </form>
+  <div id="company-payment-method-modal" class="company-modal" hidden>
+    <div class="company-modal__backdrop" data-close-modal="company-payment-method-modal"></div>
+    <dialog class="company-modal__panel company-modal__panel--small" aria-labelledby="company-payment-method-modal-title" open>
+      <div class="company-modal__header">
+        <h2 id="company-payment-method-modal-title">Método de pago</h2>
+        <button type="button" data-close-modal="company-payment-method-modal" aria-label="Cerrar método de pago">Cerrar</button>
+      </div>
 
-  <div id="company-payment-methods-list">
-    <p>Cargando metodos...</p>
+      <form id="company-payment-method-form" class="company-modal-form">
+        <input id="company-payment-method-id" name="id_payment_method" type="hidden">
+
+        <label>
+          Tipo
+          <input name="method_type" type="text" placeholder="Ej: transferencia" required>
+        </label>
+
+        <label>
+          Etiqueta
+          <input name="label" type="text" placeholder="Ej: Banco Provincial" required>
+        </label>
+
+        <label>
+          Titular
+          <input name="account_holder" type="text">
+        </label>
+
+        <label>
+          Número de cuenta o referencia
+          <input name="account_number" type="text">
+        </label>
+
+        <label>
+          Banco
+          <input name="bank_name" type="text">
+        </label>
+
+        <label>
+          Instrucciones
+          <textarea name="instructions" rows="3"></textarea>
+        </label>
+
+        <div class="company-modal-form-actions company-modal-form-actions--split">
+          <button type="button" class="company-modal-form-secondary-action" data-close-modal="company-payment-method-modal">Cancelar</button>
+          <button id="company-payment-method-submit" type="submit">Guardar método</button>
+        </div>
+      </form>
+    </dialog>
   </div>
-  </details>
-</section>
 
-<section>
-  <h2>Grupos de compra</h2>
-  <div id="company-purchase-groups-list">
-    <p>Cargando grupos...</p>
+  <div id="company-purchase-detail-modal" class="company-modal" hidden>
+    <div class="company-modal__backdrop" data-close-modal="company-purchase-detail-modal"></div>
+    <dialog class="company-modal__panel" aria-labelledby="company-purchase-detail-modal-title" open>
+      <div class="company-modal__header">
+        <h2 id="company-purchase-detail-modal-title">Detalles del pedido</h2>
+        <button type="button" data-close-modal="company-purchase-detail-modal" aria-label="Cerrar detalle">Cerrar</button>
+      </div>
+      <div id="company-purchase-detail-content">
+        <p>Cargando detalle...</p>
+      </div>
+    </dialog>
   </div>
-</section>
 
-<script src="/assets/js/utils/auth.js"></script>
-<script src="/assets/js/company/layout.js"></script>
-<script src="/assets/js/company/purchases.js"></script>
+  <div id="company-delete-payment-method-modal" class="company-modal" hidden>
+    <div class="company-modal__backdrop" data-close-modal="company-delete-payment-method-modal"></div>
+    <dialog class="company-modal__panel company-modal__panel--small" aria-labelledby="company-delete-payment-method-modal-title" open>
+      <div class="company-modal__header">
+        <h2 id="company-delete-payment-method-modal-title">Eliminar método de pago</h2>
+        <button type="button" data-close-modal="company-delete-payment-method-modal" aria-label="Cerrar eliminación">Cerrar</button>
+      </div>
+
+      <p class="company-modal-form-note">Vas a eliminar: <b id="company-delete-payment-method-label">Método seleccionado</b></p>
+      <p class="company-modal-form-note">Esta acción desactiva el método para que no pueda usarse en nuevos pedidos.</p>
+
+      <div class="company-modal-form-actions company-modal-form-actions--split">
+        <button type="button" class="company-modal-form-secondary-action" data-close-modal="company-delete-payment-method-modal">Cancelar</button>
+        <button id="company-delete-payment-method-confirm" type="button">Eliminar método</button>
+      </div>
+    </dialog>
+  </div>
+
+  <div id="company-purchase-group-action-modal" class="company-modal" hidden>
+    <div class="company-modal__backdrop" data-close-modal="company-purchase-group-action-modal"></div>
+    <dialog class="company-modal__panel company-modal__panel--small" aria-labelledby="company-purchase-group-action-modal-title" open>
+      <div class="company-modal__header">
+        <h2 id="company-purchase-group-action-modal-title">Confirmar acción</h2>
+        <button type="button" data-close-modal="company-purchase-group-action-modal" aria-label="Cerrar confirmación">Cerrar</button>
+      </div>
+
+      <p id="company-purchase-group-action-modal-message" class="company-modal-form-note">Confirma la acción sobre esta compra.</p>
+
+      <label>
+        Nota de revision (opcional)
+        <textarea id="company-purchase-group-action-modal-note" rows="3" placeholder="Escribe una nota para el cliente"></textarea>
+      </label>
+
+      <div class="company-modal-form-actions company-modal-form-actions--split">
+        <button type="button" class="company-modal-form-secondary-action" data-close-modal="company-purchase-group-action-modal">Cancelar</button>
+        <button id="company-purchase-group-action-modal-confirm" type="button">Confirmar</button>
+      </div>
+    </dialog>
+  </div>
+</main>
+
+<script src="/assets/js/js_front/utils/auth.js"></script>
+<script src="/assets/js/js_front/utils/global-header.js"></script>
+<script src="/assets/js/js_front/company/layout.js"></script>
+<script src="/assets/js/js_front/company/purchases.js"></script>
 
 </body>
 </html>
+
+
+
+

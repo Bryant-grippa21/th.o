@@ -1,75 +1,117 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="es" xml:lang="es">
 <head>
   <meta charset="UTF-8">
   <title>Perfil empresa</title>
+  <link rel="stylesheet" href="/assets/css/base.css">
+  <link rel="stylesheet" href="/assets/css/company.css">
 </head>
 <body>
 
-<h2>Perfil empresa</h2>
+<main class="company-page company-profile-page">
+  <h1>Perfil empresa</h1>
 
-<div id="company-layout-nav"></div>
+  <div id="company-layout-nav"></div>
 
-<p id="company-profile-feedback"></p>
+  <p id="company-profile-feedback" class="company-panel-feedback"></p>
 
-<p>Imagen actual</p>
-<div id="company-image-preview">Cargando imagen...</div>
-<input id="company-image" type="file" accept="image/*"><br>
-<button type="button" onclick="uploadCompanyProfileImage()">Actualizar imagen</button>
+  <section class="company-panel company-profile-overview">
+    <div class="company-profile-avatar-block">
+      <h2>Imagen actual</h2>
+      <div id="company-image-preview">Cargando imagen...</div>
 
-<br><br>
-
-<p><b>Nombre:</b> <span id="company_name"></span></p>
-<p><b>RIF:</b> <span id="rif"></span></p>
-<p><b>Email:</b> <span id="email"></span></p>
-<p><b>Estado jurídico:</b> <span id="company-verification-status">Cargando...</span></p>
-<p><b>Nota de revisión:</b> <span id="company-verification-note">Sin observaciones.</span></p>
-<input id="phone" placeholder="Teléfono"><br>
-<input id="address" placeholder="Dirección"><br>
-<input id="password" type="password" placeholder="Nueva contraseña"><br>
-
-<button onclick="updateCompanyProfile()">Actualizar</button>
-
-<br><br>
-
-<section>
-  <h3>Recaudos jurídicos</h3>
-  <p>Si tu solicitud queda observada o rechazada, puedes reenviar nuevos recaudos desde esta misma cuenta.</p>
-
-  <form id="company-verification-form">
-    <label for="company-verification-document-type">Tipo de recaudo</label><br>
-    <select id="company-verification-document-type" required>
-      <option value="">Selecciona un recaudo</option>
-    </select>
-    <br><br>
-
-    <label for="company-verification-documents">Archivos</label><br>
-    <input id="company-verification-documents" type="file" accept="image/*,.pdf,application/pdf" multiple required>
-    <br><br>
-
-    <button type="submit">Enviar recaudos</button>
-  </form>
-
-  <p id="company-verification-feedback"></p>
-
-  <div>
-    <h4>Documentos cargados</h4>
-    <div id="company-verification-documents-list">
-      <p>Cargando recaudos...</p>
+      <div class="company-form-grid">
+        <input id="company-image" type="file" accept="image/*">
+        <button type="button" onclick="uploadCompanyProfileImage()">Actualizar imagen</button>
+      </div>
     </div>
-  </div>
 
-  <div>
-    <h4>Historial de revisión</h4>
-    <div id="company-verification-history-list">
-      <p>Cargando historial...</p>
+    <div class="company-profile-identity">
+      <h2>Datos de empresa</h2>
+      <div class="company-profile-meta-grid">
+        <p><b>Nombre:</b> <span id="company_name"></span></p>
+        <p><b>RIF:</b> <span id="rif"></span></p>
+        <p><b>Email:</b> <span id="email"></span></p>
+        <p><b>Estado jurídico:</b> <span id="company-verification-status">Cargando...</span></p>
+      </div>
+      <p><b>Nota de revisión:</b> <span id="company-verification-note">Sin observaciones.</span></p>
+
+      <div class="company-form-grid company-form-grid--two">
+        <label>
+          Teléfono
+          <input id="phone" placeholder="Teléfono">
+        </label>
+
+        <label>
+          Dirección
+          <input id="address" placeholder="Dirección">
+        </label>
+      </div>
+
+      <label>
+        Nueva contraseña
+        <input id="password" type="password" placeholder="Nueva contraseña">
+      </label>
+
+      <div class="company-modal-form-actions">
+        <button type="button" onclick="updateCompanyProfile()">Actualizar perfil</button>
+      </div>
     </div>
-  </div>
-</section>
+  </section>
 
-<script src="/assets/js/utils/auth.js"></script>
-<script src="/assets/js/company/layout.js"></script>
-<script src="/assets/js/company/profile.js"></script>
+  <section class="company-panel">
+    <h2>Recaudos jurídicos</h2>
+    <p class="company-panel-note">Si tu solicitud queda observada o rechazada, puedes reenviar nuevos recaudos desde esta misma cuenta.</p>
+
+    <form id="company-verification-form" class="company-modal-form">
+      <div class="company-form-grid company-form-grid--two">
+        <label for="company-verification-document-type">
+          Tipo de recaudo
+          <select id="company-verification-document-type" required>
+            <option value="">Selecciona un recaudo</option>
+          </select>
+        </label>
+
+        <label for="company-verification-documents">
+          Archivos
+          <input id="company-verification-documents" type="file" accept="image/*,.pdf,application/pdf" multiple required>
+        </label>
+      </div>
+
+      <div class="company-modal-form-actions">
+        <button type="submit">Enviar recaudos</button>
+      </div>
+    </form>
+
+    <p id="company-verification-feedback" class="company-panel-feedback"></p>
+
+    <div class="company-profile-verification-grid">
+      <section class="company-panel company-panel--nested">
+        <h3>Documentos cargados</h3>
+        <div id="company-verification-documents-list">
+          <p>Cargando recaudos...</p>
+        </div>
+      </section>
+
+      <section class="company-panel company-panel--nested">
+        <h3>Historial de revisión</h3>
+        <div id="company-verification-history-list">
+          <p>Cargando historial...</p>
+        </div>
+      </section>
+    </div>
+  </section>
+</main>
+
+<script src="/assets/js/js_front/utils/auth.js"></script>
+<script src="/assets/js/js_front/utils/global-header.js"></script>
+<script src="/assets/js/js_front/company/layout.js"></script>
+<script src="/assets/js/js_front/company/profile.js"></script>
 
 </body>
 </html>
+
+
+
+
+

@@ -1,48 +1,58 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="es" xml:lang="es">
 <head>
   <meta charset="UTF-8">
   <title>Mis compras</title>
+  <link rel="stylesheet" href="/assets/css/base.css">
+  <link rel="stylesheet" href="/assets/css/customer.css">
 </head>
 <body>
 
-<h1>Mis compras</h1>
-<div id="customer-layout-nav">
-  <p>Cargando navegación...</p>
-</div>
+<main class="customer-page">
+  <h1>Mis compras</h1>
 
-<section>
-  <h2>Historial de compras realizadas</h2>
-
-  <label>
-    Buscar compra
-    <input id="purchases-search" type="search" placeholder="Buscar por orden, proveedor, producto o estado">
-  </label>
-
-  <p id="purchases-summary">Cargando compras...</p>
-  <p id="purchases-feedback"></p>
-
-  <div id="purchases-list">
-    <p>Cargando historial...</p>
+  <div id="customer-layout-nav">
+    <p>Cargando navegación...</p>
   </div>
-</section>
 
-<dialog id="purchase-detail-modal">
-  <article>
-    <header>
-      <h2>Detalles del pedido</h2>
-      <button id="purchase-detail-close" type="button">Cerrar</button>
-    </header>
+  <section class="customer-panel">
+    <h2>Historial de compras realizadas</h2>
 
-    <div id="purchase-detail-content">
-      <p>Selecciona una compra para ver sus detalles.</p>
+    <label class="customer-field">
+      Buscar compra
+      <input id="purchases-search" type="search" placeholder="Buscar por orden, proveedor, producto o estado">
+    </label>
+
+    <p id="purchases-summary" class="customer-panel-message">Cargando compras...</p>
+    <p id="purchases-feedback" class="customer-panel-feedback"></p>
+
+    <div id="purchases-list">
+      <p>Cargando historial...</p>
     </div>
-  </article>
-</dialog>
+  </section>
 
-<script src="/assets/js/utils/auth.js"></script>
-<script src="/assets/js/customer/layout.js"></script>
-<script src="/assets/js/customer/purchases.js"></script>
+  <dialog id="purchase-detail-modal">
+    <article class="customer-dialog-body">
+      <header class="customer-dialog-header">
+        <h2>Detalles del pedido</h2>
+        <button id="purchase-detail-close" type="button">Cerrar</button>
+      </header>
+
+      <div id="purchase-detail-content">
+        <p>Selecciona una compra para ver sus detalles.</p>
+      </div>
+    </article>
+  </dialog>
+</main>
+
+<script src="/assets/js/js_front/utils/auth.js"></script>
+<script src="/assets/js/js_front/utils/global-header.js"></script>
+<script src="/assets/js/js_front/customer/layout.js"></script>
+<script src="/assets/js/js_front/customer/purchases.js"></script>
 
 </body>
 </html>
+
+
+
+

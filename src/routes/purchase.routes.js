@@ -10,6 +10,8 @@ const {
   getCompanyPurchaseGroups,
   getCompanyMethods,
   createCompanyMethod,
+  updateCompanyMethod,
+  deleteCompanyMethod,
   approveCompanyPurchaseGroup,
   rejectCompanyPurchaseGroup,
   expireCompanyPurchaseGroup,
@@ -31,6 +33,8 @@ router.post(
 router.get('/company/groups', verifyToken, getCompanyPurchaseGroups);
 router.get('/company/payment-methods', verifyToken, getCompanyMethods);
 router.post('/company/payment-methods', verifyToken, createCompanyMethod);
+router.put('/company/payment-methods/:paymentMethodId', verifyToken, updateCompanyMethod);
+router.delete('/company/payment-methods/:paymentMethodId', verifyToken, deleteCompanyMethod);
 router.post('/company/groups/:groupId/approve', verifyToken, approveCompanyPurchaseGroup);
 router.post('/company/groups/:groupId/reject', verifyToken, rejectCompanyPurchaseGroup);
 router.post('/company/groups/:groupId/expire', verifyToken, expireCompanyPurchaseGroup);

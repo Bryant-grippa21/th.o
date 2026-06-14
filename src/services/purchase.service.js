@@ -951,6 +951,7 @@ const listCompanyPaymentMethods = async (companyId) => {
             updated_at
      FROM Company_Payment_Method
      WHERE id_company_fk = ?
+       AND is_active = TRUE
      ORDER BY is_active DESC, label ASC, id_payment_method DESC`,
     [normalizedCompanyId]
   );
@@ -972,6 +973,18 @@ const createCompanyPaymentMethod = async (companyId, payload) => {
 
   if (!label) {
     throw new Error('label es requerido');
+  }
+
+  const [countRows] = await pool.query(
+    `SELECT COUNT(*) AS total_methods
+     FROM Company_Payment_Method
+     WHERE id_company_fk = ?
+       AND is_active = TRUE`,
+    [normalizedCompanyId]
+  );
+
+  if (Number(countRows?.[0]?.total_methods || 0) >= 2) {
+    throw new Error('Solo puedes registrar hasta 2 métodos de pago');
   }
 
   const [result] = await pool.query(
@@ -1016,6 +1029,115 @@ const createCompanyPaymentMethod = async (companyId, payload) => {
   return rows[0]
     ? { ...rows[0], is_active: Boolean(rows[0].is_active) }
     : null;
+};
+
+const updateCompanyPaymentMethod = async (companyId, paymentMethodId, payload) => {
+  const normalizedCompanyId = Number(companyId);
+  const normalizedMethodId = Number(paymentMethodId);
+
+  if (!Number.isInteger(normalizedMethodId) || normalizedMethodId <= 0) {
+    throw new Error('paymentMethodId inválido');
+  }
+
+  const methodType = String(payload?.method_type || '').trim();
+  const label = String(payload?.label || '').trim();
+
+  if (!methodType) {
+    throw new Error('method_type es requerido');
+  }
+
+  if (!label) {
+    throw new Error('label es requerido');
+  }
+
+  const [existingRows] = await pool.query(
+    `SELECT id_payment_method
+     FROM Company_Payment_Method
+     WHERE id_payment_method = ? AND id_company_fk = ? AND is_active = TRUE
+     LIMIT 1`,
+    [normalizedMethodId, normalizedCompanyId]
+  );
+
+  if (!existingRows.length) {
+    throw new Error('Método de pago no encontrado para esta empresa');
+  }
+
+  await pool.query(
+    `UPDATE Company_Payment_Method
+     SET method_type = ?,
+         label = ?,
+         account_holder = ?,
+         account_number = ?,
+         bank_name = ?,
+         instructions = ?,
+         updated_at = CURRENT_TIMESTAMP
+     WHERE id_payment_method = ? AND id_company_fk = ?`,
+    [
+      methodType,
+      label,
+      String(payload?.account_holder || '').trim() || null,
+      String(payload?.account_number || '').trim() || null,
+      String(payload?.bank_name || '').trim() || null,
+      String(payload?.instructions || '').trim() || null,
+      normalizedMethodId,
+      normalizedCompanyId
+    ]
+  );
+
+  const [rows] = await pool.query(
+    `SELECT id_payment_method,
+            method_type,
+            label,
+            account_holder,
+            account_number,
+            bank_name,
+            instructions,
+            is_active,
+            created_at,
+            updated_at
+     FROM Company_Payment_Method
+     WHERE id_payment_method = ?
+     LIMIT 1`,
+    [normalizedMethodId]
+  );
+
+  return rows[0]
+    ? { ...rows[0], is_active: Boolean(rows[0].is_active) }
+    : null;
+};
+
+const deleteCompanyPaymentMethod = async (companyId, paymentMethodId) => {
+  const normalizedCompanyId = Number(companyId);
+  const normalizedMethodId = Number(paymentMethodId);
+
+  if (!Number.isInteger(normalizedMethodId) || normalizedMethodId <= 0) {
+    throw new Error('paymentMethodId inválido');
+  }
+
+  const [existingRows] = await pool.query(
+    `SELECT id_payment_method
+     FROM Company_Payment_Method
+     WHERE id_payment_method = ? AND id_company_fk = ? AND is_active = TRUE
+     LIMIT 1`,
+    [normalizedMethodId, normalizedCompanyId]
+  );
+
+  if (!existingRows.length) {
+    throw new Error('Método de pago no encontrado para esta empresa');
+  }
+
+  await pool.query(
+    `UPDATE Company_Payment_Method
+     SET is_active = FALSE,
+         updated_at = CURRENT_TIMESTAMP
+     WHERE id_payment_method = ? AND id_company_fk = ?`,
+    [normalizedMethodId, normalizedCompanyId]
+  );
+
+  return {
+    id_payment_method: normalizedMethodId,
+    deleted: true
+  };
 };
 
 const reserveStockForItem = async (connection, item, groupId) => {
@@ -1884,6 +2006,8 @@ module.exports = {
   listCompanyGroups,
   listCompanyPaymentMethods,
   createCompanyPaymentMethod,
+  updateCompanyPaymentMethod,
+  deleteCompanyPaymentMethod,
   submitPurchaseEvidence,
   approvePurchaseGroup,
   rejectPurchaseGroup,

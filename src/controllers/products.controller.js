@@ -12,11 +12,13 @@ const {
   getManagedProductById,
   listManagedProductStockHistory,
   listPublicCatalog,
+  listWholesaleCatalog,
   listRecommendedProducts,
   listProductReviews,
   createProductReview,
   getPublicProductDetail,
   getPublicProductDetailBySku,
+  getWholesaleProductDetailBySku,
   createCategory,
   updateCategory,
   toggleCategory,
@@ -77,6 +79,35 @@ const requireAdminCompany = (req, res) => {
 
   if (req.user.id_role !== 1) {
     res.status(403).json({ error: 'Solo el admin puede realizar esta acción' });
+    return false;
+  }
+
+  return true;
+};
+
+const requireCompanyBuyAccess = async (req, res, actionLabel = 'usar este módulo') => {
+  if (!requireCompanyToken(req, res)) {
+    return false;
+  }
+
+  if (Number(req.user.id_role) === 1) {
+    return true;
+  }
+
+  const company = await findCompanyById(Number(req.user.id));
+
+  if (!company) {
+    res.status(404).json({ error: 'Empresa no encontrada' });
+    return false;
+  }
+
+  if (company.verification_status !== 'APPROVED') {
+    res.status(403).json({ error: `Tu empresa debe estar jurídicamente aprobada para ${actionLabel}` });
+    return false;
+  }
+
+  if (!company.can_buy) {
+    res.status(403).json({ error: `Tu empresa no tiene permiso comercial para ${actionLabel}` });
     return false;
   }
 
@@ -317,7 +348,7 @@ const getManagedProducts = async (req, res) => {
     const filters = {
       page,
       limit,
-      name: String(req.query.name ?? '').trim(),
+      search: String(req.query.query ?? req.query.name ?? '').trim(),
       company: String(req.query.company ?? '').trim(),
       categoryId: categoryResult.value,
       subcategoryId: subcategoryResult.value,
@@ -325,6 +356,7 @@ const getManagedProducts = async (req, res) => {
       category: String(req.query.category ?? '').trim(),
       subcategory: String(req.query.subcategory ?? '').trim(),
       line: String(req.query.line ?? '').trim(),
+      sort: String(req.query.sort ?? '').trim().toLowerCase(),
       companyId: req.user.id_role === 1 ? null : req.user.id
     };
 
@@ -432,6 +464,43 @@ const getPublicCatalog = async (req, res) => {
     return res.status(200).json(result);
   } catch (error) {
     console.error('❌ ERROR GET PUBLIC CATALOG:', error);
+    return res.status(500).json({ error: error.message });
+  }
+};
+
+const getWholesaleCatalogForCompany = async (req, res) => {
+  try {
+    if (!await requireCompanyBuyAccess(req, res, 'consultar catálogo mayorista')) {
+      return;
+    }
+
+    const page = req.query.page ? Number(req.query.page) : 1;
+    const limit = req.query.limit ? Number(req.query.limit) : 20;
+    const categoryResult = parseOptionalPositiveInteger(req.query.category_id, 'category_id');
+
+    if (!Number.isInteger(page) || page <= 0) {
+      return res.status(400).json({ error: 'page inválido' });
+    }
+
+    if (!Number.isInteger(limit) || limit <= 0 || limit > 100) {
+      return res.status(400).json({ error: 'limit inválido' });
+    }
+
+    if (categoryResult.error) {
+      return res.status(400).json({ error: categoryResult.error });
+    }
+
+    const result = await listWholesaleCatalog({
+      page,
+      limit,
+      query: String(req.query.q ?? '').trim(),
+      categoryId: categoryResult.value,
+      sort: String(req.query.sort ?? 'recent').trim().toLowerCase() || 'recent'
+    });
+
+    return res.status(200).json(result);
+  } catch (error) {
+    console.error('❌ ERROR GET WHOLESALE CATALOG:', error);
     return res.status(500).json({ error: error.message });
   }
 };
@@ -555,6 +624,31 @@ const getPublicProductBySku = async (req, res) => {
     return res.status(200).json({ product });
   } catch (error) {
     console.error('❌ ERROR GET PUBLIC PRODUCT BY SKU:', error);
+    return res.status(500).json({ error: error.message });
+  }
+};
+
+const getWholesaleProductBySku = async (req, res) => {
+  try {
+    if (!await requireCompanyBuyAccess(req, res, 'consultar detalle mayorista')) {
+      return;
+    }
+
+    const sku = String(req.params.sku ?? '').trim();
+
+    if (!sku) {
+      return res.status(400).json({ error: 'sku inválido' });
+    }
+
+    const product = await getWholesaleProductDetailBySku(sku);
+
+    if (!product) {
+      return res.status(404).json({ error: 'Producto no encontrado' });
+    }
+
+    return res.status(200).json({ product });
+  } catch (error) {
+    console.error('❌ ERROR GET WHOLESALE PRODUCT BY SKU:', error);
     return res.status(500).json({ error: error.message });
   }
 };
@@ -1074,11 +1168,13 @@ module.exports = {
   getManagedProductDetail,
   getManagedProductStockHistory,
   getPublicCatalog,
+  getWholesaleCatalogForCompany,
   getRecommendedProducts,
   getProductReviews,
   createPublicProductReview,
   getPublicProduct,
   getPublicProductBySku,
+  getWholesaleProductBySku,
   createCategoryManual,
   updateCategoryManual,
   toggleCategoryStatusManual,

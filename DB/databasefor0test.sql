@@ -20,6 +20,7 @@ CREATE TABLE Customer (
     is_verified BOOLEAN DEFAULT FALSE,
 
     -- 📞 contacto
+    DOB DATE NULL,
     cell_phone VARCHAR(15),
     mail_address VARCHAR(255),
 
@@ -156,49 +157,255 @@ CREATE TABLE Company_Verification_History (
 );
 
 -- =========================================
--- 💳 LÍMITE DE CRÉDITO
--- (un detallista puede tener múltiples créditos)
+-- 🧾 COTIZACIONES B2B
 -- =========================================
 
-CREATE TABLE Credit_Limit (
+CREATE TABLE Quote_Draft (
 
-    id_credit_limit INT AUTO_INCREMENT PRIMARY KEY,
+    id_quote_draft INT AUTO_INCREMENT PRIMARY KEY,
 
     id_retailer_fk INT NOT NULL,
     id_wholesaler_fk INT NOT NULL,
 
-    credit DECIMAL(10,2) NOT NULL,
-    remaining_amount DECIMAL(10,2) NOT NULL,
-
-    start_date DATE NOT NULL,
-    due_date DATE NOT NULL,
-
-    status ENUM('ACTIVE', 'PAID', 'LATE') DEFAULT 'ACTIVE',
+    status ENUM('ACTIVE', 'SUBMITTED', 'ABANDONED') NOT NULL DEFAULT 'ACTIVE',
+    currency_code VARCHAR(10) NOT NULL DEFAULT 'USD',
+    notes TEXT,
+    expires_at TIMESTAMP NULL,
 
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
 
 -- =========================================
--- 📜 HISTORIAL DE CRÉDITO
+-- 📦 ITEMS DE BORRADOR
 -- =========================================
 
-CREATE TABLE Credit_History (
+CREATE TABLE Quote_Draft_Item (
 
-    id_credit_history INT AUTO_INCREMENT PRIMARY KEY,
+    id_quote_draft_item INT AUTO_INCREMENT PRIMARY KEY,
 
-    id_credit_limit_fk INT NOT NULL,
+    id_quote_draft_fk INT NOT NULL,
+    id_product_fk INT NOT NULL,
 
-    amount DECIMAL(10,2) NOT NULL,
-    type ENUM('ASSIGN', 'PAYMENT') NOT NULL,
+    requested_quantity INT NOT NULL,
+    unit_price_snapshot_usd DECIMAL(12,2) NULL,
+    line_subtotal_usd DECIMAL(12,2) NULL,
+    notes TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
-    previous_balance DECIMAL(10,2),
-    new_balance DECIMAL(10,2),
-
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    FOREIGN KEY (id_quote_draft_fk) REFERENCES Quote_Draft(id_quote_draft)
 );
 
+-- =========================================
+-- 📄 COTIZACIÓN FORMAL B2B
+-- =========================================
 
+CREATE TABLE B2B_Quote (
+
+    id_b2b_quote INT AUTO_INCREMENT PRIMARY KEY,
+
+    quote_code VARCHAR(32) NOT NULL UNIQUE,
+    id_retailer_fk INT NOT NULL,
+    id_wholesaler_fk INT NOT NULL,
+    source_draft_id INT NULL,
+
+    status ENUM(
+        'REQUESTED',
+        'QUOTED',
+        'ACCEPTED',
+        'REJECTED',
+        'CANCELLED',
+        'DELIVERED',
+        'PAYMENT_PENDING',
+        'PAYMENT_SUBMITTED',
+        'PAID',
+        'OVERDUE'
+    ) NOT NULL DEFAULT 'REQUESTED',
+
+    requested_at TIMESTAMP NULL,
+    responded_at TIMESTAMP NULL,
+    accepted_at TIMESTAMP NULL,
+    rejected_at TIMESTAMP NULL,
+    cancelled_at TIMESTAMP NULL,
+    delivery_confirmed_at TIMESTAMP NULL,
+    payment_due_at TIMESTAMP NULL,
+
+    currency_code VARCHAR(10) NOT NULL DEFAULT 'USD',
+    subtotal_usd DECIMAL(12,2) NOT NULL DEFAULT 0,
+    additional_charges_usd DECIMAL(12,2) NOT NULL DEFAULT 0,
+    total_usd DECIMAL(12,2) NOT NULL DEFAULT 0,
+
+    retailer_note TEXT,
+    wholesaler_note TEXT,
+
+    created_by_company_id INT NULL,
+    updated_by_company_id INT NULL,
+
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+    FOREIGN KEY (id_retailer_fk) REFERENCES Company(id_company),
+    FOREIGN KEY (id_wholesaler_fk) REFERENCES Company(id_company),
+    FOREIGN KEY (source_draft_id) REFERENCES Quote_Draft(id_quote_draft),
+    FOREIGN KEY (created_by_company_id) REFERENCES Company(id_company),
+    FOREIGN KEY (updated_by_company_id) REFERENCES Company(id_company)
+);
+
+-- =========================================
+-- 📦 ITEMS DE COTIZACIÓN FORMAL
+-- =========================================
+
+CREATE TABLE B2B_Quote_Item (
+
+    id_b2b_quote_item INT AUTO_INCREMENT PRIMARY KEY,
+
+    id_b2b_quote_fk INT NOT NULL,
+    id_product_fk INT NOT NULL,
+
+    product_name_snapshot VARCHAR(255),
+    sku_snapshot VARCHAR(64),
+    unit_price_usd DECIMAL(12,2) NOT NULL,
+    quantity INT NOT NULL,
+    subtotal_usd DECIMAL(12,2) NOT NULL,
+
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    FOREIGN KEY (id_b2b_quote_fk) REFERENCES B2B_Quote(id_b2b_quote)
+);
+
+-- =========================================
+-- ➕ CARGOS DE COTIZACIÓN
+-- =========================================
+
+CREATE TABLE B2B_Quote_Charge (
+
+    id_b2b_quote_charge INT AUTO_INCREMENT PRIMARY KEY,
+
+    id_b2b_quote_fk INT NOT NULL,
+    charge_type ENUM('SHIPPING', 'HANDLING', 'INSURANCE', 'ADJUSTMENT') NOT NULL,
+    label VARCHAR(64),
+    amount_usd DECIMAL(12,2) NOT NULL DEFAULT 0,
+    is_optional BOOLEAN DEFAULT FALSE,
+
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    FOREIGN KEY (id_b2b_quote_fk) REFERENCES B2B_Quote(id_b2b_quote)
+);
+
+-- =========================================
+-- 📜 HISTORIAL DE ESTADOS B2B
+-- =========================================
+
+CREATE TABLE B2B_Quote_Status_History (
+
+    id_b2b_quote_status_history INT AUTO_INCREMENT PRIMARY KEY,
+
+    id_b2b_quote_fk INT NOT NULL,
+    from_status ENUM(
+        'REQUESTED',
+        'QUOTED',
+        'ACCEPTED',
+        'REJECTED',
+        'CANCELLED',
+        'DELIVERED',
+        'PAYMENT_PENDING',
+        'PAYMENT_SUBMITTED',
+        'PAID',
+        'OVERDUE'
+    ) NULL,
+    to_status ENUM(
+        'REQUESTED',
+        'QUOTED',
+        'ACCEPTED',
+        'REJECTED',
+        'CANCELLED',
+        'DELIVERED',
+        'PAYMENT_PENDING',
+        'PAYMENT_SUBMITTED',
+        'PAID',
+        'OVERDUE'
+    ) NOT NULL,
+    note TEXT,
+    performed_by_company_id INT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    FOREIGN KEY (id_b2b_quote_fk) REFERENCES B2B_Quote(id_b2b_quote),
+    FOREIGN KEY (performed_by_company_id) REFERENCES Company(id_company)
+);
+
+-- =========================================
+-- 🧾 EVIDENCIAS DE PAGO B2B
+-- =========================================
+
+CREATE TABLE B2B_Quote_Payment_Evidence (
+
+    id_b2b_quote_payment_evidence INT AUTO_INCREMENT PRIMARY KEY,
+
+    id_b2b_quote_fk INT NOT NULL,
+    file_url VARCHAR(255) NOT NULL,
+    original_name VARCHAR(255),
+    mime_type VARCHAR(100),
+    amount_reported_usd DECIMAL(12,2),
+    submitted_by_company_id INT NULL,
+    review_status ENUM('PENDING', 'APPROVED', 'REJECTED') NOT NULL DEFAULT 'PENDING',
+    review_note TEXT,
+    reviewed_by_company_id INT NULL,
+    submitted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    reviewed_at TIMESTAMP NULL,
+
+    FOREIGN KEY (id_b2b_quote_fk) REFERENCES B2B_Quote(id_b2b_quote),
+    FOREIGN KEY (submitted_by_company_id) REFERENCES Company(id_company),
+    FOREIGN KEY (reviewed_by_company_id) REFERENCES Company(id_company)
+);
+
+-- =========================================
+-- 🚚 ENTREGA / DESPACHO B2B
+-- =========================================
+
+CREATE TABLE B2B_Quote_Delivery (
+
+    id_b2b_quote_delivery INT AUTO_INCREMENT PRIMARY KEY,
+
+    id_b2b_quote_fk INT NOT NULL,
+    delivery_status ENUM('PENDING', 'DISPATCHED', 'DELIVERED', 'CONFIRMED') NOT NULL DEFAULT 'PENDING',
+    tracking_code VARCHAR(64),
+    carrier_name VARCHAR(64),
+    dispatch_note TEXT,
+    dispatched_at TIMESTAMP NULL,
+    delivered_at TIMESTAMP NULL,
+    confirmed_by_retailer_at TIMESTAMP NULL,
+
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+    FOREIGN KEY (id_b2b_quote_fk) REFERENCES B2B_Quote(id_b2b_quote)
+);
+
+-- =========================================
+-- 🤝 RELACIÓN COMERCIAL ENTRE EMPRESAS
+-- =========================================
+
+CREATE TABLE Company_Commercial_Relationship (
+
+    id_company_commercial_relationship INT AUTO_INCREMENT PRIMARY KEY,
+
+    id_wholesaler_fk INT NOT NULL,
+    id_retailer_fk INT NOT NULL,
+
+    relationship_type ENUM('OPEN', 'AFFILIATED', 'OWN_NETWORK') NOT NULL DEFAULT 'OPEN',
+    status ENUM('ACTIVE', 'SUSPENDED', 'BLOCKED') NOT NULL DEFAULT 'ACTIVE',
+    is_preferred BOOLEAN DEFAULT FALSE,
+    credit_days INT DEFAULT 30,
+    allows_private_catalog BOOLEAN DEFAULT FALSE,
+    allows_quote_requests BOOLEAN DEFAULT TRUE,
+
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+    FOREIGN KEY (id_wholesaler_fk) REFERENCES Company(id_company),
+    FOREIGN KEY (id_retailer_fk) REFERENCES Company(id_company),
+    UNIQUE KEY uq_company_relationship_pair (id_wholesaler_fk, id_retailer_fk)
+);
 -- =========================================
 -- 🔗 FOREIGN KEYS
 -- =========================================
@@ -210,18 +417,6 @@ FOREIGN KEY (id_role_fk) REFERENCES Role(id_role);
 ALTER TABLE Company
 ADD CONSTRAINT fk_company_verified_by
 FOREIGN KEY (verified_by_company_id) REFERENCES Company(id_company);
-
-ALTER TABLE Credit_Limit
-ADD CONSTRAINT fk_credit_limit_retailer
-FOREIGN KEY (id_retailer_fk) REFERENCES Company(id_company);
-
-ALTER TABLE Credit_Limit
-ADD CONSTRAINT fk_credit_limit_wholesaler
-FOREIGN KEY (id_wholesaler_fk) REFERENCES Company(id_company);
-
-ALTER TABLE Credit_History
-ADD CONSTRAINT fk_credit_history_credit_limit
-FOREIGN KEY (id_credit_limit_fk) REFERENCES Credit_Limit(id_credit_limit);
 
 ALTER TABLE Cashback
 ADD CONSTRAINT fk_cashback_customer
@@ -727,143 +922,6 @@ END //
 
 DELIMITER ;
 
--- ========================================
--- 💳 ASIGNAR CRÉDITO
--- ========================================
-DELIMITER //
-
-DROP PROCEDURE IF EXISTS sp_create_credit //
-
-CREATE PROCEDURE sp_create_credit (
-    IN p_retailer INT,
-    IN p_wholesaler INT,
-    IN p_amount DECIMAL(10,2)
-)
-BEGIN
-
-    DECLARE v_id_credit INT;
-
-    IF NOT EXISTS (SELECT 1 FROM Company WHERE id_company = p_retailer) THEN
-        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Detallista no existe';
-    END IF;
-
-    IF NOT EXISTS (SELECT 1 FROM Company WHERE id_company = p_wholesaler) THEN
-        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Mayorista no existe';
-    END IF;
-
-    INSERT INTO Credit_Limit (
-        id_retailer_fk, id_wholesaler_fk,
-        credit, remaining_amount,
-        start_date, due_date
-    )
-    VALUES (
-        p_retailer, p_wholesaler,
-        p_amount, p_amount,
-        CURDATE(), DATE_ADD(CURDATE(), INTERVAL 30 DAY)
-    );
-
-    SET v_id_credit = LAST_INSERT_ID();
-
-    INSERT INTO Credit_History (
-        id_credit_limit_fk, amount, type,
-        previous_balance, new_balance
-    )
-    VALUES (
-        v_id_credit, p_amount, 'ASSIGN', 0, p_amount
-    );
-
-END //
-
-DELIMITER ;
-
--- ========================================
--- 💳 PAGAR CRÉDITO
--- ========================================
-DELIMITER //
-
-DROP PROCEDURE IF EXISTS sp_pay_credit //
-
-CREATE PROCEDURE sp_pay_credit (
-    IN p_credit_id INT,
-    IN p_amount DECIMAL(10,2)
-)
-BEGIN
-
-    DECLARE v_remaining DECIMAL(10,2);
-
-    IF NOT EXISTS (
-        SELECT 1 FROM Credit_Limit WHERE id_credit_limit = p_credit_id
-    ) THEN
-        SIGNAL SQLSTATE '45000'
-        SET MESSAGE_TEXT = 'Crédito no existe';
-    END IF;
-
-    SELECT remaining_amount INTO v_remaining
-    FROM Credit_Limit WHERE id_credit_limit = p_credit_id;
-
-    IF v_remaining < p_amount THEN
-        SIGNAL SQLSTATE '45000'
-        SET MESSAGE_TEXT = 'Pago excede deuda';
-    END IF;
-
-    UPDATE Credit_Limit
-    SET remaining_amount = remaining_amount - p_amount,
-        status = IF(remaining_amount - p_amount < 0.01, 'PAID', 'ACTIVE'),
-        updated_at = CURRENT_TIMESTAMP
-    WHERE id_credit_limit = p_credit_id;
-
-    INSERT INTO Credit_History (
-        id_credit_limit_fk, amount, type,
-        previous_balance, new_balance
-    )
-    VALUES (
-        p_credit_id, p_amount, 'PAYMENT',
-        v_remaining, v_remaining - p_amount
-    );
-
-END //
-
-DELIMITER ;
-
--- ========================================
--- 💳 CHECKEAR CRÉDITO POR FECHA LÍMITE
--- ========================================
-DELIMITER //
-
-DROP PROCEDURE IF EXISTS sp_check_credit_status //
-
-CREATE PROCEDURE sp_check_credit_status()
-BEGIN
-
-    DECLARE EXIT HANDLER FOR SQLEXCEPTION
-    BEGIN
-        ROLLBACK;
-        RESIGNAL;
-    END;
-
-    START TRANSACTION;
-
-        UPDATE Credit_Limit
-        SET status = 'LATE'
-        WHERE due_date < CURDATE()
-        AND remaining_amount > 0;
-
-        UPDATE Company
-        SET can_buy = FALSE,
-            can_sell = FALSE,
-            updated_at = CURRENT_TIMESTAMP
-        WHERE id_company IN (
-            SELECT id_retailer_fk
-            FROM Credit_Limit
-            WHERE status = 'LATE'
-        );
-
-    COMMIT;
-
-END //
-
-DELIMITER ;
-
 CREATE TABLE Category (
     id_category INT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(100) NOT NULL,
@@ -932,6 +990,14 @@ CREATE TABLE Product (
     FOREIGN KEY (id_company_fk) REFERENCES Company(id_company),
     FOREIGN KEY (id_line_fk) REFERENCES Line(id_line)
 );
+
+ALTER TABLE Quote_Draft_Item
+ADD CONSTRAINT fk_quote_draft_item_product
+FOREIGN KEY (id_product_fk) REFERENCES Product(id_product);
+
+ALTER TABLE B2B_Quote_Item
+ADD CONSTRAINT fk_b2b_quote_item_product
+FOREIGN KEY (id_product_fk) REFERENCES Product(id_product);
 
 CREATE TABLE Stock (
     id_stock INT AUTO_INCREMENT PRIMARY KEY,

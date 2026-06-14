@@ -1,34 +1,74 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="es" xml:lang="es">
 <head>
   <title>Perfil</title>
+  <link rel="stylesheet" href="/assets/css/base.css">
+  <link rel="stylesheet" href="/assets/css/customer.css">
 </head>
 <body>
 
-<h2>Perfil</h2>
+<main class="customer-page">
+  <h1>Perfil</h1>
 
-<div id="customer-layout-nav">
-  <p>Cargando navegación...</p>
-</div>
+  <div id="customer-layout-nav">
+    <p>Cargando navegación...</p>
+  </div>
 
-<p id="profile-feedback"></p>
+  <section class="customer-panel">
+    <h2>Mis datos</h2>
+    <p id="profile-feedback" class="customer-panel-feedback"></p>
 
-<p>Imagen actual</p>
-<div id="profile-image-preview">Cargando imagen...</div>
-<input id="profile-image" type="file" accept="image/*"><br>
-<button type="button" onclick="uploadProfileImage()">Actualizar imagen</button>
+    <section class="customer-profile-overview">
+      <div class="customer-profile-avatar-block">
+        <h3>Foto de perfil</h3>
+        <div id="customer-image-preview">Cargando imagen...</div>
 
-<br><br>
+        <div class="customer-form-grid">
+          <input id="customer-image" type="file" accept="image/*">
+          <button type="button" onclick="uploadCustomerProfileImage()">Actualizar imagen</button>
+        </div>
+      </div>
 
-<input id="phone" placeholder="Teléfono"><br>
-<input id="address" placeholder="Dirección"><br>
-<input id="password" placeholder="Nueva contraseña"><br>
+      <div class="customer-profile-identity">
+        <h3>Datos de cuenta</h3>
+        <div class="customer-profile-meta-grid">
+          <p><b>Nombre:</b> <span id="customer-name">No disponible</span></p>
+          <p><b>Email:</b> <span id="customer-email">No disponible</span></p>
+        </div>
+      </div>
+    </section>
 
-<button onclick="update()">Actualizar</button>
+    <div class="customer-profile-grid">
+      <label>
+        Teléfono
+        <input id="phone" type="tel" placeholder="Teléfono">
+      </label>
 
-<script src="/assets/js/utils/auth.js"></script>
-<script src="/assets/js/customer/layout.js"></script>
-<script src="/assets/js/customer/profile.js"></script>
+      <label>
+        Dirección
+        <input id="address" type="text" placeholder="Dirección">
+      </label>
+
+      <label class="customer-profile-grid__full">
+        Nueva contraseña
+        <input id="password" type="password" placeholder="Nueva contraseña">
+      </label>
+    </div>
+
+    <div class="customer-panel-actions">
+      <button type="button" onclick="update()">Actualizar datos</button>
+    </div>
+  </section>
+</main>
+
+<script src="/assets/js/js_front/utils/auth.js"></script>
+<script src="/assets/js/js_front/utils/global-header.js"></script>
+<script src="/assets/js/js_front/customer/layout.js"></script>
+<script src="/assets/js/js_front/customer/profile.js"></script>
 
 </body>
 </html>
+
+
+
+

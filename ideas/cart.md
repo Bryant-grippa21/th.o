@@ -87,7 +87,6 @@ En ese momento se agrega:
 - orden B2B
 - pago inmediato o a credito
 - validacion de `can_buy`
-- impacto sobre `Credit_Limit`
 
 La razon para hacerlo despues es simple:
 

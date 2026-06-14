@@ -1,24 +1,68 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="es" xml:lang="es">
 <head>
   <meta charset="UTF-8">
-  <title>Modulo deshabilitado</title>
+  <title>Catálogo mayorista</title>
+  <link rel="stylesheet" href="/assets/css/base.css">
+  <link rel="stylesheet" href="/assets/css/company.css">
 </head>
 <body>
 
-<h1>Modulo temporalmente deshabilitado</h1>
-<div id="company-layout-nav"></div>
+<main class="company-page company-catalog-page">
+  <h1>Catálogo mayorista</h1>
+  <div id="company-layout-nav"></div>
 
-<p>La gestion de lineas, categorias y subcategorias fue retirada temporalmente del frontend.</p>
-<p>Ese modulo se retomara mas adelante con reglas y permisos separados.</p>
+  <section class="company-panel">
+    <h2>Filtros del catálogo</h2>
+    <div class="company-products-toolbar">
+      <label>
+        Buscar
+        <input id="company-wholesale-search" type="search" placeholder="Buscar por producto, marca, SKU, categoría o mayorista">
+      </label>
 
-<script src="/assets/js/utils/auth.js"></script>
-<script src="/assets/js/company/layout.js"></script>
-<script>
-  if (!requireCompanySession()) {
-    throw new Error('Sesion requerida');
-  }
-</script>
+      <label>
+        Ordenar por
+        <select id="company-wholesale-sort">
+          <option value="recent">Más recientes</option>
+          <option value="reviews_desc">Mejor valorados</option>
+        </select>
+      </label>
+
+      <label>
+        Categoría
+        <select id="company-wholesale-category">
+          <option value="">Todas las categorías</option>
+        </select>
+      </label>
+    </div>
+  </section>
+
+  <p id="company-wholesale-summary" class="company-panel-message">Cargando información...</p>
+  <p id="company-wholesale-feedback" class="company-panel-feedback"></p>
+
+  <section class="company-panel">
+    <h2>Productos de mayoristas</h2>
+    <div id="company-wholesale-products-list">
+      <p>Cargando productos...</p>
+    </div>
+  </section>
+
+  <nav class="company-catalog-pagination" aria-label="Paginación del catálogo">
+    <button id="company-wholesale-prev-page" type="button">Anterior</button>
+    <span id="company-wholesale-page-label">Página 1 de 1</span>
+    <button id="company-wholesale-next-page" type="button">Siguiente</button>
+  </nav>
+</main>
+
+<script src="/assets/js/js_front/utils/auth.js"></script>
+<script src="/assets/js/js_front/utils/global-header.js"></script>
+<script src="/assets/js/js_front/company/layout.js"></script>
+<script src="/assets/js/js_front/company/catalog-management.js"></script>
 
 </body>
 </html>
+
+
+
+
+

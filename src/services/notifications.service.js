@@ -1,5 +1,6 @@
 const fs = require('node:fs/promises');
 const path = require('node:path');
+const pool = require('../config/db');
 
 const { findUserById } = require('./auth.customer.service');
 const { findCompanyById, listCompaniesForAdmin } = require('./auth.company.service');
@@ -291,6 +292,128 @@ const buildCustomerPurchaseNotifications = (customerId, checkouts) => {
   return notifications;
 };
 
+const B2B_RETAILER_NOTIFICATION_CONFIG = {
+  QUOTED: {
+    title: 'Cotizacion respondida',
+    type: 'info',
+    message: (quoteCode, quote) => `${quote.wholesaler_name || 'Tu mayorista'} respondió la cotizacion ${quoteCode}.`
+  },
+  DELIVERED: {
+    title: 'Entrega registrada',
+    type: 'warning',
+    message: (quoteCode) => `La cotizacion ${quoteCode} fue marcada como entregada. Confirma recepcion para activar plazo de pago.`
+  },
+  PAYMENT_PENDING: {
+    title: 'Pago pendiente',
+    type: 'warning',
+    message: (quoteCode, quote) => `La cotizacion ${quoteCode} está en espera de pago. Fecha limite: ${quote.payment_due_at ? new Date(quote.payment_due_at).toLocaleDateString('es-VE') : 'sin definir'}.`
+  },
+  PAID: {
+    title: 'Pago aprobado',
+    type: 'success',
+    message: (quoteCode) => `La cotizacion ${quoteCode} fue marcada como pagada.`
+  },
+  OVERDUE: {
+    title: 'Cotizacion vencida',
+    type: 'error',
+    message: (quoteCode) => `La cotizacion ${quoteCode} venció y puede bloquear nuevas solicitudes.`
+  }
+};
+
+const B2B_WHOLESALER_NOTIFICATION_CONFIG = {
+  REQUESTED: {
+    title: 'Nueva solicitud de cotizacion',
+    type: 'info',
+    message: (quoteCode, quote) => `${quote.retailer_name || 'Un detallista'} envió la solicitud ${quoteCode}.`
+  },
+  ACCEPTED: {
+    title: 'Cotizacion aceptada',
+    type: 'success',
+    message: (quoteCode, quote) => `${quote.retailer_name || 'El detallista'} aceptó la cotizacion ${quoteCode}.`
+  },
+  PAYMENT_SUBMITTED: {
+    title: 'Evidencia de pago recibida',
+    type: 'warning',
+    message: (quoteCode) => `El detallista cargó evidencia para la cotizacion ${quoteCode}.`
+  }
+};
+
+const buildB2BNotificationFromConfig = ({ companyId, quote, config, actionPath }) => {
+  const settings = config[quote.status];
+
+  if (!settings) {
+    return null;
+  }
+
+  const quoteCode = quote.quote_code || `BQ-${quote.id_b2b_quote}`;
+
+  return createNotification({
+    eventKey: `company:${companyId}:b2b:${quote.id_b2b_quote}:${quote.status}`,
+    title: settings.title,
+    message: settings.message(quoteCode, quote),
+    type: settings.type,
+    createdAt: quote.updated_at,
+    actionPath,
+    entity: 'company'
+  });
+};
+
+const buildCompanyB2BNotifications = async (companyId) => {
+  const [b2bRows] = await pool.query(
+    `SELECT q.id_b2b_quote,
+            q.quote_code,
+            q.id_retailer_fk,
+            q.id_wholesaler_fk,
+            q.status,
+            q.payment_due_at,
+            q.updated_at,
+            r.name AS retailer_name,
+            w.name AS wholesaler_name
+     FROM B2B_Quote q
+     INNER JOIN Company r ON r.id_company = q.id_retailer_fk
+     INNER JOIN Company w ON w.id_company = q.id_wholesaler_fk
+     WHERE q.id_retailer_fk = ? OR q.id_wholesaler_fk = ?
+     ORDER BY q.updated_at DESC, q.id_b2b_quote DESC
+     LIMIT 120`,
+    [Number(companyId), Number(companyId)]
+  );
+
+  const notifications = [];
+
+  for (const quote of b2bRows) {
+    const isRetailer = Number(quote.id_retailer_fk) === Number(companyId);
+    const isWholesaler = Number(quote.id_wholesaler_fk) === Number(companyId);
+
+    if (isRetailer) {
+      const retailerNotification = buildB2BNotificationFromConfig({
+        companyId,
+        quote,
+        config: B2B_RETAILER_NOTIFICATION_CONFIG,
+        actionPath: '/modules/company/b2b-retailer.html'
+      });
+
+      if (retailerNotification) {
+        notifications.push(retailerNotification);
+      }
+    }
+
+    if (isWholesaler) {
+      const wholesalerNotification = buildB2BNotificationFromConfig({
+        companyId,
+        quote,
+        config: B2B_WHOLESALER_NOTIFICATION_CONFIG,
+        actionPath: '/modules/company/b2b-wholesaler.html'
+      });
+
+      if (wholesalerNotification) {
+        notifications.push(wholesalerNotification);
+      }
+    }
+  }
+
+  return notifications;
+};
+
 const buildCustomerNotifications = async (customerId) => {
   const customer = await findUserById(customerId);
 
@@ -377,6 +500,8 @@ const buildCompanyNotifications = async (companyId) => {
       entity: 'company'
     }));
   }
+
+  notifications.push(...await buildCompanyB2BNotifications(companyId));
 
   const groups = await listCompanyGroups({ companyId, isAdmin: false });
 

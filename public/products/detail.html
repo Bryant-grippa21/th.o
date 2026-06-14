@@ -1,29 +1,34 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="es" xml:lang="es">
 <head>
   <meta charset="UTF-8">
   <title>Detalle de producto</title>
+  <link rel="stylesheet" href="/assets/css/base.css">
+  <link rel="stylesheet" href="/assets/css/products.css">
 </head>
 <body>
 
-<h1>Detalle de producto</h1>
-<p><a href="/index.html">Volver al inicio</a></p>
+<main class="product-detail-app">
+  <div id="product-detail-feedback"></div>
+  <div id="product-detail">
+    <p>Cargando producto...</p>
+  </div>
+</main>
 
-<div id="product-detail-feedback"></div>
-<div id="product-detail">
-  <p>Cargando producto...</p>
-</div>
-
-<script src="/assets/js/utils/auth.js"></script>
+<script src="/assets/js/js_front/utils/auth.js"></script>
+<script src="/assets/js/js_front/utils/global-header.js"></script>
 <script>
   const params = new URLSearchParams(location.search);
   const sku = params.get('sku');
   const lineId = params.get('lineId');
   const detailContainer = document.getElementById('product-detail');
   const detailFeedback = document.getElementById('product-detail-feedback');
+  const RECOMMENDED_MIN_PRODUCTS = 5;
+  const RECOMMENDED_FETCH_LIMIT = 18;
   const state = {
     session: null,
     product: null,
+    selectedImageUrl: null,
     exchangeRate: null,
     favoriteIds: new Set(),
     cartByProductId: new Map(),
@@ -221,22 +226,33 @@
   };
 
   const renderGallery = (images, fallbackAlt) => {
-    if (!Array.isArray(images) || !images.length) {
-      return '<p>Sin imágenes registradas.</p>';
+    const gallery = Array.isArray(images) ? images.filter((image) => image?.image_url) : [];
+
+    if (!gallery.length) {
+      return `
+        <div class="product-detail-media-empty">
+          <p>Sin imagenes registradas.</p>
+        </div>
+      `;
     }
 
+    const hasSelectedImage = state.selectedImageUrl
+      && gallery.some((image) => image.image_url === state.selectedImageUrl);
+    const mainImageUrl = hasSelectedImage ? state.selectedImageUrl : gallery[0].image_url;
+
     return `
-      <div>
-        <h3>Galería</h3>
-        <div>
-        ${images.map((image, index) => `
-          <img
-            src="${image.image_url}"
-            alt="${fallbackAlt} ${index + 1}"
-            width="220"
-          >
-        `).join('')}
-        </div>
+      <div class="product-detail-gallery-column">
+        ${gallery.map((image, index) => {
+          const activeClass = image.image_url === mainImageUrl ? 'is-active' : '';
+          return `
+            <button class="product-detail-thumb ${activeClass}" type="button" onclick="selectDetailImage('${encodeURIComponent(image.image_url)}')" aria-label="Ver imagen ${index + 1}">
+              <img src="${image.image_url}" alt="${fallbackAlt} miniatura ${index + 1}">
+            </button>
+          `;
+        }).join('')}
+      </div>
+      <div class="product-detail-main-media">
+        <img src="${mainImageUrl}" alt="${fallbackAlt}">
       </div>
     `;
   };
@@ -249,38 +265,66 @@
     </section>
   `;
 
+  const isRetailerCompanySession = () => {
+    if (state.session?.entity !== 'company') {
+      return false;
+    }
+
+    const company = state.session.data?.company || {};
+    const roleId = Number(company.id_role_fk || company.id_role || 0);
+
+    return roleId === 3 && company.verification_status === 'APPROVED' && Boolean(company.can_buy);
+  };
+
+  const renderCompanyActions = (item) => {
+    if (!isRetailerCompanySession()) {
+      return '';
+    }
+
+    return `
+      <section>
+        <h2>Acciones B2B</h2>
+        <label>
+          Cantidad
+          <input id="b2b-quote-quantity" type="number" min="1" step="1" value="1">
+        </label>
+        <p>
+          <button type="button" onclick="createRetailerQuoteFromDetail(${item.id_product}, ${item.id_company_fk})">Cotizar este producto</button>
+          <a href="/modules/company/b2b-retailer.html">Ir a mis cotizaciones</a>
+        </p>
+        <p>Esta acción crea un borrador B2B con el mayorista de este producto y agrega la línea seleccionada.</p>
+      </section>
+    `;
+  };
+
   const renderPriceBlock = (item) => {
     const priceBs = convertUsdToBs(item.price);
     const stock = Number(item.quantity || 0);
 
     return `
-      <section>
-        <h2>Información de compra</h2>
-        <p><b>Precio USD:</b> USD ${formatAmount(item.price)}</p>
-        <p><b>Precio referencial Bs:</b> ${priceBs === null ? 'Tasa no disponible' : `Bs.S ${formatBsAmount(priceBs)}`}</p>
-        <p><b>Tasa actual:</b> ${state.exchangeRate?.rate_bs_per_usd ? `Bs.S ${formatExchangeRate(state.exchangeRate.rate_bs_per_usd)}` : 'No disponible'}</p>
-        <p><b>Cantidad:</b> ${stock}</p>
-      </section>
+      <div class="product-detail-price-wrap">
+        <p class="product-detail-price-usd">$ ${formatAmount(item.price)}</p>
+        <p class="product-detail-price-bs">Bs.S ${priceBs === null ? 'N/D' : formatBsAmount(priceBs)}</p>
+        <p class="product-detail-stock-label">Stock: <b>${stock}</b> unidades</p>
+      </div>
     `;
   };
 
   const renderCustomerActions = (item) => {
     if (!isLogged()) {
       return `
-        <section>
-          <h2>Acciones</h2>
+        <div class="product-detail-actions-guest">
           <p>Inicia sesión como cliente para usar favoritos y carrito.</p>
-          <p><a href="/auth/login.html">Ir a login</a></p>
-        </section>
+          <a href="/auth/login.html">Ir a login</a>
+        </div>
       `;
     }
 
     if (!isCustomerSession()) {
       return `
-        <section>
-          <h2>Acciones</h2>
-          <p>Estas acciones solo están disponibles para clientes.</p>
-        </section>
+        <div class="product-detail-actions-guest">
+          <p>Estas acciones solo estan disponibles para clientes.</p>
+        </div>
       `;
     }
 
@@ -288,56 +332,56 @@
     const quantity = state.cartByProductId.get(Number(item.id_product)) || 1;
 
     return `
-      <section>
-        <h2>Acciones</h2>
-        <button type="button" onclick="toggleFavorite(${item.id_product})">${isFavorite ? 'Quitar de favoritos' : 'Agregar a favoritos'}</button>
-        <p>
+      <div class="product-detail-actions">
+        <div class="product-detail-quantity-row">
           <span>Cantidad</span>
-        <button type="button" onclick="changeDetailCartQuantity(${item.id_product}, -1)">-</button>
-        <input id="cart-quantity-${item.id_product}" type="number" min="1" step="1" value="${quantity}">
-        <button type="button" onclick="changeDetailCartQuantity(${item.id_product}, 1)">+</button>
-        </p>
-        <button type="button" onclick="addToCart(${item.id_product})">Guardar en carrito</button>
-        <button type="button" onclick="buyNow(${item.id_product})">Comprar ahora</button>
-        <a href="/modules/customer/favorites.html">Ver favoritos</a>
-        <a href="/modules/customer/cart.html">Ver carrito</a>
-        <a href="/modules/customer/purchases.html">Ver compras</a>
-      </section>
+          <div class="product-detail-qty-pill">
+            <button type="button" onclick="changeDetailCartQuantity(${item.id_product}, -1)">-</button>
+            <input id="cart-quantity-${item.id_product}" type="number" min="1" step="1" value="${quantity}">
+            <button type="button" onclick="changeDetailCartQuantity(${item.id_product}, 1)">+</button>
+          </div>
+        </div>
+        <button class="product-detail-btn product-detail-btn--accent" type="button" onclick="addToCart(${item.id_product})">Agregar al carrito</button>
+        <button class="product-detail-btn product-detail-btn--primary" type="button" onclick="buyNow(${item.id_product})">Comprar ahora</button>
+        <button class="product-detail-favorite" type="button" onclick="toggleFavorite(${item.id_product})">${isFavorite ? 'Quitar de favoritos' : 'Agregar a favoritos'}</button>
+      </div>
     `;
   };
 
   const renderRecommendedProducts = () => {
     if (!Array.isArray(state.recommendedProducts) || !state.recommendedProducts.length) {
       return `
-        <section>
-          <h2>Productos recomendados</h2>
+        <section class="product-related-section">
+          <h2>Productos relacionados</h2>
           <p>No hay productos recomendados disponibles.</p>
         </section>
       `;
     }
 
+    const visibleProducts = state.recommendedProducts;
+
     return `
-      <section>
-        <h2>Productos recomendados</h2>
-        <ul>
-          ${state.recommendedProducts.map((product) => {
+      <section class="product-related-section">
+        <div class="product-related-header">
+          <h2>Productos relacionados</h2>
+        </div>
+        <div class="product-related-row">
+          ${visibleProducts.map((product) => {
+            const productName = product.name || 'Sin nombre';
             return `
-              <li>
-                ${product.image_url ? `
-                  <p>
-                    <a href="/products/detail.html?sku=${encodeURIComponent(product.sku)}">
-                      <img src="${product.image_url}" alt="${product.name}" width="160">
-                    </a>
-                  </p>
-                ` : ''}
-                <p><b>${product.name || 'Sin nombre'}</b></p>
-                <p><b>Precio USD:</b> USD ${formatAmount(product.price)}</p>
-                <p><b>Promedio:</b> ${renderProductAverageLabel(product.reviews)}</p>
-                <p><a href="/products/detail.html?sku=${encodeURIComponent(product.sku)}">Ver detalle</a></p>
-              </li>
+              <article class="product-related-card">
+                <a class="product-related-card__media" href="/products/detail.html?sku=${encodeURIComponent(product.sku)}">
+                  ${product.image_url
+                    ? `<img src="${product.image_url}" alt="${productName}">`
+                    : '<div class="product-related-card__media-placeholder">Sin imagen</div>'}
+                </a>
+                <p class="product-related-card__name">${productName}</p>
+                <p class="product-related-card__price">USD ${formatAmount(product.price)}</p>
+                <button type="button" class="product-related-card__add" onclick="addRecommendedToCart(${product.id_product})">Agregar</button>
+              </article>
             `;
           }).join('')}
-        </ul>
+        </div>
       </section>
     `;
   };
@@ -458,27 +502,59 @@
     }
 
     const mainBrand = selectedProduct.brand || product.brand || null;
+    const lineName = product.name || 'Sin línea';
+    const stockLabel = getStockLabel(selectedProduct.quantity);
+    const averageLabel = renderProductAverageLabel(state.reviewsSummary);
 
     detailContainer.innerHTML = `
-      <section>
-        <h2>Resumen del producto</h2>
-        <p><b>Línea:</b> ${product.name}</p>
-        <p>${selectedProduct.name || 'Sin nombre'}</p>
-        <p><b>SKU:</b> ${selectedProduct.sku}</p>
-        <p><b>Marca:</b> ${mainBrand || 'Sin marca'}</p>
-      </section>
-      ${renderGallery(selectedProduct.images, selectedProduct.name || product.name)}
-      ${renderPriceBlock(selectedProduct)}
-      <section>
-        <h2>Descripción</h2>
-        <p>${selectedProduct.description || 'Sin descripción registrada.'}</p>
-      </section>
-      ${renderAttributes(selectedProduct.attributes)}
-      ${renderVendorBlock(selectedProduct)}
-      ${renderCustomerActions(selectedProduct)}
-      ${renderOtherProducts(product)}
-      ${renderRecommendedProducts()}
-      ${renderReviewsBlock()}
+      <div class="product-detail-page">
+        <p class="product-detail-back"><a href="/index.html">&larr; Volver</a></p>
+
+        <section class="product-detail-shell">
+          <div class="product-detail-visual">
+            ${renderGallery(selectedProduct.images, selectedProduct.name || product.name)}
+          </div>
+
+          <aside class="product-detail-buy-card">
+            <p class="product-detail-kicker">Nuevo | Stock disponible</p>
+            <h1 class="product-detail-title">${selectedProduct.name || 'Sin nombre'}</h1>
+            <p class="product-detail-rating">${averageLabel}</p>
+            ${renderPriceBlock(selectedProduct)}
+            <p class="product-detail-status">Producto ${stockLabel.toLowerCase()}</p>
+            <p class="product-detail-meta">Línea: ${lineName}</p>
+            <p class="product-detail-meta">SKU: ${selectedProduct.sku || 'Sin SKU'}</p>
+            <p class="product-detail-meta">Marca: ${mainBrand || 'Sin marca'}</p>
+            ${renderCustomerActions(selectedProduct)}
+            <div class="product-detail-seller">
+              <p><b>Vendido por</b> ${selectedProduct.company_name || 'Sin empresa'}</p>
+              <p>${selectedProduct.company_email || 'Sin correo'}</p>
+            </div>
+          </aside>
+        </section>
+
+        <section class="product-detail-section">
+          <h2>Descripción</h2>
+          <p>${selectedProduct.description || 'Sin descripción registrada.'}</p>
+        </section>
+
+        <section class="product-detail-section">
+          ${renderAttributes(selectedProduct.attributes)}
+        </section>
+
+        <section class="product-detail-section">
+          ${renderOtherProducts(product)}
+        </section>
+
+        <section class="product-detail-section">
+          ${renderRecommendedProducts()}
+        </section>
+
+        <section class="product-detail-section">
+          ${renderReviewsBlock()}
+        </section>
+      </div>
+
+      ${renderCompanyActions(selectedProduct)}
     `;
 
     const reviewForm = document.getElementById('product-review-form');
@@ -497,16 +573,38 @@
     }
   };
 
-  const loadRecommendedProducts = async () => {
-    const query = new URLSearchParams({ limit: '10' });
+  const loadRecommendedProducts = async (currentProduct = null) => {
+    const query = new URLSearchParams({
+      limit: String(Math.max(RECOMMENDED_FETCH_LIMIT, RECOMMENDED_MIN_PRODUCTS))
+    });
 
-    if (sku) {
-      query.set('exclude_sku', sku);
+    const currentSku = String(currentProduct?.sku || sku || '').trim();
+    const currentProductId = Number(currentProduct?.id_product || 0);
+
+    if (currentSku) {
+      query.set('exclude_sku', currentSku);
     }
 
     try {
       const data = await requestPublicJson(`${API_BASE_URL}/api/products/recommended?${query.toString()}`);
-      state.recommendedProducts = Array.isArray(data.products) ? data.products : [];
+      const fetchedProducts = Array.isArray(data.products) ? data.products : [];
+      const filteredProducts = fetchedProducts.filter((product) => {
+        if (!product?.sku) {
+          return false;
+        }
+
+        if (currentSku && String(product.sku).trim() === currentSku) {
+          return false;
+        }
+
+        if (currentProductId > 0 && Number(product.id_product) === currentProductId) {
+          return false;
+        }
+
+        return true;
+      });
+
+      state.recommendedProducts = filteredProducts.slice(0, Math.max(RECOMMENDED_MIN_PRODUCTS, filteredProducts.length));
     } catch {
       state.recommendedProducts = [];
     }
@@ -567,23 +665,37 @@
   };
 
   let detailEndpoint = null;
+  let useAuthenticatedDetailRequest = false;
 
   if (sku) {
-    detailEndpoint = `${API_BASE_URL}/api/products/catalog/sku/${encodeURIComponent(sku)}`;
+    if (getAuthEntity() === 'company') {
+      detailEndpoint = `${API_BASE_URL}/api/products/company/wholesale-catalog/sku/${encodeURIComponent(sku)}`;
+      useAuthenticatedDetailRequest = true;
+    } else {
+      detailEndpoint = `${API_BASE_URL}/api/products/catalog/sku/${encodeURIComponent(sku)}`;
+    }
   } else if (lineId) {
     detailEndpoint = `${API_BASE_URL}/api/products/catalog/${lineId}`;
   }
 
   if (detailEndpoint) {
+    const detailRequest = useAuthenticatedDetailRequest
+      ? requestCustomerJson(detailEndpoint)
+      : requestPublicJson(detailEndpoint);
+
     Promise.all([
-      requestPublicJson(detailEndpoint),
+      detailRequest,
       loadCustomerCollections(),
-      loadLatestExchangeRate(),
-      loadRecommendedProducts()
+      loadLatestExchangeRate()
     ])
       .then(async ([{ product }]) => {
         state.product = product;
-        await loadProductReviews(getCurrentReviewProductId());
+        const selectedProduct = getSelectedProduct(product);
+
+        await Promise.all([
+          loadProductReviews(getCurrentReviewProductId()),
+          loadRecommendedProducts(selectedProduct)
+        ]);
         setFeedback('');
         renderProductDetail(product);
       })
@@ -644,12 +756,90 @@
     }
   }
 
+  async function addRecommendedToCart(productId) {
+    try {
+      if (!isCustomerSession()) {
+        redirectToLogin();
+        return;
+      }
+
+      const data = await requestCustomerJson(`${API_BASE_URL}/api/auth/cart/items`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ id_product: productId, quantity: 1 })
+      });
+
+      syncCartState(data.cart);
+      setFeedback('Producto guardado en el carrito.', 'success');
+      renderProductDetail(state.product);
+    } catch (error) {
+      setFeedback(error.message, 'error');
+    }
+  }
+
   async function buyNow(productId) {
     await addToCart(productId);
 
     if (detailFeedback.dataset.type !== 'error') {
       location.href = '/modules/customer/cart.html';
     }
+  }
+
+  async function createRetailerQuoteFromDetail(productId, wholesalerId) {
+    try {
+      if (!isRetailerCompanySession()) {
+        throw new Error('Acceso solo para detallista');
+      }
+
+      const quantityInput = document.getElementById('b2b-quote-quantity');
+      const requestedQuantity = Number(quantityInput?.value || 1);
+
+      if (!Number.isInteger(requestedQuantity) || requestedQuantity <= 0) {
+        throw new Error('Cantidad inválida');
+      }
+
+      const draftResponse = await requestCustomerJson(`${API_BASE_URL}/api/b2b-quotes/drafts`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          id_wholesaler_fk: wholesalerId,
+          currency_code: 'USD',
+          notes: `Cotización iniciada desde la ficha de ${state.product?.name || 'producto'}`
+        })
+      });
+
+      const draftId = draftResponse.draft?.id_quote_draft;
+
+      if (!draftId) {
+        throw new Error('No se pudo crear el borrador');
+      }
+
+      await requestCustomerJson(`${API_BASE_URL}/api/b2b-quotes/drafts/${draftId}/items`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          id_product_fk: productId,
+          requested_quantity: requestedQuantity,
+          notes: 'Agregado desde ficha de producto'
+        })
+      });
+
+      setFeedback(`Borrador B2B #${draftId} creado y producto agregado.`, 'success');
+      location.href = `/modules/company/b2b-retailer.html?draftId=${encodeURIComponent(draftId)}`;
+    } catch (error) {
+      setFeedback(error.message, 'error');
+    }
+  }
+
+  function selectDetailImage(encodedUrl) {
+    state.selectedImageUrl = decodeURIComponent(encodedUrl || '');
+    renderProductDetail(state.product);
   }
 
   async function submitReview(event) {
@@ -701,9 +891,17 @@
 
   globalThis.toggleFavorite = toggleFavorite;
   globalThis.addToCart = addToCart;
+  globalThis.addRecommendedToCart = addRecommendedToCart;
   globalThis.buyNow = buyNow;
   globalThis.changeDetailCartQuantity = changeDetailCartQuantity;
+  globalThis.createRetailerQuoteFromDetail = createRetailerQuoteFromDetail;
+  globalThis.selectDetailImage = selectDetailImage;
 </script>
 
 </body>
 </html>
+
+
+
+
+

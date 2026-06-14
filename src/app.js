@@ -16,6 +16,7 @@ const exchangeRoutes = require('./routes/exchange.routes');
 const purchaseRoutes = require('./routes/purchase.routes');
 const productRoutes = require('./routes/products.routes');
 const notificationsRoutes = require('./routes/notifications.routes');
+const b2bQuoteRoutes = require('./routes/b2b.quote.routes');
 
 app.get('/', (_req, res) => {
   if (fs.existsSync(publicIndexPath)) {
@@ -31,7 +32,8 @@ app.get('/', (_req, res) => {
       exchange: '/api/exchange-rate',
       purchases: '/api/purchases',
       products: '/api/products',
-      notifications: '/api/notifications'
+      notifications: '/api/notifications',
+      b2b_quotes: '/api/b2b-quotes'
     }
   });
 });
@@ -46,6 +48,7 @@ app.use('/api/exchange-rate', exchangeRoutes);
 app.use('/api/purchases', purchaseRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/notifications', notificationsRoutes);
+app.use('/api/b2b-quotes', b2bQuoteRoutes);
 
 app.use(express.static(publicDir));
 app.use('/uploads', express.static(path.join(publicDir, 'uploads')));

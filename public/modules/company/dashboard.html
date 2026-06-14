@@ -1,25 +1,35 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="es" xml:lang="es">
 <head>
   <meta charset="UTF-8">
   <title>Dashboard empresa</title>
+  <link rel="stylesheet" href="/assets/css/base.css">
+  <link rel="stylesheet" href="/assets/css/company.css">
 </head>
 <body>
 
-<h1>Dashboard empresa</h1>
-<div id="company-layout-nav"></div>
+<main class="company-page company-dashboard-page">
+  <h1>Dashboard empresa</h1>
+  <div id="company-layout-nav"></div>
 
-<p id="company-welcome"></p>
+  <p id="company-welcome" class="company-page-welcome" hidden></p>
 
-<div id="company-verification-reminder"></div>
+  <div id="company-verification-reminder"></div>
 
-<section id="company-dashboard-stats">
-  <p>Cargando resumen de empresa...</p>
-</section>
+  <section id="company-dashboard-stats">
+    <p>Cargando resumen de empresa...</p>
+  </section>
+</main>
 
-<script src="/assets/js/utils/auth.js"></script>
-<script src="/assets/js/company/layout.js"></script>
-<script src="/assets/js/company/dashboard.js"></script>
+<script src="/assets/js/js_front/utils/auth.js"></script>
+<script src="/assets/js/js_front/utils/global-header.js"></script>
+<script src="/assets/js/js_front/company/layout.js"></script>
+<script src="/assets/js/js_front/company/dashboard.js"></script>
 
 </body>
 </html>
+
+
+
+
+

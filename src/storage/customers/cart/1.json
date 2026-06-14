@@ -1,0 +1,11 @@
+{
+  "id_customer": 1,
+  "items": [
+    {
+      "id_product": 2,
+      "quantity": 1,
+      "updated_at": "2026-05-26T22:16:48.166Z"
+    }
+  ],
+  "updated_at": "2026-05-26T22:16:48.166Z"
+}

@@ -5,6 +5,8 @@ const {
   listCompanyGroups,
   listCompanyPaymentMethods,
   createCompanyPaymentMethod,
+  updateCompanyPaymentMethod,
+  deleteCompanyPaymentMethod,
   submitPurchaseEvidence,
   approvePurchaseGroup,
   rejectPurchaseGroup,
@@ -217,6 +219,52 @@ const createCompanyMethod = async (req, res) => {
   }
 };
 
+const updateCompanyMethod = async (req, res) => {
+  try {
+    if (!await requireCompanySellAccess(req, res, 'actualizar métodos de pago')) {
+      return;
+    }
+
+    const paymentMethodId = Number(req.params.paymentMethodId);
+
+    if (!Number.isInteger(paymentMethodId) || paymentMethodId <= 0) {
+      return res.status(400).json({ error: 'paymentMethodId inválido' });
+    }
+
+    const payment_method = await updateCompanyPaymentMethod(req.user.id, paymentMethodId, req.body);
+    return res.status(200).json({
+      message: 'Método de pago actualizado correctamente',
+      payment_method
+    });
+  } catch (error) {
+    console.error('ERROR UPDATE COMPANY PAYMENT METHOD:', error);
+    return res.status(getErrorStatus(error)).json({ error: error.message });
+  }
+};
+
+const deleteCompanyMethod = async (req, res) => {
+  try {
+    if (!await requireCompanySellAccess(req, res, 'eliminar métodos de pago')) {
+      return;
+    }
+
+    const paymentMethodId = Number(req.params.paymentMethodId);
+
+    if (!Number.isInteger(paymentMethodId) || paymentMethodId <= 0) {
+      return res.status(400).json({ error: 'paymentMethodId inválido' });
+    }
+
+    const result = await deleteCompanyPaymentMethod(req.user.id, paymentMethodId);
+    return res.status(200).json({
+      message: 'Método de pago eliminado correctamente',
+      result
+    });
+  } catch (error) {
+    console.error('ERROR DELETE COMPANY PAYMENT METHOD:', error);
+    return res.status(getErrorStatus(error)).json({ error: error.message });
+  }
+};
+
 const approveCompanyPurchaseGroup = async (req, res) => {
   try {
     if (!await requireCompanySellAccess(req, res, 'aprobar grupos de compra')) {
@@ -322,6 +370,8 @@ module.exports = {
   getCompanyPurchaseGroups,
   getCompanyMethods,
   createCompanyMethod,
+  updateCompanyMethod,
+  deleteCompanyMethod,
   approveCompanyPurchaseGroup,
   rejectCompanyPurchaseGroup,
   expireCompanyPurchaseGroup,

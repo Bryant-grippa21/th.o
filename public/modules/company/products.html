@@ -1,154 +1,58 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="es" xml:lang="es">
 <head>
   <meta charset="UTF-8">
   <title>Mis productos</title>
+  <link rel="stylesheet" href="/assets/css/base.css">
+  <link rel="stylesheet" href="/assets/css/company.css">
 </head>
 <body>
 
+<main class="company-page company-products-page">
 <h1>Mis productos</h1>
 <div id="company-layout-nav"></div>
 
 <p id="company-products-role-note"></p>
 
-<label>
-  Buscar producto registrado
-  <input id="company-products-search" type="search" placeholder="Buscar por nombre, SKU, línea o categoría">
-</label>
-
-<br><br>
-
-<section>
-  <details>
-    <summary><b>Crear producto</b></summary>
-    <br>
-  <form id="company-product-form">
+<section class="company-panel">
+  <div class="company-products-toolbar">
     <label>
-      Buscar línea
-      <input id="product-line-search" type="text" placeholder="Busca por línea, categoría o subcategoría">
+      Nombre o SKU
+      <input id="company-products-search" type="search" placeholder="Buscar por nombre o SKU">
     </label>
-    <br><br>
 
     <label>
-      Línea
-      <select id="product-line" required>
-        <option value="">Seleccione una línea</option>
+      Categoría
+      <select id="company-products-category">
+        <option value="">Todas las categorías</option>
       </select>
     </label>
-    <br><br>
-
-    <div id="product-line-context">
-      <p><b>Categoría:</b> No seleccionada</p>
-      <p><b>Subcategoría:</b> No seleccionada</p>
-      <p><b>Línea:</b> No seleccionada</p>
-    </div>
-    <br><br>
 
     <label>
-      Nombre del producto
-      <input id="product-name" name="name" type="text" required>
+      Subcategoría
+      <select id="company-products-subcategory">
+        <option value="">Todas las subcategorías</option>
+      </select>
     </label>
-    <br><br>
 
     <label>
-      Marca
-      <input id="product-brand" name="brand" type="text">
+      Ordenar por
+      <select id="company-products-sort">
+        <option value="price_desc">Mayor a menor precio</option>
+        <option value="price_asc">Menor a mayor precio</option>
+        <option value="rating_desc">Mejor a peor calificación</option>
+        <option value="rating_asc">Peor a mejor calificación</option>
+        <option value="quantity_desc">Mayor a menor cantidad</option>
+        <option value="quantity_asc">Menor a mayor cantidad</option>
+        <option value="active_first">Habilitados primero</option>
+        <option value="inactive_first">Deshabilitados primero</option>
+      </select>
     </label>
-    <br><br>
+  </div>
 
-    <label>
-      Descripción
-      <textarea id="product-description" name="description" rows="4"></textarea>
-    </label>
-    <br><br>
-
-    <label>
-      Precio
-      <input id="product-price" name="price" type="number" min="0" step="0.01" required>
-    </label>
-    <br><br>
-
-    <label>
-      Cantidad inicial
-      <input id="product-quantity" name="quantity" type="number" min="0" step="1" required>
-    </label>
-    <br><br>
-
-    <label>
-      Stock mínimo
-      <input id="product-min-stock" name="min_stock" type="number" min="0" step="1">
-    </label>
-    <br><br>
-
-    <fieldset>
-      <legend>Atributos del producto</legend>
-      <p>Agrega hasta 4 atributos. Debes completar al menos uno.</p>
-
-      <label>
-        Atributo 1
-        <input id="product-attribute-key-1" type="text" placeholder="Ej: color">
-      </label>
-      <label>
-        Valor 1
-        <input id="product-attribute-value-1" type="text" placeholder="Ej: rojo">
-      </label>
-      <br><br>
-
-      <label>
-        Atributo 2
-        <input id="product-attribute-key-2" type="text" placeholder="Ej: material">
-      </label>
-      <label>
-        Valor 2
-        <input id="product-attribute-value-2" type="text" placeholder="Ej: acero">
-      </label>
-      <br><br>
-
-      <label>
-        Atributo 3
-        <input id="product-attribute-key-3" type="text" placeholder="Ej: medida">
-      </label>
-      <label>
-        Valor 3
-        <input id="product-attribute-value-3" type="text" placeholder="Ej: 10mm">
-      </label>
-      <br><br>
-
-      <label>
-        Atributo 4
-        <input id="product-attribute-key-4" type="text" placeholder="Ej: uso">
-      </label>
-      <label>
-        Valor 4
-        <input id="product-attribute-value-4" type="text" placeholder="Ej: industrial">
-      </label>
-    </fieldset>
-    <br><br>
-
-    <label>
-      Imagen principal
-      <input id="product-main-image" name="main_image" type="file" accept="image/*">
-    </label>
-    <div id="product-main-image-preview">
-      <p>No has seleccionado imagen principal.</p>
-    </div>
-    <br><br>
-
-    <label>
-      Imágenes secundarias (hasta 7)
-      <input id="product-secondary-images" name="secondary_images" type="file" accept="image/*" multiple>
-    </label>
-    <p>Puedes cargar varias fotos secundarias para el mismo producto.</p>
-    <button id="product-secondary-images-clear" type="button">Limpiar imágenes secundarias</button>
-    <div id="product-secondary-images-preview">
-      <p>No has seleccionado imágenes secundarias.</p>
-    </div>
-    <br><br>
-
-    <button type="submit">Crear producto</button>
-  </form>
-  <p id="company-product-form-message"></p>
-  </details>
+  <div class="company-products-toolbar-actions">
+    <button id="open-company-product-modal" type="button">Subir producto manualmente</button>
+  </div>
 </section>
 
 <section>
@@ -160,97 +64,314 @@
     <p>Cargando listado...</p>
   </div>
   <div id="company-products-pagination"></div>
+</section>
 
-  <section id="company-product-editor-section" hidden>
-    <details id="company-product-editor-details" open>
-    <summary><b>Gestionar producto</b></summary>
-    <br>
-    <form id="company-product-editor-form">
+<div id="company-product-modal" class="company-modal" hidden>
+  <div class="company-modal__backdrop" data-close-modal="company-product-modal"></div>
+  <dialog class="company-modal__panel" aria-labelledby="company-product-modal-title" open>
+    <div class="company-modal__header">
+      <h2 id="company-product-modal-title">Crear producto</h2>
+      <button id="close-company-product-modal" type="button" aria-label="Cerrar formulario">Cerrar</button>
+    </div>
+
+    <form id="company-product-form" class="company-modal-form">
+      <div class="company-form-grid company-form-grid--two">
+        <label>
+          Buscar línea
+          <input id="product-line-search" type="text" placeholder="Busca por línea, categoría o subcategoría">
+        </label>
+
+        <label>
+          Línea
+          <select id="product-line" required>
+            <option value="">Seleccione una línea</option>
+          </select>
+        </label>
+      </div>
+
+      <div id="product-line-context" class="company-line-context company-panel-message">
+        <p><b>Categoría:</b> No seleccionada</p>
+        <p><b>Subcategoría:</b> No seleccionada</p>
+        <p><b>Línea:</b> No seleccionada</p>
+      </div>
+
+      <div class="company-form-grid company-form-grid--two">
+        <label>
+          Nombre del producto
+          <input id="product-name" name="name" type="text" required>
+        </label>
+
+        <label>
+          Marca
+          <input id="product-brand" name="brand" type="text">
+        </label>
+      </div>
+
+      <label>
+        Descripción
+        <textarea id="product-description" name="description" rows="4"></textarea>
+      </label>
+
+      <div class="company-form-grid company-form-grid--three">
+        <label>
+          Precio
+          <input id="product-price" name="price" type="number" min="0" step="0.01" required>
+        </label>
+
+        <label>
+          Cantidad inicial
+          <input id="product-quantity" name="quantity" type="number" min="0" step="1" required>
+        </label>
+
+        <label>
+          Stock mínimo
+          <input id="product-min-stock" name="min_stock" type="number" min="0" step="1">
+        </label>
+      </div>
+
+      <fieldset>
+        <legend>Atributos del producto</legend>
+        <p>Agrega hasta 4 atributos. Debes completar al menos uno.</p>
+
+        <div class="company-attributes-grid">
+          <div class="company-attribute-row">
+            <label>
+              Atributo 1
+              <input id="product-attribute-key-1" type="text" placeholder="Ej: color">
+            </label>
+            <label>
+              Valor 1
+              <input id="product-attribute-value-1" type="text" placeholder="Ej: rojo">
+            </label>
+          </div>
+
+          <div class="company-attribute-row">
+            <label>
+              Atributo 2
+              <input id="product-attribute-key-2" type="text" placeholder="Ej: material">
+            </label>
+            <label>
+              Valor 2
+              <input id="product-attribute-value-2" type="text" placeholder="Ej: acero">
+            </label>
+          </div>
+
+          <div class="company-attribute-row">
+            <label>
+              Atributo 3
+              <input id="product-attribute-key-3" type="text" placeholder="Ej: medida">
+            </label>
+            <label>
+              Valor 3
+              <input id="product-attribute-value-3" type="text" placeholder="Ej: 10mm">
+            </label>
+          </div>
+
+          <div class="company-attribute-row">
+            <label>
+              Atributo 4
+              <input id="product-attribute-key-4" type="text" placeholder="Ej: uso">
+            </label>
+            <label>
+              Valor 4
+              <input id="product-attribute-value-4" type="text" placeholder="Ej: industrial">
+            </label>
+          </div>
+        </div>
+      </fieldset>
+
+      <div class="company-form-grid company-form-grid--two">
+        <div>
+          <label>
+            Imagen principal
+            <input id="product-main-image" name="main_image" type="file" accept="image/*">
+          </label>
+          <div id="product-main-image-preview">
+            <p>No has seleccionado imagen principal.</p>
+          </div>
+        </div>
+
+        <div>
+          <label>
+            Imágenes secundarias (hasta 7)
+            <input id="product-secondary-images" name="secondary_images" type="file" accept="image/*" multiple>
+          </label>
+          <p class="company-modal-form-note">Puedes cargar varias fotos secundarias para el mismo producto.</p>
+          <button id="product-secondary-images-clear" type="button" class="company-modal-form-secondary-action">Limpiar imágenes secundarias</button>
+          <div id="product-secondary-images-preview">
+            <p>No has seleccionado imágenes secundarias.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="company-modal-form-actions">
+        <button type="submit">Crear producto</button>
+      </div>
+    </form>
+  <p id="company-product-form-message"></p>
+  </dialog>
+</div>
+
+<div id="company-product-editor-modal" class="company-modal" hidden>
+  <div class="company-modal__backdrop" data-close-modal="company-product-editor-modal"></div>
+  <dialog class="company-modal__panel" aria-labelledby="company-product-editor-title" open>
+    <div class="company-modal__header">
+      <h2 id="company-product-editor-title">Gestionar producto</h2>
+      <button id="close-company-product-editor-modal" type="button" aria-label="Cerrar edición">Cerrar</button>
+    </div>
+
+    <form id="company-product-editor-form" class="company-modal-form">
       <input id="edit-product-id" type="hidden">
 
-      <label>
-        Nombre
-        <input id="edit-product-name" name="name" type="text" required>
-      </label>
-      <br><br>
+      <div class="company-form-grid company-form-grid--two">
+        <label>
+          Nombre
+          <input id="edit-product-name" name="name" type="text" required>
+        </label>
 
-      <label>
-        Marca
-        <input id="edit-product-brand" name="brand" type="text">
-      </label>
-      <br><br>
+        <label>
+          Marca
+          <input id="edit-product-brand" name="brand" type="text">
+        </label>
+      </div>
 
       <label>
         Descripción
         <textarea id="edit-product-description" name="description" rows="4"></textarea>
       </label>
-      <br><br>
 
-      <label>
-        Precio
-        <input id="edit-product-price" name="price" type="number" min="0" step="0.01" required>
-      </label>
-      <br><br>
+      <div class="company-form-grid company-form-grid--two">
+        <label>
+          Precio
+          <input id="edit-product-price" name="price" type="number" min="0" step="0.01" required>
+        </label>
 
-      <label>
-        Stock mínimo
-        <input id="edit-product-min-stock" name="min_stock" type="number" min="0" step="1">
-      </label>
-      <br><br>
+        <label>
+          Stock mínimo
+          <input id="edit-product-min-stock" name="min_stock" type="number" min="0" step="1">
+        </label>
+      </div>
 
       <fieldset>
         <legend>Atributos</legend>
-        <label>Atributo 1 <input id="edit-product-attribute-key-1" type="text" placeholder="Ej: color"></label>
-        <label>Valor 1 <input id="edit-product-attribute-value-1" type="text" placeholder="Ej: rojo"></label>
-        <br><br>
-        <label>Atributo 2 <input id="edit-product-attribute-key-2" type="text" placeholder="Ej: material"></label>
-        <label>Valor 2 <input id="edit-product-attribute-value-2" type="text" placeholder="Ej: acero"></label>
-        <br><br>
-        <label>Atributo 3 <input id="edit-product-attribute-key-3" type="text" placeholder="Ej: medida"></label>
-        <label>Valor 3 <input id="edit-product-attribute-value-3" type="text" placeholder="Ej: 10mm"></label>
-        <br><br>
-        <label>Atributo 4 <input id="edit-product-attribute-key-4" type="text" placeholder="Ej: uso"></label>
-        <label>Valor 4 <input id="edit-product-attribute-value-4" type="text" placeholder="Ej: industrial"></label>
+        <div class="company-attributes-grid">
+          <div class="company-attribute-row">
+            <label>Atributo 1 <input id="edit-product-attribute-key-1" type="text" placeholder="Ej: color"></label>
+            <label>Valor 1 <input id="edit-product-attribute-value-1" type="text" placeholder="Ej: rojo"></label>
+          </div>
+          <div class="company-attribute-row">
+            <label>Atributo 2 <input id="edit-product-attribute-key-2" type="text" placeholder="Ej: material"></label>
+            <label>Valor 2 <input id="edit-product-attribute-value-2" type="text" placeholder="Ej: acero"></label>
+          </div>
+          <div class="company-attribute-row">
+            <label>Atributo 3 <input id="edit-product-attribute-key-3" type="text" placeholder="Ej: medida"></label>
+            <label>Valor 3 <input id="edit-product-attribute-value-3" type="text" placeholder="Ej: 10mm"></label>
+          </div>
+          <div class="company-attribute-row">
+            <label>Atributo 4 <input id="edit-product-attribute-key-4" type="text" placeholder="Ej: uso"></label>
+            <label>Valor 4 <input id="edit-product-attribute-value-4" type="text" placeholder="Ej: industrial"></label>
+          </div>
+        </div>
       </fieldset>
-      <br><br>
 
       <div id="edit-product-current-images"></div>
-      <br>
 
-      <label>
-        Nueva imagen principal
-        <input id="edit-product-main-image" name="main_image" type="file" accept="image/*">
-      </label>
-      <div id="edit-product-main-image-preview">
-        <p>No has seleccionado nueva imagen principal.</p>
+      <div class="company-form-grid company-form-grid--two">
+        <div>
+          <label>
+            Nueva imagen principal
+            <input id="edit-product-main-image" name="main_image" type="file" accept="image/*">
+          </label>
+          <div id="edit-product-main-image-preview">
+            <p>No has seleccionado nueva imagen principal.</p>
+          </div>
+        </div>
+
+        <div>
+          <label>
+            Nuevas imágenes secundarias
+            <input id="edit-product-secondary-images" name="secondary_images" type="file" accept="image/*" multiple>
+          </label>
+          <div id="edit-product-secondary-images-preview">
+            <p>No has seleccionado nuevas imágenes secundarias.</p>
+          </div>
+        </div>
       </div>
-      <br><br>
 
-      <label>
-        Nuevas imágenes secundarias
-        <input id="edit-product-secondary-images" name="secondary_images" type="file" accept="image/*" multiple>
-      </label>
-      <div id="edit-product-secondary-images-preview">
-        <p>No has seleccionado nuevas imágenes secundarias.</p>
+      <div class="company-modal-form-actions company-modal-form-actions--split">
+        <button id="edit-product-cancel" type="button" class="company-modal-form-secondary-action">Cancelar</button>
+        <button type="submit">Guardar cambios</button>
       </div>
-      <br><br>
-
-      <button type="submit">Guardar cambios</button>
-      <button id="edit-product-cancel" type="button">Cancelar</button>
     </form>
-    <p id="company-product-editor-message"></p>
 
+    <p id="company-product-editor-message"></p>
     <div id="edit-product-stock-history">
       <p>Historial de stock no disponible.</p>
     </div>
     <div id="edit-product-stock-history-pagination"></div>
-    </details>
-  </section>
-</section>
+  </dialog>
+</div>
 
-<script src="/assets/js/utils/auth.js"></script>
-<script src="/assets/js/company/layout.js"></script>
-<script src="/assets/js/company/products.js"></script>
+<div id="company-product-status-modal" class="company-modal" hidden>
+  <div class="company-modal__backdrop" data-close-modal="company-product-status-modal"></div>
+  <dialog class="company-modal__panel company-modal__panel--small" aria-labelledby="company-product-status-title" open>
+    <div class="company-modal__header">
+      <h2 id="company-product-status-title">Estado del producto</h2>
+      <button type="button" aria-label="Cerrar estado" data-close-modal="company-product-status-modal">Cerrar</button>
+    </div>
+    <form id="company-product-status-form" class="company-modal-form">
+      <input id="status-product-id" type="hidden">
+      <input id="status-next-value" type="hidden">
+      <p id="company-product-status-message"></p>
+      <div class="company-modal-form-actions company-modal-form-actions--split">
+        <button type="button" class="company-modal-form-secondary-action" data-close-modal="company-product-status-modal">Cancelar</button>
+        <button id="company-product-status-confirm" type="submit">Confirmar</button>
+      </div>
+    </form>
+  </dialog>
+</div>
+
+<div id="company-product-stock-modal" class="company-modal" hidden>
+  <div class="company-modal__backdrop" data-close-modal="company-product-stock-modal"></div>
+  <dialog class="company-modal__panel company-modal__panel--small" aria-labelledby="company-product-stock-title" open>
+    <div class="company-modal__header">
+      <h2 id="company-product-stock-title">Ajuste de stock</h2>
+      <button type="button" aria-label="Cerrar stock" data-close-modal="company-product-stock-modal">Cerrar</button>
+    </div>
+    <form id="company-product-stock-form" class="company-modal-form">
+      <input id="stock-product-id" type="hidden">
+      <input id="stock-operation" type="hidden">
+
+      <p id="company-product-stock-message"></p>
+
+      <label>
+        Cantidad
+        <input id="stock-quantity" type="number" min="0" step="1" required>
+      </label>
+
+      <label>
+        Nota (opcional)
+        <textarea id="stock-notes" rows="3" placeholder="Ej: ajuste por conteo físico"></textarea>
+      </label>
+
+      <div class="company-modal-form-actions company-modal-form-actions--split">
+        <button type="button" class="company-modal-form-secondary-action" data-close-modal="company-product-stock-modal">Cancelar</button>
+        <button type="submit">Aplicar ajuste</button>
+      </div>
+    </form>
+  </dialog>
+</div>
+
+</main>
+
+<script src="/assets/js/js_front/utils/auth.js"></script>
+<script src="/assets/js/js_front/utils/global-header.js"></script>
+<script src="/assets/js/js_front/company/layout.js"></script>
+<script src="/assets/js/js_front/company/products.js"></script>
 
 </body>
 </html>
+
+
+
+
