@@ -1099,6 +1099,31 @@ CREATE INDEX idx_product_price ON Product(price);
 -- ordenamientos
 CREATE INDEX idx_line_created ON Line(created_at);
 
+-- =========================================
+-- 📦 IMPORTACIÓN MASIVA DE PRODUCTOS
+-- =========================================
+
+CREATE TABLE Import_Batch (
+    id_import_batch INT AUTO_INCREMENT PRIMARY KEY,
+    id_company_fk INT NOT NULL,
+    batch_name VARCHAR(150) NOT NULL,
+    import_data JSON NOT NULL,
+    status ENUM('uploading', 'validating', 'pending_review', 'approved', 'processing', 'completed', 'failed') DEFAULT 'uploading',
+    total_rows INT DEFAULT 0,
+    validated_rows INT DEFAULT 0,
+    approved_rows INT DEFAULT 0,
+    file_name VARCHAR(255),
+    created_by_id_company INT,
+    validation_notes TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (id_company_fk) REFERENCES Company(id_company)
+);
+
+CREATE INDEX idx_import_batch_company ON Import_Batch(id_company_fk);
+CREATE INDEX idx_import_batch_status ON Import_Batch(status);
+CREATE INDEX idx_import_batch_created_at ON Import_Batch(created_at);
+
 DELIMITER //
 
 DROP PROCEDURE IF EXISTS sp_admin_create_category //
@@ -6234,7 +6259,20 @@ BEGIN
         'IGphcmRpbmVyw61hIHByb2Zlc2lvbmFsIl0sWyJHZW5lcmFkb3JlcyBFbMOpY3RyaWNvcyB5IEhlcnJhbWllbnRhcyBhIE1vdG9yIiwiRXF1aXBvcyBhIG1v',
         'dG9yIiwiRGVzYnJvemFkb3JhIGEgZ2Fzb2xpbmEgcGFyYSBtYW50ZW5pbWllbnRvIGRlIMOhcmVhcyB2ZXJkZXMiXV0='
     )) USING utf8mb4);
+-- 
+ALTER TABLE Line 
+CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
+-- ===============================================
+-- 🧹 PASO 3: NORMALIZACIÓN
+-- ===============================================
+-- Opción A: Remover el "?" (si es ruido)
+
+UPDATE Line
+SET name = REPLACE(TRIM(name), '?', '')
+WHERE name LIKE '%?%';
+
+-- 
     DROP TEMPORARY TABLE IF EXISTS tmp_master_lines;
     CREATE TEMPORARY TABLE tmp_master_lines (
         raw_category VARCHAR(255) NOT NULL,

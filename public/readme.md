@@ -165,3 +165,7 @@ Mientras el proyecto siga validando backend y reglas de negocio, `public/` debe 
 La idea no es convertir esta carpeta en el frontend final, sino conservarla como entorno de pruebas manuales, especialmente util cuando se reinicia la base y se quiere volver a recorrer los flujos desde cero.
 
 Cuando el producto migre a un frontend mas estructurado, este prototipo debe usarse como referencia funcional de pantallas, contratos y secuencia de pruebas.
+
+### Siguiente fase
+
+- reestructurar las cotizaciones dentro del apartado de catalogo antes de ampliar el flujo B2B a nuevas pantallas

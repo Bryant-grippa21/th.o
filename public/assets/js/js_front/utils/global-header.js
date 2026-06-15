@@ -186,13 +186,7 @@
       <div class="site-global-header__inner landing-topbar">
         <div class="site-global-header__left">
           <a class="site-global-header__brand landing-header-logo" href="/index.html" aria-label="Volver al landing">
-            <span class="site-global-brand-icon">
-              <img src="/uploads/default/Logo.png" alt="Logo tuherramienta.online">
-            </span>
-            <span class="site-global-brand-copy">
-              <small>tuherramientaonline</small>
-              <b>market</b>
-            </span>
+            <img src="/uploads/default/logo_full.png" alt="Logo tuherramienta.online">
           </a>
 
           <form id="site-global-search-form" class="site-global-header__search landing-header-search-form" role="search">

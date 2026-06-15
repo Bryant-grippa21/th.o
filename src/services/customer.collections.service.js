@@ -98,13 +98,32 @@ const resolveProductImageUrl = (imageUrl) => {
     return null;
   }
 
-  const normalizedImageName = path.basename(String(imageUrl).trim());
+  const normalizedPath = String(imageUrl).trim().replaceAll('\\', '/');
 
-  if (!normalizedImageName) {
+  if (!normalizedPath) {
     return null;
   }
 
-  return `/uploads/products/${normalizedImageName}`;
+  const productPrefix = '/uploads/products/';
+  const legacyPrefix = 'uploads/products/';
+
+  let relativePath = normalizedPath;
+
+  if (relativePath.startsWith(productPrefix)) {
+    relativePath = relativePath.slice(productPrefix.length);
+  } else if (relativePath.startsWith(legacyPrefix)) {
+    relativePath = relativePath.slice(legacyPrefix.length);
+  } else if (relativePath.startsWith('/')) {
+    relativePath = relativePath.slice(1);
+  }
+
+  const safeRelativePath = path.posix.normalize(relativePath).replace(/^\.(\/|$)/, '');
+
+  if (!safeRelativePath || safeRelativePath.startsWith('..')) {
+    return null;
+  }
+
+  return `/uploads/products/${safeRelativePath.replaceAll('\\', '/')}`;
 };
 
 const listProductsByIds = async (productIds) => {

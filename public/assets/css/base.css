@@ -127,28 +127,28 @@ canvas {
 
 .site-global-header__brand,
 #global-site-header .landing-header-logo {
-  display: inline-grid;
-  grid-template-columns: auto 1fr;
-  gap: 10px;
+  display: inline-flex;
+  gap: 8px;
   align-items: center;
   min-height: 50px;
-  padding: 4px 10px 4px 4px;
+  padding: 4px 10px;
   border-radius: 16px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: #ffffff;
+  border: 1px solid #d4dbe3;
+  box-shadow: 0 3px 10px rgba(2, 12, 23, 0.2);
   text-decoration: none;
 }
 
 .site-global-header__brand img,
 #global-site-header .landing-header-logo img {
-  height: 28px;
+  height: 36px;
   width: auto;
   display: block;
 }
 
 .site-global-header__brand:hover,
 #global-site-header .landing-header-logo:hover {
-  background: rgba(255, 255, 255, 0.08);
+  background: #f8fbff;
 }
 
 .site-global-brand-icon {

@@ -191,6 +191,10 @@ Incluye:
 - stock e historial de stock
 - imagen principal y secundarias
 
+Siguiente ajuste previsto:
+
+- reestructuracion del flujo de cotizaciones dentro del catalogo para separar mejor la experiencia B2B del catalogo publico tradicional
+
 Endpoints representativos:
 
 - `GET /api/products/catalog`

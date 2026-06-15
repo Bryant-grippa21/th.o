@@ -13,11 +13,78 @@
   <div id="exchange-rate-card"></div>
   <section id="landing-showcase" aria-label="Espacios destacados">
     <article class="landing-hero-space">
-      <span class="landing-hero-space__tag">Vista principal tipo Amazon</span>
-      <h1>Tu ferretería con identidad propia</h1>
-      <p>Bloques destacados para promociones, colecciones y mensajes de marca antes del listado de productos.</p>
-      <a href="#landing-products" class="landing-hero-space__cta">Explorar ofertas</a>
+      <div class="landing-hero-space__layout">
+        <div class="landing-hero-space__content">
+          <span class="landing-hero-space__tag">Vista principal tipo Amazon</span>
+          <h1>Tu ferretería con identidad propia</h1>
+          <p>Bloques destacados para promociones, colecciones y mensajes de marca antes del listado de productos.</p>
+          <div class="landing-hero-space__actions">
+            <a href="#landing-products" class="landing-hero-space__cta">Explorar ofertas</a>
+            <a href="#landing-categories" class="landing-hero-space__cta landing-hero-space__cta--ghost">Ver categorías</a>
+          </div>
+          <div class="landing-hero-space__metrics" aria-label="Resumen rápido">
+            <span class="landing-hero-space__metric"><b>+1200</b> productos activos</span>
+            <span class="landing-hero-space__metric"><b>24h</b> actualización de catálogo</span>
+            <span class="landing-hero-space__metric"><b>USD/Bs</b> tasa visible</span>
+          </div>
+        </div>
+
+        <aside class="landing-hero-space__visual" aria-hidden="true">
+          <article class="landing-hero-card landing-hero-card--main" style="--hero-image:url('/uploads/default/spaces/herramientas-top.jpg');">
+            <p class="landing-hero-card__eyebrow">Herramientas eléctricas</p>
+            <p class="landing-hero-card__title">Potencia lista para cada obra</p>
+          </article>
+          <div class="landing-hero-card-grid">
+            <article class="landing-hero-card" style="--hero-image:url('/uploads/default/spaces/seguridad.jpg');">
+              <p class="landing-hero-card__eyebrow">Seguridad</p>
+              <p class="landing-hero-card__title">Protección industrial</p>
+            </article>
+            <article class="landing-hero-card" style="--hero-image:url('/uploads/default/spaces/pintura.jpg');">
+              <p class="landing-hero-card__eyebrow">Pintura</p>
+              <p class="landing-hero-card__title">Acabado profesional</p>
+            </article>
+          </div>
+        </aside>
+      </div>
+
+      <div class="landing-hero-space__bullets" aria-label="Slides visuales">
+        <span class="landing-hero-space__bullet is-active"></span>
+        <span class="landing-hero-space__bullet"></span>
+        <span class="landing-hero-space__bullet"></span>
+        <span class="landing-hero-space__bullet"></span>
+      </div>
     </article>
+
+    <div class="landing-feature-strip" aria-label="Beneficios de compra">
+      <article class="landing-feature-chip">
+        <span class="landing-feature-chip__icon" aria-hidden="true">OK</span>
+        <div class="landing-feature-chip__copy">
+          <p class="landing-feature-chip__title">Compra 100% segura</p>
+          <p class="landing-feature-chip__desc">Protegemos tus datos y pagos.</p>
+        </div>
+      </article>
+      <article class="landing-feature-chip">
+        <span class="landing-feature-chip__icon" aria-hidden="true">OR</span>
+        <div class="landing-feature-chip__copy">
+          <p class="landing-feature-chip__title">Productos originales</p>
+          <p class="landing-feature-chip__desc">Catálogo validado por proveedor.</p>
+        </div>
+      </article>
+      <article class="landing-feature-chip">
+        <span class="landing-feature-chip__icon" aria-hidden="true">$$</span>
+        <div class="landing-feature-chip__copy">
+          <p class="landing-feature-chip__title">Precios competitivos</p>
+          <p class="landing-feature-chip__desc">Ofertas activas para compra rápida.</p>
+        </div>
+      </article>
+      <article class="landing-feature-chip">
+        <span class="landing-feature-chip__icon" aria-hidden="true">AT</span>
+        <div class="landing-feature-chip__copy">
+          <p class="landing-feature-chip__title">Atención al cliente</p>
+          <p class="landing-feature-chip__desc">Soporte para usuarios y empresas.</p>
+        </div>
+      </article>
+    </div>
 
     <div class="landing-space-grid" aria-label="Categorías destacadas">
       <article class="landing-space-card" style="--space-image:url('/uploads/default/spaces/herramientas-top.jpg');">

@@ -128,6 +128,36 @@ const renderRatingStars = (reviewSummary) => {
   return `<span class="landing-catalog-card__stars" aria-hidden="true">${filled}${empty}</span><span class="landing-catalog-card__rating-value">${numeric}</span>`;
 };
 
+const getProductSellerLabel = (product = {}) => {
+  return String(
+    product.company_name
+    || product.seller_name
+    || product.companyName
+    || product.sellerName
+    || 'Proveedor'
+  );
+};
+
+const getProductStockLabel = (product = {}) => {
+  const stockValue = Number(
+    product.available_stock
+    ?? product.stock
+    ?? product.stock_quantity
+    ?? product.quantity
+    ?? 0
+  );
+
+  if (!Number.isFinite(stockValue) || stockValue <= 0) {
+    return 'Stock por confirmar';
+  }
+
+  if (stockValue <= 5) {
+    return `Pocas unidades (${stockValue})`;
+  }
+
+  return `Disponible (${stockValue})`;
+};
+
 const renderExchangeRateInline = () => {
   if (!state.exchangeRate?.rate_bs_per_usd) {
     return '<span class="landing-chip landing-chip--stack"><small>Tasa del dia</small><b>Bs.S N/D</b></span>';
@@ -328,7 +358,7 @@ const renderHeader = () => {
   headerContainer.innerHTML = `
     <div class="landing-topbar">
       <a href="/index.html" class="landing-header-logo" aria-label="Volver al landing">
-        <img src="/uploads/default/Logo.png" alt="Logo tuherramienta.online" style="height:48px; width:auto; display:block;">
+        <img src="/uploads/default/logo_full.png" alt="Logo tuherramienta.online" style="height:42px; width:auto; display:block;">
       </a>
       <div class="landing-header-search-wrap" style="position:relative; flex:1 1 360px; min-width:280px;">
         <form id="landing-search-form" class="landing-header-search-form" style="display:flex; gap:8px; align-items:center;">
@@ -363,6 +393,7 @@ const renderCategories = () => {
     <div class="landing-category-panel">
       <div class="landing-category-panel__head">
         <h2>Categorías</h2>
+        <p class="landing-category-panel__summary">Filtra el catálogo por familia de productos.</p>
         <input id="landing-category-search" type="search" placeholder="Buscar categoría" value="${state.categorySearch}">
       </div>
       <div id="landing-category-buttons" class="landing-category-panel__buttons">
@@ -404,9 +435,13 @@ const renderCatalogCards = () => {
 
   return state.catalog.map((product) => {
     const categoryLabel = (product.category_name || product.line_name || 'Categoría').toUpperCase();
+    const lineLabel = String(product.line_name || product.line || 'Línea general');
     const productName = product.name || 'Sin nombre';
     const productPrice = formatUsdCompact(product.price);
     const ratingBlock = renderRatingStars(product.reviews);
+    const sellerLabel = getProductSellerLabel(product);
+    const stockLabel = getProductStockLabel(product);
+    const skuLabel = String(product.sku || 'Sin SKU');
     const imageBlock = product.image_url
       ? `<img src="${product.image_url}" alt="${productName}">`
       : '<div class="landing-catalog-card__img-placeholder">Sin imagen</div>';
@@ -421,7 +456,13 @@ const renderCatalogCards = () => {
           <div class="landing-catalog-card__content">
             <p class="landing-catalog-card__category">${categoryLabel}</p>
             <h3 class="landing-catalog-card__title">${productName}</h3>
+            <p class="landing-catalog-card__line">${lineLabel}</p>
             <p class="landing-catalog-card__rating">${ratingBlock}</p>
+            <div class="landing-catalog-card__meta">
+              <span class="landing-catalog-card__chip">${sellerLabel}</span>
+              <span class="landing-catalog-card__chip landing-catalog-card__chip--soft">${stockLabel}</span>
+              <span class="landing-catalog-card__chip landing-catalog-card__chip--ghost">SKU ${skuLabel}</span>
+            </div>
           </div>
 
           <p class="landing-catalog-card__price">${productPrice}</p>

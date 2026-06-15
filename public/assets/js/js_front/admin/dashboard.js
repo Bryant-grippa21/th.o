@@ -6,6 +6,10 @@ const adminCompanyList = document.getElementById('admin-company-list');
 const adminCompanyPagination = document.getElementById('admin-company-pagination');
 const adminDashboardOverview = document.getElementById('admin-dashboard-overview');
 const adminDashboardReports = document.getElementById('admin-dashboard-reports');
+const adminDashboardReportTabs = Array.from(document.querySelectorAll('[data-admin-report-tab]'));
+const adminDashboardSectionEyebrow = document.getElementById('admin-dashboard-section-eyebrow');
+const adminDashboardSectionTitle = document.getElementById('admin-dashboard-section-title');
+const adminDashboardSectionDescription = document.getElementById('admin-dashboard-section-description');
 const adminExchangeSummary = document.getElementById('admin-exchange-summary');
 const adminExchangeForm = document.getElementById('admin-exchange-form');
 const adminExchangeRateInput = document.getElementById('admin-exchange-rate-input');
@@ -104,6 +108,7 @@ const state = {
   adminCheckouts: [],
   adminSales: [],
   activeModule: 'dashboard',
+  activeDashboardReportTab: 'general',
   activeProductSubmenu: 'list',
   customerPagination: {
     page: 1,
@@ -367,6 +372,89 @@ const renderSimplePagination = (container, pagination, handlerName) => {
 
 const getVisibleCompanies = () => state.companies.filter((company) => !(company.id_role_fk === 1 || company.role_name === 'ADMIN'));
 
+const DASHBOARD_TAB_META = {
+  general: {
+    eyebrow: 'Módulo 1',
+    title: 'Visión General - Home Ejecutivo',
+    description: 'Entrada ejecutiva del administrador general: GMV, usuarios, riesgo, rentabilidad, actividad, rankings, gráficos y alertas críticas.'
+  },
+  risk: {
+    eyebrow: 'Módulo 2',
+    title: 'Riesgo y Morosidad',
+    description: 'Monitoreo de cartera vencida, niveles de riesgo, cobranza activa y alertas tempranas del ecosistema comercial.'
+  },
+  wholesalers: {
+    eyebrow: 'Módulo 3',
+    title: 'Mayoristas',
+    description: 'Vista reservada para desempeño de mayoristas, actividad y cobertura territorial.'
+  },
+  hardware: {
+    eyebrow: 'Módulo 4',
+    title: 'Ferreterías',
+    description: 'Vista reservada para operación de ferreterías y comportamiento de compras/ventas.'
+  },
+  customers: {
+    eyebrow: 'Módulo 5',
+    title: 'Clientes Finales',
+    description: 'Vista reservada para adopción de clientes finales, comportamiento y recurrencia.'
+  },
+  collections: {
+    eyebrow: 'Módulo 6',
+    title: 'Cobranza y Recuperación',
+    description: 'Vista reservada para indicadores de cobranza, promesas de pago y recuperación.'
+  },
+  operations: {
+    eyebrow: 'Módulo 7',
+    title: 'Operaciones',
+    description: 'Vista reservada para tiempos operativos, despachos y cumplimiento de SLA.'
+  },
+  finances: {
+    eyebrow: 'Módulo 8',
+    title: 'Finanzas TH.O',
+    description: 'Vista reservada para margen, comisiones, flujo de caja y rentabilidad consolidada.'
+  },
+  audit: {
+    eyebrow: 'Módulo 9',
+    title: 'Control y Auditoría',
+    description: 'Vista reservada para trazabilidad, cambios sensibles y control interno.'
+  },
+  inventory: {
+    eyebrow: 'Módulo 10',
+    title: 'Inventario y Catálogo',
+    description: 'Vista reservada para cobertura de catálogo, rotación y salud de inventario.'
+  }
+};
+
+const updateAdminDashboardSectionHead = () => {
+  const activeMeta = DASHBOARD_TAB_META[state.activeDashboardReportTab] || DASHBOARD_TAB_META.general;
+
+  if (adminDashboardSectionEyebrow) {
+    adminDashboardSectionEyebrow.innerText = activeMeta.eyebrow;
+  }
+
+  if (adminDashboardSectionTitle) {
+    adminDashboardSectionTitle.innerText = activeMeta.title;
+  }
+
+  if (adminDashboardSectionDescription) {
+    adminDashboardSectionDescription.innerText = activeMeta.description;
+  }
+};
+
+const showAdminDashboardReportTab = (tabName) => {
+  const resolvedTabName = DASHBOARD_TAB_META[tabName] ? tabName : 'general';
+  state.activeDashboardReportTab = resolvedTabName;
+
+  adminDashboardReportTabs.forEach((tabButton) => {
+    const isActive = tabButton.dataset.adminReportTab === resolvedTabName;
+    tabButton.classList.toggle('is-active', isActive);
+    tabButton.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+  });
+
+  updateAdminDashboardSectionHead();
+  renderAdminOverview();
+};
+
 const renderAdminOverview = () => {
   if (!adminDashboardOverview || !adminDashboardReports) {
     return;
@@ -375,46 +463,466 @@ const renderAdminOverview = () => {
   const visibleCompanies = getVisibleCompanies();
   const pendingReview = visibleCompanies.filter((company) => company.verification_status === 'PENDING_REVIEW').length;
   const changesRequested = visibleCompanies.filter((company) => company.verification_status === 'CHANGES_REQUESTED').length;
+  const blockedUsers = state.customers.filter((customer) => !customer.is_active).length;
+  const activeWholesalers = new Set(state.adminSales.map((group) => group.id_company_fk).filter(Boolean)).size;
+  const activeStores = new Set(state.adminCheckouts.map((checkout) => checkout.id_customer_fk).filter(Boolean)).size;
+
+  const gmvTotal = state.adminCheckouts.reduce((total, checkout) => total + Number(checkout.total_payable_usd || 0), 0);
+  const gmvB2B = state.adminSales.reduce((total, group) => total + Number(group.total_payable_usd || 0), 0);
+  const gmvB2C = Math.max(0, gmvTotal - gmvB2B);
+  const totalOperations = state.adminCheckouts.length + state.adminSales.length;
+  const averageTicket = state.adminCheckouts.length ? gmvTotal / state.adminCheckouts.length : 0;
+
+  const carteraActiva = state.adminSales
+    .filter((group) => ['OPEN', 'PENDING_PAYMENT', 'PAYMENT_SUBMITTED', 'PARTIAL_SUBMITTED', 'PARTIAL_APPROVED'].includes(group.status))
+    .reduce((total, group) => total + Number(group.total_payable_usd || 0), 0);
+  const carteraVencida = state.adminSales
+    .filter((group) => ['EXPIRED', 'REJECTED'].includes(group.status))
+    .reduce((total, group) => total + Number(group.total_payable_usd || 0), 0);
+  const commissionB2B = gmvB2B * 0.015;
+  const adjustedProfit = commissionB2B + (gmvB2C * 0.02) - (carteraVencida * 0.08);
+
+  const formatDashboardCurrency = (value) => Number(value || 0).toLocaleString('es-VE', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2
+  });
+  const formatDashboardAmount = (value) => `USD ${formatDashboardCurrency(value)}`;
+
+  const barsData = [28, 46, 36, 58, 42, 64, 53, 68];
+  const barsMarkup = barsData.map((height, index) => `
+    <span class="admin-dashboard-bar ${index % 3 === 0 ? 'is-highlight' : ''}" style="height:${height}px;"></span>
+  `).join('');
+
+  const recentActivityRows = state.adminCheckouts
+    .slice()
+    .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))
+    .slice(0, 4)
+    .map((checkout) => {
+      const date = new Date(checkout.created_at || Date.now());
+      return {
+        date: date.toLocaleDateString('es-VE'),
+        time: date.toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit' }),
+        type: getPurchaseStatusLabel(checkout.status),
+        user: checkout.customer?.name || checkout.customer?.email || 'Cliente'
+      };
+    });
+
+  const alertRows = [
+    {
+      priority: carteraVencida > 0 ? 'Alta' : 'Media',
+      type: 'Financiera',
+      description: carteraVencida > 0
+        ? `Cartera vencida detectada: ${formatDashboardAmount(carteraVencida)}`
+        : 'Sin mora crítica registrada.'
+    },
+    {
+      priority: changesRequested > 2 ? 'Alta' : 'Media',
+      type: 'Operativa',
+      description: `${changesRequested} jurídicos con correcciones solicitadas.`
+    },
+    {
+      priority: blockedUsers > 0 ? 'Media' : 'Baja',
+      type: 'Comercial',
+      description: `${blockedUsers} clientes bloqueados en revisión.`
+    }
+  ];
+
+  const wholesalerRanking = Object.values(state.adminSales.reduce((accumulator, group) => {
+    const key = String(group.id_company_fk || group.company?.name || 'unknown');
+    if (!accumulator[key]) {
+      accumulator[key] = {
+        name: group.company?.name || 'Mayorista sin nombre',
+        sales: 0,
+        operations: 0
+      };
+    }
+    accumulator[key].sales += Number(group.total_payable_usd || 0);
+    accumulator[key].operations += 1;
+    return accumulator;
+  }, {}))
+    .sort((a, b) => b.sales - a.sales)
+    .slice(0, 6);
+
+  const hardwareRanking = Object.values(state.adminCheckouts.reduce((accumulator, checkout) => {
+    const key = String(checkout.id_customer_fk || checkout.customer?.email || 'unknown');
+    if (!accumulator[key]) {
+      accumulator[key] = {
+        name: checkout.customer?.name || checkout.customer?.email || 'Cliente sin nombre',
+        purchases: 0,
+        operations: 0
+      };
+    }
+    accumulator[key].purchases += Number(checkout.total_payable_usd || 0);
+    accumulator[key].operations += 1;
+    return accumulator;
+  }, {}))
+    .sort((a, b) => b.purchases - a.purchases)
+    .slice(0, 6);
+
+  const overdueGroups = state.adminSales.filter((group) => ['EXPIRED', 'REJECTED'].includes(group.status));
+  const atRiskGroups = state.adminSales.filter((group) => ['PENDING_PAYMENT', 'PAYMENT_SUBMITTED', 'PARTIAL_SUBMITTED'].includes(group.status));
+  const riskCoverageRatio = carteraActiva > 0 ? (carteraVencida / carteraActiva) * 100 : 0;
+  const riskScore = Math.min(100, Math.round((riskCoverageRatio * 0.6) + (blockedUsers * 1.2) + (changesRequested * 2.5)));
+  const collectionEffectiveness = carteraActiva > 0 ? ((carteraActiva - carteraVencida) / carteraActiva) * 100 : 100;
+
+  const topRiskRows = overdueGroups
+    .slice()
+    .sort((a, b) => Number(b.total_payable_usd || 0) - Number(a.total_payable_usd || 0))
+    .slice(0, 6)
+    .map((group) => ({
+      account: group.company?.name || `Grupo #${group.id_purchase_group}`,
+      amount: Number(group.total_payable_usd || 0),
+      status: getPurchaseStatusLabel(group.status),
+      updatedAt: formatExchangeDate(group.updated_at || group.created_at)
+    }));
+
+  if (state.activeDashboardReportTab !== 'general' && state.activeDashboardReportTab !== 'risk') {
+    adminDashboardOverview.innerHTML = `
+      <article class="admin-dashboard-kpi">
+        <h4>Módulo en preparación</h4>
+        <p>${DASHBOARD_TAB_META[state.activeDashboardReportTab]?.title || 'Próximamente'}</p>
+        <small>La barra horizontal ya está preparada para habilitar este módulo con data real.</small>
+      </article>
+    `;
+
+    adminDashboardReports.innerHTML = `
+      <article class="admin-report-card">
+        <p><b>Vista reservada para reportes</b></p>
+        <p>Este tab está habilitado visualmente y listo para conectar sus KPIs, tablas y gráficos específicos.</p>
+      </article>
+    `;
+
+    return;
+  }
+
+  if (state.activeDashboardReportTab === 'risk') {
+    adminDashboardOverview.innerHTML = `
+      <article class="admin-dashboard-kpi admin-dashboard-kpi--danger">
+        <h4>Cartera vencida</h4>
+        <p>${formatDashboardAmount(carteraVencida)}</p>
+        <small>Montos en estados vencido/rechazado</small>
+      </article>
+      <article class="admin-dashboard-kpi admin-dashboard-kpi--warning">
+        <h4>Cartera en riesgo</h4>
+        <p>${formatDashboardAmount(atRiskGroups.reduce((sum, group) => sum + Number(group.total_payable_usd || 0), 0))}</p>
+        <small>Operaciones pendientes de pago parcial/total</small>
+      </article>
+      <article class="admin-dashboard-kpi">
+        <h4>Score de riesgo</h4>
+        <p>${riskScore}/100</p>
+        <small>Modelo interno de señales operativas y financieras</small>
+      </article>
+      <article class="admin-dashboard-kpi admin-dashboard-kpi--success">
+        <h4>Efectividad de cobranza</h4>
+        <p>${collectionEffectiveness.toFixed(1)}%</p>
+        <small>Porcentaje de cartera sana sobre cartera activa</small>
+      </article>
+      <article class="admin-dashboard-kpi">
+        <h4>Grupos vencidos</h4>
+        <p>${overdueGroups.length}</p>
+        <small>Cuentas en mora con impacto financiero</small>
+      </article>
+      <article class="admin-dashboard-kpi">
+        <h4>Grupos en seguimiento</h4>
+        <p>${atRiskGroups.length}</p>
+        <small>Casos en cobranza preventiva activa</small>
+      </article>
+      <article class="admin-dashboard-kpi admin-dashboard-kpi--warning">
+        <h4>Jurídicos pendientes</h4>
+        <p>${pendingReview + changesRequested}</p>
+        <small>Pendientes + correcciones solicitadas</small>
+      </article>
+      <article class="admin-dashboard-kpi">
+        <h4>Clientes bloqueados</h4>
+        <p>${blockedUsers}</p>
+        <small>Usuarios restringidos por riesgo operativo</small>
+      </article>
+    `;
+
+    adminDashboardReports.innerHTML = `
+      <section class="admin-dashboard-chart-row">
+        <article class="admin-dashboard-card">
+          <h4>Severidad de mora</h4>
+          <p class="admin-dashboard-card__meta">Bajo · Medio · Alto · Crítico</p>
+          <div class="admin-dashboard-bars">${barsMarkup}</div>
+        </article>
+        <article class="admin-dashboard-card">
+          <h4>Tendencia de recuperación</h4>
+          <p class="admin-dashboard-card__meta">Promesas · Cumplidas · Pendientes</p>
+          <div class="admin-dashboard-bars">${barsMarkup}</div>
+        </article>
+        <article class="admin-dashboard-card">
+          <h4>Exposición por tipo</h4>
+          <p class="admin-dashboard-card__meta">Financiera · Operativa · Comercial</p>
+          <div class="admin-dashboard-bars">${barsMarkup}</div>
+        </article>
+      </section>
+
+      <section class="admin-dashboard-table-row">
+        <article class="admin-dashboard-card">
+          <h4>Top cuentas con mayor riesgo</h4>
+          <p class="admin-dashboard-card__meta">${topRiskRows.length} registros</p>
+          <div class="admin-dashboard-table-wrap">
+            <table class="admin-dashboard-table">
+              <thead>
+                <tr>
+                  <th>Cuenta</th>
+                  <th>Monto USD</th>
+                  <th>Estado</th>
+                  <th>Última actualización</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${(topRiskRows.length ? topRiskRows : [{ account: 'Sin datos', amount: 0, status: 'N/A', updatedAt: '-' }]).map((entry) => `
+                  <tr>
+                    <td>${entry.account}</td>
+                    <td>${formatDashboardCurrency(entry.amount)}</td>
+                    <td>${entry.status}</td>
+                    <td>${entry.updatedAt}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+        </article>
+        <article class="admin-dashboard-card">
+          <h4>Alertas de riesgo</h4>
+          <p class="admin-dashboard-card__meta">3 señales clave</p>
+          <div class="admin-dashboard-table-wrap">
+            <table class="admin-dashboard-table">
+              <thead>
+                <tr>
+                  <th>Prioridad</th>
+                  <th>Indicador</th>
+                  <th>Detalle</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>${riskScore >= 70 ? 'Alta' : 'Media'}</td>
+                  <td>Score agregado</td>
+                  <td>${riskScore}/100 basado en mora, bloqueos y jurídico</td>
+                </tr>
+                <tr>
+                  <td>${overdueGroups.length >= 5 ? 'Alta' : 'Media'}</td>
+                  <td>Cartera vencida</td>
+                  <td>${overdueGroups.length} grupos en vencido/rechazado</td>
+                </tr>
+                <tr>
+                  <td>${changesRequested > 2 ? 'Media' : 'Baja'}</td>
+                  <td>Correcciones jurídicas</td>
+                  <td>${changesRequested} empresas requieren ajustes</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </article>
+      </section>
+
+      <article class="admin-report-card">
+        <p><b>Resumen de riesgo y morosidad</b></p>
+        <p>Cartera activa: ${formatDashboardAmount(carteraActiva)}</p>
+        <p>Cartera vencida: ${formatDashboardAmount(carteraVencida)}</p>
+        <p>Ratio de exposición: ${riskCoverageRatio.toFixed(1)}%</p>
+        <p>Operaciones en seguimiento preventivo: ${atRiskGroups.length}</p>
+      </article>
+    `;
+
+    return;
+  }
 
   adminDashboardOverview.innerHTML = `
-    <div class="admin-overview-grid">
-      <article class="admin-summary-card">
-        <p><b>Clientes</b></p>
-        <p>Total: ${state.customers.length}</p>
-        <p>Bloqueados: ${state.customers.filter((customer) => !customer.is_active).length}</p>
-      </article>
-      <article class="admin-summary-card">
-        <p><b>Jurídicos</b></p>
-        <p>Total: ${visibleCompanies.length}</p>
-        <p>Pendientes: ${pendingReview}</p>
-      </article>
-      <article class="admin-summary-card">
-        <p><b>Productos</b></p>
-        <p>Total: ${state.productPagination.total || 0}</p>
-        <p>Página actual: ${state.productPagination.page || 1}</p>
-      </article>
-      <article class="admin-summary-card">
-        <p><b>Compras y ventas</b></p>
-        <p>Compras: ${state.adminCheckouts.length}</p>
-        <p>Ventas: ${state.adminSales.length}</p>
-      </article>
-      <article class="admin-summary-card">
-        <p><b>Tasa vigente</b></p>
-        <p>${state.exchangeRates[0] ? `Bs.S ${formatExchangeRate(state.exchangeRates[0].rate_bs_per_usd)}` : 'Sin tasa registrada'}</p>
-      </article>
-    </div>
+    <article class="admin-dashboard-kpi admin-dashboard-kpi--success">
+      <h4>GMV total</h4>
+      <p>${formatDashboardAmount(gmvTotal)}</p>
+      <small>GMV B2B + GMV B2C</small>
+    </article>
+    <article class="admin-dashboard-kpi">
+      <h4>GMV B2B</h4>
+      <p>${formatDashboardAmount(gmvB2B)}</p>
+      <small>Pedidos despachados/cobrados/vencidos</small>
+    </article>
+    <article class="admin-dashboard-kpi">
+      <h4>GMV B2C</h4>
+      <p>${formatDashboardAmount(gmvB2C)}</p>
+      <small>Ventas B2C confirmadas</small>
+    </article>
+    <article class="admin-dashboard-kpi">
+      <h4>Total operaciones</h4>
+      <p>${Number(totalOperations || 0).toLocaleString('es-VE')}</p>
+      <small>Pedidos B2B + ventas B2C</small>
+    </article>
+    <article class="admin-dashboard-kpi">
+      <h4>Ticket promedio general</h4>
+      <p>${formatDashboardAmount(averageTicket)}</p>
+      <small>GMV total / operaciones</small>
+    </article>
+    <article class="admin-dashboard-kpi">
+      <h4>Mayoristas activos</h4>
+      <p>${activeWholesalers}</p>
+      <small>Con actividad en el período</small>
+    </article>
+    <article class="admin-dashboard-kpi">
+      <h4>Ferreterías activas</h4>
+      <p>${activeStores}</p>
+      <small>Compras o ventas registradas</small>
+    </article>
+    <article class="admin-dashboard-kpi admin-dashboard-kpi--warning">
+      <h4>Usuarios bloqueados</h4>
+      <p>${blockedUsers}</p>
+      <small>Actuales del ecosistema</small>
+    </article>
+    <article class="admin-dashboard-kpi admin-dashboard-kpi--warning">
+      <h4>Cartera activa</h4>
+      <p>${formatDashboardAmount(carteraActiva)}</p>
+      <small>Saldo pendiente B2B</small>
+    </article>
+    <article class="admin-dashboard-kpi admin-dashboard-kpi--danger">
+      <h4>Cartera vencida</h4>
+      <p>${formatDashboardAmount(carteraVencida)}</p>
+      <small>Mora global estimada</small>
+    </article>
+    <article class="admin-dashboard-kpi">
+      <h4>Comisión B2B</h4>
+      <p>${formatDashboardAmount(commissionB2B)}</p>
+      <small>Ventas B2B x 1,5%</small>
+    </article>
+    <article class="admin-dashboard-kpi admin-dashboard-kpi--success">
+      <h4>Utilidad ajustada</h4>
+      <p>${formatDashboardAmount(adjustedProfit)}</p>
+      <small>Ingreso bruto - riesgo vigente</small>
+    </article>
   `;
 
   adminDashboardReports.innerHTML = `
+    <section class="admin-dashboard-chart-row">
+      <article class="admin-dashboard-card">
+        <h4>Evolución del GMV</h4>
+        <p class="admin-dashboard-card__meta">GMV Total · GMV B2B · GMV B2C</p>
+        <div class="admin-dashboard-bars">${barsMarkup}</div>
+      </article>
+      <article class="admin-dashboard-card">
+        <h4>Estado de la cartera</h4>
+        <p class="admin-dashboard-card__meta">Corriente · Próxima · Vencida</p>
+        <div class="admin-dashboard-bars">${barsMarkup}</div>
+      </article>
+      <article class="admin-dashboard-card">
+        <h4>Rentabilidad TH.O</h4>
+        <p class="admin-dashboard-card__meta">Comisión B2B · Utilidad B2C · Reinserción</p>
+        <div class="admin-dashboard-bars">${barsMarkup}</div>
+      </article>
+    </section>
+
+    <section class="admin-dashboard-table-row">
+      <article class="admin-dashboard-card">
+        <h4>Actividad reciente</h4>
+        <p class="admin-dashboard-card__meta">${recentActivityRows.length} registros</p>
+        <div class="admin-dashboard-table-wrap">
+          <table class="admin-dashboard-table">
+            <thead>
+              <tr>
+                <th>Fecha</th>
+                <th>Hora</th>
+                <th>Tipo de evento</th>
+                <th>Usuario</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${(recentActivityRows.length ? recentActivityRows : [{ date: '-', time: '-', type: 'Sin registros', user: 'Sistema' }]).map((entry) => `
+                <tr>
+                  <td>${entry.date}</td>
+                  <td>${entry.time}</td>
+                  <td>${entry.type}</td>
+                  <td>${entry.user}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+      </article>
+      <article class="admin-dashboard-card">
+        <h4>Alertas críticas</h4>
+        <p class="admin-dashboard-card__meta">${alertRows.length} registros</p>
+        <div class="admin-dashboard-table-wrap">
+          <table class="admin-dashboard-table">
+            <thead>
+              <tr>
+                <th>Prioridad</th>
+                <th>Tipo</th>
+                <th>Descripción</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${alertRows.map((entry) => `
+                <tr>
+                  <td>${entry.priority}</td>
+                  <td>${entry.type}</td>
+                  <td>${entry.description}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+      </article>
+    </section>
+
+    <section class="admin-dashboard-ranking-row">
+      <article class="admin-dashboard-card">
+        <h4>Ranking de Mayoristas</h4>
+        <p class="admin-dashboard-card__meta">${wholesalerRanking.length} registros</p>
+        <div class="admin-dashboard-table-wrap">
+          <table class="admin-dashboard-table">
+            <thead>
+              <tr>
+                <th>Mayorista</th>
+                <th>Ventas B2B USD</th>
+                <th>Operaciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${(wholesalerRanking.length ? wholesalerRanking : [{ name: 'Sin datos', sales: 0, operations: 0 }]).map((entry) => `
+                <tr>
+                  <td>${entry.name}</td>
+                  <td>${formatDashboardCurrency(entry.sales)}</td>
+                  <td>${entry.operations}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+      </article>
+      <article class="admin-dashboard-card">
+        <h4>Ranking de Ferreterías</h4>
+        <p class="admin-dashboard-card__meta">${hardwareRanking.length} registros</p>
+        <div class="admin-dashboard-table-wrap">
+          <table class="admin-dashboard-table">
+            <thead>
+              <tr>
+                <th>Ferretería</th>
+                <th>Compras USD</th>
+                <th>Operaciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${(hardwareRanking.length ? hardwareRanking : [{ name: 'Sin datos', purchases: 0, operations: 0 }]).map((entry) => `
+                <tr>
+                  <td>${entry.name}</td>
+                  <td>${formatDashboardCurrency(entry.purchases)}</td>
+                  <td>${entry.operations}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+      </article>
+    </section>
+
     <article class="admin-report-card">
-      <p><b>Reportes en progreso</b></p>
-      <p>Este espacio queda listo para mostrar métricas ejecutivas, comparativos y paneles operativos del admin.</p>
-    </article>
-    <article class="admin-report-card">
-      <p><b>Alertas rápidas</b></p>
-      <p>Empresas con correcciones solicitadas: ${changesRequested}</p>
-      <p>Empresas pendientes por revisar: ${pendingReview}</p>
-      <p>Clientes bloqueados: ${state.customers.filter((customer) => !customer.is_active).length}</p>
+      <p><b>Alertas rápidas del ecosistema</b></p>
+      <p>Jurídicos con correcciones solicitadas: ${changesRequested}</p>
+      <p>Jurídicos pendientes por revisar: ${pendingReview}</p>
+      <p>Clientes bloqueados: ${blockedUsers}</p>
+      <p>Tasa vigente: ${state.exchangeRates[0] ? `Bs.S ${formatExchangeRate(state.exchangeRates[0].rate_bs_per_usd)}` : 'Sin tasa registrada'}</p>
     </article>
   `;
 };
@@ -568,6 +1076,10 @@ const showAdminModule = (moduleName) => {
 
   if (moduleName === 'products') {
     showProductSubmenu(state.activeProductSubmenu);
+  }
+
+  if (moduleName === 'dashboard') {
+    showAdminDashboardReportTab(state.activeDashboardReportTab);
   }
 };
 
@@ -2077,6 +2589,11 @@ adminPurchasesResetFiltersButton.addEventListener('click', resetAdminPurchasesFi
 productFilterNameInput.addEventListener('input', () => loadProducts(1));
 productFilterCompanyInput.addEventListener('input', () => loadProducts(1));
 productFilterLine.addEventListener('change', () => loadProducts(1));
+adminDashboardReportTabs.forEach((tabButton) => {
+  tabButton.addEventListener('click', () => {
+    showAdminDashboardReportTab(tabButton.dataset.adminReportTab || 'general');
+  });
+});
 window.addEventListener('beforeunload', revokeAdminPreviewUrls);
 globalThis.openCustomerModal = openCustomerModal;
 globalThis.openCompanyModal = openCompanyModal;
@@ -2097,6 +2614,7 @@ fetch(`${API_BASE_URL}/api/company-auth/me`, {
   })
   .then(async () => {
     showAdminModule(state.activeModule);
+    showAdminDashboardReportTab(state.activeDashboardReportTab);
     showProductSubmenu(state.activeProductSubmenu);
     hideAdminProductEditor();
     await loadCompanyRoles();

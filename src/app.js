@@ -15,6 +15,7 @@ const authCompanyRoutes = require('./routes/auth.company.routes');
 const exchangeRoutes = require('./routes/exchange.routes');
 const purchaseRoutes = require('./routes/purchase.routes');
 const productRoutes = require('./routes/products.routes');
+const productImportRoutes = require('./routes/product.import.routes');
 const notificationsRoutes = require('./routes/notifications.routes');
 const b2bQuoteRoutes = require('./routes/b2b.quote.routes');
 
@@ -32,6 +33,7 @@ app.get('/', (_req, res) => {
       exchange: '/api/exchange-rate',
       purchases: '/api/purchases',
       products: '/api/products',
+      product_imports: '/api/products/import',
       notifications: '/api/notifications',
       b2b_quotes: '/api/b2b-quotes'
     }
@@ -47,6 +49,7 @@ app.use('/api/company-auth', authCompanyRoutes);
 app.use('/api/exchange-rate', exchangeRoutes);
 app.use('/api/purchases', purchaseRoutes);
 app.use('/api/products', productRoutes);
+app.use('/api/products/import', productImportRoutes);
 app.use('/api/notifications', notificationsRoutes);
 app.use('/api/b2b-quotes', b2bQuoteRoutes);
 

@@ -9,10 +9,10 @@
 <body>
 
 <main class="admin-page">
-  <h1>Dashboard admin</h1>
+  <h1 class="admin-page-title">Dashboard Administrador TH.O</h1>
 
   <section class="admin-layout-shell">
-    <div class="admin-module-nav">
+    <div class="admin-module-nav" aria-label="Navegación de módulos principales">
       <button class="admin-module-button" data-admin-module-button="dashboard" type="button" onclick="showAdminModule('dashboard')">Dashboard</button>
       <button class="admin-module-button" data-admin-module-button="customers" type="button" onclick="showAdminModule('customers')">Clientes</button>
       <button class="admin-module-button" data-admin-module-button="companies" type="button" onclick="showAdminModule('companies')">Jurídicos</button>
@@ -22,12 +22,55 @@
   </section>
 
   <section id="admin-module-dashboard" class="admin-panel">
-    <h2>Dashboard</h2>
-    <div id="admin-dashboard-overview">
+    <header class="admin-dashboard-hero">
+      <div>
+        <p class="admin-dashboard-hero__eyebrow">Dashboard Administrador TH.O</p>
+        <h2>Visión General</h2>
+        <p>Ecosistema completo: GMV, riesgo, mayoristas, ferreterías, clientes, cobranza, operaciones, finanzas, auditoría e inventario comercial.</p>
+      </div>
+      <button type="button" class="admin-dashboard-hero__action">Generar reporte</button>
+    </header>
+
+    <div class="admin-dashboard-report-tabs" aria-label="Submódulos de reportes">
+      <div class="admin-dashboard-report-tabs__track">
+        <button type="button" class="admin-dashboard-report-tab is-active" data-admin-report-tab="general" aria-pressed="true">Visión General</button>
+        <button type="button" class="admin-dashboard-report-tab" data-admin-report-tab="risk" aria-pressed="false">Riesgo y morosidad</button>
+        <button type="button" class="admin-dashboard-report-tab" data-admin-report-tab="wholesalers" aria-pressed="false">Mayoristas</button>
+        <button type="button" class="admin-dashboard-report-tab" data-admin-report-tab="hardware" aria-pressed="false">Ferreterías</button>
+        <button type="button" class="admin-dashboard-report-tab" data-admin-report-tab="customers" aria-pressed="false">Clientes finales</button>
+        <button type="button" class="admin-dashboard-report-tab" data-admin-report-tab="collections" aria-pressed="false">Cobranza y recuperación</button>
+        <button type="button" class="admin-dashboard-report-tab" data-admin-report-tab="operations" aria-pressed="false">Operaciones</button>
+        <button type="button" class="admin-dashboard-report-tab" data-admin-report-tab="finances" aria-pressed="false">Finanzas TH.O</button>
+        <button type="button" class="admin-dashboard-report-tab" data-admin-report-tab="audit" aria-pressed="false">Control y auditoría</button>
+        <button type="button" class="admin-dashboard-report-tab" data-admin-report-tab="inventory" aria-pressed="false">Inventario y catálogo</button>
+      </div>
+    </div>
+
+    <section class="admin-dashboard-filter-shell" aria-label="Filtros del módulo">
+      <p class="admin-dashboard-filter-shell__title">Filtros del módulo</p>
+      <div class="admin-dashboard-filter-shell__grid">
+        <input type="search" placeholder="Buscar producto, cliente o evento">
+        <input type="text" value="01/06/2026 - 08/06/2026" aria-label="Rango de fechas">
+        <select aria-label="Estado"><option>Todos los estados</option></select>
+        <select aria-label="Ciudad"><option>Todas las ciudades</option></select>
+        <select aria-label="Urbanización"><option>Todas las urbanizaciones</option></select>
+        <select aria-label="Mayorista"><option>Todos los mayoristas</option></select>
+        <select aria-label="Ferretería"><option>Todas las ferreterías</option></select>
+        <select aria-label="Operación"><option>Todos los tipos de operación</option></select>
+      </div>
+    </section>
+
+    <div class="admin-dashboard-section-head">
+      <p id="admin-dashboard-section-eyebrow" class="admin-dashboard-section-head__eyebrow">Módulo 1</p>
+      <h3 id="admin-dashboard-section-title">Visión General - Home Ejecutivo</h3>
+      <p id="admin-dashboard-section-description">Entrada ejecutiva del administrador general: GMV, usuarios, riesgo, rentabilidad, actividad, rankings, gráficos y alertas críticas.</p>
+    </div>
+
+    <div id="admin-dashboard-overview" class="admin-dashboard-overview">
       <p>Cargando resumen general...</p>
     </div>
 
-    <div id="admin-dashboard-reports" class="admin-overview-grid">
+    <div id="admin-dashboard-reports" class="admin-dashboard-reports">
       <article class="admin-report-card">
         <p><b>Reportes y estadísticas</b></p>
         <p>Este módulo queda reservado para los reportes ejecutivos y métricas consolidadas que están en progreso.</p>

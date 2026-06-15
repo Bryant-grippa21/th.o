@@ -10,38 +10,63 @@ const FORBIDDEN_SKU = '9'.repeat(SKU_DIGITS);
 const SKU_GENERATION_ATTEMPTS = 25;
 const productUploadsDir = path.resolve(__dirname, '../../public/uploads/products');
 
-const resolveProductImageUrl = (imageUrl) => {
+const normalizeProductImageRelativePath = (imageUrl) => {
   if (!imageUrl) {
     return null;
   }
 
-  const normalizedImageName = path.basename(String(imageUrl).trim());
+  const normalizedPath = String(imageUrl).trim().replaceAll('\\', '/');
 
-  if (!normalizedImageName) {
+  if (!normalizedPath) {
     return null;
   }
 
-  const absoluteImagePath = path.join(productUploadsDir, normalizedImageName);
+  const productPrefix = '/uploads/products/';
+  const legacyPrefix = 'uploads/products/';
+
+  let relativePath = normalizedPath;
+
+  if (relativePath.startsWith(productPrefix)) {
+    relativePath = relativePath.slice(productPrefix.length);
+  } else if (relativePath.startsWith(legacyPrefix)) {
+    relativePath = relativePath.slice(legacyPrefix.length);
+  } else if (relativePath.startsWith('/')) {
+    relativePath = relativePath.slice(1);
+  }
+
+  const safeRelativePath = path.posix.normalize(relativePath).replace(/^\.(\/|$)/, '');
+
+  if (!safeRelativePath || safeRelativePath.startsWith('..')) {
+    return null;
+  }
+
+  return safeRelativePath;
+};
+
+const resolveProductImageUrl = (imageUrl) => {
+  const relativePath = normalizeProductImageRelativePath(imageUrl);
+
+  if (!relativePath) {
+    return null;
+  }
+
+  const absoluteImagePath = path.join(productUploadsDir, relativePath);
 
   if (!fs.existsSync(absoluteImagePath)) {
     return null;
   }
 
-  return `/uploads/products/${normalizedImageName}`;
+  return `/uploads/products/${relativePath.replaceAll('\\', '/')}`;
 };
 
 const resolveProductImageFilePath = (imageUrl) => {
-  if (!imageUrl) {
+  const relativePath = normalizeProductImageRelativePath(imageUrl);
+
+  if (!relativePath) {
     return null;
   }
 
-  const normalizedImageName = path.basename(String(imageUrl).trim());
-
-  if (!normalizedImageName) {
-    return null;
-  }
-
-  return path.join(productUploadsDir, normalizedImageName);
+  return path.join(productUploadsDir, relativePath);
 };
 
 const deleteProductImageFiles = (imageUrls = []) => {

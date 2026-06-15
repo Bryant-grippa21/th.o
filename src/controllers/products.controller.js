@@ -1,6 +1,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { findCompanyById } = require('../services/auth.company.service');
+const { parseFlexibleAttributes } = require('../services/product.import.service');
 
 const {
   listCategories,
@@ -148,11 +149,7 @@ const deleteUploadedProductFiles = (files = {}) => {
 };
 
 const normalizeProductAttributes = (attributes) => {
-  const rawAttributes = typeof attributes === 'string'
-    ? attributes.trim()
-    : JSON.stringify(attributes ?? {});
-
-  const parsedAttributes = JSON.parse(rawAttributes || '{}');
+  const { value: parsedAttributes } = parseFlexibleAttributes(attributes);
 
   if (!parsedAttributes || typeof parsedAttributes !== 'object' || Array.isArray(parsedAttributes)) {
     throw new Error('attributes debe ser un objeto JSON válido');
@@ -166,13 +163,21 @@ const normalizeProductAttributes = (attributes) => {
 };
 
 const normalizeOptionalAttributesInput = (attributes) => {
-  if (attributes == null) {
+  if (attributes == null || attributes === '') {
     return null;
   }
 
-  return typeof attributes === 'string'
-    ? attributes
-    : JSON.stringify(attributes);
+  const { value: parsedAttributes } = parseFlexibleAttributes(attributes);
+
+  if (!parsedAttributes || typeof parsedAttributes !== 'object' || Array.isArray(parsedAttributes)) {
+    throw new Error('attributes debe ser un objeto JSON válido');
+  }
+
+  if (!Object.keys(parsedAttributes).length) {
+    throw new Error('Debes enviar al menos un atributo');
+  }
+
+  return JSON.stringify(parsedAttributes);
 };
 
 const extractUploadedProductImages = (files = {}) => ({

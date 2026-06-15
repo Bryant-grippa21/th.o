@@ -9,6 +9,43 @@ const companyProductsCategorySelect = document.getElementById('company-products-
 const companyProductsSubcategorySelect = document.getElementById('company-products-subcategory');
 const companyProductsSortSelect = document.getElementById('company-products-sort');
 const openCompanyProductModalButton = document.getElementById('open-company-product-modal');
+const companyImportFileInput = document.getElementById('company-import-file');
+const companyImportDownloadTemplateButton = document.getElementById('company-import-download-template');
+const companyImportUploadBatchButton = document.getElementById('company-import-upload-batch');
+const companyImportFeedback = document.getElementById('company-import-feedback');
+const companyImportResult = document.getElementById('company-import-result');
+const companyImportRefreshBatchesButton = document.getElementById('company-import-refresh-batches');
+const companyImportBatchSelect = document.getElementById('company-import-batch-select');
+const companyImportReviewFeedback = document.getElementById('company-import-review-feedback');
+const companyImportBatchSummary = document.getElementById('company-import-batch-summary');
+const companyImportRowsList = document.getElementById('company-import-rows-list');
+const companyImportApproveBatchButton = document.getElementById('company-import-approve-batch');
+const companyImportPublishBatchButton = document.getElementById('company-import-publish-batch');
+const companyImportDeleteBatchButton = document.getElementById('company-import-delete-batch');
+const companyImportRowModal = document.getElementById('company-import-row-modal');
+const companyImportRowForm = document.getElementById('company-import-row-form');
+const importRowNumberInput = document.getElementById('import-row-number');
+const importRowNameInput = document.getElementById('import-row-name');
+const importRowBrandInput = document.getElementById('import-row-brand');
+const importRowDescriptionInput = document.getElementById('import-row-description');
+const importRowPriceInput = document.getElementById('import-row-price');
+const importRowQuantityInput = document.getElementById('import-row-quantity');
+const importRowMinStockInput = document.getElementById('import-row-min-stock');
+const importRowAttributesList = document.getElementById('import-row-attributes-list');
+const importRowAddAttributeButton = document.getElementById('import-row-add-attribute');
+const importRowCategoryNameInput = document.getElementById('import-row-category-name');
+const importRowSubcategoryNameInput = document.getElementById('import-row-subcategory-name');
+const importRowLineIdInput = document.getElementById('import-row-line-id');
+const importRowLineSearchInput = document.getElementById('import-row-line-search');
+const importRowManualLineIdInput = document.getElementById('import-row-manual-line-id');
+const importRowDecisionInput = document.getElementById('import-row-decision');
+const importRowMainImageFileInput = document.getElementById('import-row-main-image-file');
+const importRowSecondaryImagesFilesInput = document.getElementById('import-row-secondary-images-files');
+const importRowImagesPreview = document.getElementById('import-row-images-preview');
+const importRowNotesInput = document.getElementById('import-row-notes');
+const companyImportRowMessage = document.getElementById('company-import-row-message');
+const companyImportTargetCompanyWrapper = document.getElementById('company-import-target-company-wrapper');
+const companyImportTargetCompanyInput = document.getElementById('company-import-target-company');
 const closeCompanyProductModalButton = document.getElementById('close-company-product-modal');
 const companyProductModal = document.getElementById('company-product-modal');
 const companyProductEditorModal = document.getElementById('company-product-editor-modal');
@@ -53,6 +90,7 @@ const editProductCancelButton = document.getElementById('edit-product-cancel');
 
 const MAX_SECONDARY_IMAGES = 7;
 const PREVIEW_IMAGE_STYLE = 'width:96px; height:96px; object-fit:cover; border:1px solid #ccc; border-radius:4px;';
+const DEFAULT_STAGING_PRODUCT_IMAGE_URL = '/uploads/products/default/producto_default.png';
 
 const state = {
   session: null,
@@ -92,6 +130,35 @@ const state = {
   pendingStock: {
     productId: null,
     operation: null
+  },
+  importReview: {
+    batches: [],
+    selectedBatchId: null,
+    selectedBatch: null,
+    rowEditor: {
+      currentRowNumber: null,
+      previewUrls: [],
+      originalClassification: null,
+      suggestedCandidates: [],
+      existingMainImage: '',
+      existingSecondaryImages: []
+    }
+  }
+};
+
+const getCompanyRoleId = (company) => Number(company?.id_role_fk ?? company?.id_role ?? 0);
+
+const syncImportTargetCompanyVisibility = (company) => {
+  if (!companyImportTargetCompanyWrapper) {
+    return;
+  }
+
+  const isAdmin = getCompanyRoleId(company) === 1;
+  companyImportTargetCompanyWrapper.hidden = !isAdmin;
+  companyImportTargetCompanyWrapper.style.display = isAdmin ? 'grid' : 'none';
+
+  if (!isAdmin && companyImportTargetCompanyInput) {
+    companyImportTargetCompanyInput.value = '';
   }
 };
 
@@ -114,6 +181,888 @@ const requestJson = async (url, options = {}) => {
   }
 
   return data;
+};
+
+const setImportFeedback = (message, type = 'info') => {
+  if (!companyImportFeedback) {
+    return;
+  }
+
+  companyImportFeedback.textContent = message || '';
+  companyImportFeedback.style.color = type === 'error' ? '#b00020' : '#1f5f2c';
+};
+
+const renderImportBatchResult = (batch) => {
+  if (!companyImportResult) {
+    return;
+  }
+
+  if (!batch) {
+    companyImportResult.hidden = true;
+    companyImportResult.innerHTML = '';
+    return;
+  }
+
+  const summary = batch.import_data?.summary || {};
+
+  companyImportResult.hidden = false;
+  companyImportResult.innerHTML = `
+    <p><b>Lote #${batch.id_import_batch}</b> · Estado: <b>${batch.status}</b></p>
+    <p>Total filas: <b>${summary.total_rows ?? batch.total_rows ?? 0}</b> | Validadas: <b>${summary.validated_rows ?? batch.validated_rows ?? 0}</b></p>
+    <p>Auto-clasificadas: <b>${summary.auto_matched_rows ?? 0}</b> | Pendientes: <b>${summary.pending_review_rows ?? 0}</b> | Inválidas: <b>${summary.invalid_rows ?? 0}</b></p>
+  `;
+};
+
+const parseFilenameFromContentDisposition = (value) => {
+  if (!value) {
+    return null;
+  }
+
+  const [, utf8Raw = ''] = value.match(/filename\*=UTF-8''([^;]+)/i) ?? [];
+  if (utf8Raw) {
+    return decodeURIComponent(utf8Raw.split('"').join('').trim());
+  }
+
+  const [, plainRaw = ''] = value.match(/filename=([^;]+)/i) ?? [];
+  if (!plainRaw) {
+    return null;
+  }
+
+  return plainRaw.split('"').join('').trim();
+};
+
+const handleDownloadImportTemplate = async () => {
+  try {
+    setImportFeedback('Generando plantilla...');
+
+    const response = await fetch(`${API_BASE_URL}/api/products/import/template`, {
+      method: 'GET',
+      headers: getAuthHeaders()
+    });
+
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({}));
+      throw new Error(body.error || 'No se pudo descargar la plantilla');
+    }
+
+    const filename = parseFilenameFromContentDisposition(response.headers.get('content-disposition')) || 'plantilla-importacion-productos.xlsx';
+    const blob = await response.blob();
+    const downloadUrl = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+
+    anchor.href = downloadUrl;
+    anchor.download = filename;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(downloadUrl);
+
+    setImportFeedback('Plantilla descargada correctamente.');
+  } catch (error) {
+    setImportFeedback(error.message, 'error');
+  }
+};
+
+const handleUploadImportBatch = async () => {
+  try {
+    const file = companyImportFileInput?.files?.[0];
+
+    if (!file) {
+      throw new Error('Debes seleccionar un archivo para la carga masiva');
+    }
+
+    setImportFeedback('Subiendo archivo y validando filas...');
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const roleId = getCompanyRoleId(state.session?.data?.company);
+    if (roleId === 1) {
+      const targetCompanyId = Number(companyImportTargetCompanyInput?.value || 0);
+      if (targetCompanyId > 0) {
+        formData.append('id_company', String(targetCompanyId));
+      }
+    }
+
+    const response = await fetch(`${API_BASE_URL}/api/products/import/batches`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: formData
+    });
+
+    const payload = await response.json();
+
+    if (!response.ok) {
+      throw new Error(payload.error || 'No se pudo procesar la carga masiva');
+    }
+
+    setImportFeedback(payload.message || 'Carga masiva procesada correctamente.');
+    renderImportBatchResult(payload.batch || null);
+    companyImportFileInput.value = '';
+    await loadImportBatches();
+
+    const createdBatchId = Number(payload?.batch?.id_import_batch || 0);
+    if (createdBatchId > 0) {
+      companyImportBatchSelect.value = String(createdBatchId);
+      await loadImportBatchDetail(createdBatchId);
+    }
+  } catch (error) {
+    setImportFeedback(error.message, 'error');
+  }
+};
+
+const setImportReviewFeedback = (message, type = 'info') => {
+  if (!companyImportReviewFeedback) {
+    return;
+  }
+
+  companyImportReviewFeedback.textContent = message || '';
+  companyImportReviewFeedback.style.color = type === 'error' ? '#b00020' : '#1f5f2c';
+};
+
+const attributesObjectToInlineText = (attributes) => {
+  if (!attributes || typeof attributes !== 'object' || Array.isArray(attributes)) {
+    return '';
+  }
+
+  return Object.entries(attributes)
+    .map(([key, value]) => `${key}:${value}`)
+    .join(';');
+};
+
+const inlineAttributesToEntries = (attributesInput) => {
+  const source = String(attributesInput || '').trim();
+
+  if (!source) {
+    return [];
+  }
+
+  return source
+    .split(/[;|]/)
+    .map((segment) => segment.trim())
+    .filter(Boolean)
+    .map((segment) => {
+      const separatorIndex = segment.indexOf(':');
+      if (separatorIndex === -1) {
+        return { key: segment, value: '' };
+      }
+
+      return {
+        key: segment.slice(0, separatorIndex).trim(),
+        value: segment.slice(separatorIndex + 1).trim()
+      };
+    });
+};
+
+const resolveStagingImageUrl = (imageName) => {
+  const normalizedName = String(imageName || '').trim();
+  const normalizedNameForMatch = normalizeSearchValue(normalizedName);
+
+  if (!normalizedName) {
+    return '';
+  }
+
+  if (
+    normalizedNameForMatch === 'sin_imagen.png'
+    || normalizedNameForMatch.includes('sin imagen')
+    || normalizedNameForMatch.endsWith('_default.png')
+    || normalizedNameForMatch.endsWith(' default.png')
+    || normalizedNameForMatch.includes('default')
+  ) {
+    return DEFAULT_STAGING_PRODUCT_IMAGE_URL;
+  }
+
+  if (normalizedName.startsWith('http://') || normalizedName.startsWith('https://') || normalizedName.startsWith('/')) {
+    return normalizedName;
+  }
+
+  return `/uploads/products/${normalizedName}`;
+};
+
+const clearImportRowImagePreviews = () => {
+  const previewUrls = state.importReview?.rowEditor?.previewUrls || [];
+  previewUrls.forEach((previewUrl) => URL.revokeObjectURL(previewUrl));
+  state.importReview.rowEditor.previewUrls = [];
+};
+
+const renderImportRowImagesPreview = () => {
+  if (!importRowImagesPreview) {
+    return;
+  }
+
+  clearImportRowImagePreviews();
+
+  const previewItems = [];
+
+  const mainFile = importRowMainImageFileInput?.files?.[0] || null;
+  if (mainFile) {
+    const url = URL.createObjectURL(mainFile);
+    state.importReview.rowEditor.previewUrls.push(url);
+    previewItems.push({ label: 'Principal (archivo)', name: mainFile.name, url });
+  } else {
+    const name = String(state.importReview.rowEditor.existingMainImage || '').trim();
+    const url = resolveStagingImageUrl(name);
+    if (url) {
+      previewItems.push({ label: 'Principal actual', name, url });
+    }
+  }
+
+  const secondaryFiles = Array.from(importRowSecondaryImagesFilesInput?.files || []);
+  if (secondaryFiles.length) {
+    secondaryFiles.forEach((file, index) => {
+      const url = URL.createObjectURL(file);
+      state.importReview.rowEditor.previewUrls.push(url);
+      previewItems.push({ label: `Secundaria ${index + 1} (archivo)`, name: file.name, url });
+    });
+  } else {
+    const secondaryNames = Array.isArray(state.importReview.rowEditor.existingSecondaryImages)
+      ? state.importReview.rowEditor.existingSecondaryImages
+      : [];
+
+    secondaryNames.forEach((name, index) => {
+      const url = resolveStagingImageUrl(name);
+      if (url) {
+        previewItems.push({ label: `Secundaria actual ${index + 1}`, name, url });
+      }
+    });
+  }
+
+  if (!previewItems.length) {
+    importRowImagesPreview.innerHTML = '<p>No hay imágenes asignadas a esta fila.</p>';
+    return;
+  }
+
+  importRowImagesPreview.innerHTML = `
+    <p><b>Previsualización de imágenes</b></p>
+    <div class="company-import-image-preview-grid">
+      ${previewItems.map((item) => `
+        <figure class="company-import-image-preview-card">
+          <img src="${item.url}" alt="${item.label}" loading="lazy" onerror="this.closest('figure').classList.add('company-import-image-preview-card--error'); this.style.display='none'; this.nextElementSibling.style.display='block';">
+          <div class="company-import-image-preview-fallback" style="display:none;">No disponible</div>
+          <figcaption>${item.label}: ${item.name || 'sin nombre'}</figcaption>
+        </figure>
+      `).join('')}
+    </div>
+  `;
+};
+
+const createImportAttributeRowMarkup = (key = '', value = '') => `
+  <div class="company-import-attribute-row">
+    <input type="text" data-import-attr="key" placeholder="Atributo" value="${String(key || '').replaceAll('"', '&quot;')}">
+    <input type="text" data-import-attr="value" placeholder="Valor" value="${String(value || '').replaceAll('"', '&quot;')}">
+    <button type="button" data-import-attr="remove" class="company-modal-form-secondary-action">Quitar</button>
+  </div>
+`;
+
+const renderImportAttributeRows = (entries = []) => {
+  if (!importRowAttributesList) {
+    return;
+  }
+
+  if (!entries.length) {
+    importRowAttributesList.innerHTML = createImportAttributeRowMarkup('', '');
+    return;
+  }
+
+  importRowAttributesList.innerHTML = entries
+    .map((entry) => createImportAttributeRowMarkup(entry.key, entry.value))
+    .join('');
+};
+
+const collectImportAttributesInlineText = () => {
+  const rows = Array.from(importRowAttributesList?.querySelectorAll('.company-import-attribute-row') || []);
+  const parts = rows
+    .map((row) => {
+      const key = String(row.querySelector('[data-import-attr="key"]')?.value || '').trim();
+      const value = String(row.querySelector('[data-import-attr="value"]')?.value || '').trim();
+
+      if (!key && !value) {
+        return null;
+      }
+
+      if (!key || !value) {
+        throw new Error('Cada atributo debe tener nombre y valor');
+      }
+
+      return `${key}:${value}`;
+    })
+    .filter(Boolean);
+
+  return parts.join(';');
+};
+
+const renderImportBatchOptions = () => {
+  if (!companyImportBatchSelect) {
+    return;
+  }
+
+  const options = ['<option value="">Seleccione un lote</option>']
+    .concat(state.importReview.batches.map((batch) => {
+      const status = String(batch.status || '').toUpperCase();
+      return `<option value="${batch.id_import_batch}">#${batch.id_import_batch} - ${batch.batch_name} (${status})</option>`;
+    }));
+
+  companyImportBatchSelect.innerHTML = options.join('');
+
+  if (state.importReview.selectedBatchId) {
+    companyImportBatchSelect.value = String(state.importReview.selectedBatchId);
+  }
+};
+
+const syncImportBatchActions = (batch) => {
+  const hasBatch = Boolean(batch?.id_import_batch);
+  const alreadyPublished = Boolean(
+    String(batch?.status || '').toLowerCase() === 'completed'
+    || (Array.isArray(batch?.import_data?.publication?.created_products)
+      && batch.import_data.publication.created_products.length > 0)
+  );
+
+  if (companyImportPublishBatchButton) {
+    companyImportPublishBatchButton.disabled = !hasBatch || alreadyPublished;
+    companyImportPublishBatchButton.title = alreadyPublished
+      ? 'Este lote ya fue publicado'
+      : '';
+  }
+};
+
+const renderSelectedBatchSummary = (batch) => {
+  if (!companyImportBatchSummary) {
+    return;
+  }
+
+  if (!batch) {
+    syncImportBatchActions(null);
+    companyImportBatchSummary.hidden = true;
+    companyImportBatchSummary.innerHTML = '';
+    return;
+  }
+
+  const summary = batch.import_data?.summary || {};
+  const alreadyPublished = Boolean(
+    String(batch?.status || '').toLowerCase() === 'completed'
+    || (Array.isArray(batch?.import_data?.publication?.created_products)
+      && batch.import_data.publication.created_products.length > 0)
+  );
+  const publishedNotice = alreadyPublished
+    ? '<div class="company-panel-message company-panel-message--info" style="margin-bottom:12px;"><b>Este lote ya fue subido al catálogo.</b> Puedes revisarlo o eliminarlo, pero no volver a publicarlo.</div>'
+    : '';
+
+  companyImportBatchSummary.hidden = false;
+  companyImportBatchSummary.innerHTML = `
+    ${publishedNotice}
+    <p><b>Lote #${batch.id_import_batch}</b> · Estado: <b>${batch.status}</b></p>
+    <p>Total: <b>${summary.total_rows ?? batch.total_rows ?? 0}</b> | Validadas: <b>${summary.validated_rows ?? batch.validated_rows ?? 0}</b> | Aprobadas: <b>${batch.approved_rows ?? 0}</b></p>
+    <p>Pendientes: <b>${summary.pending_review_rows ?? 0}</b> | Inválidas: <b>${summary.invalid_rows ?? 0}</b></p>
+  `;
+  syncImportBatchActions(batch);
+};
+
+const renderBatchRows = (batch) => {
+  if (!companyImportRowsList) {
+    return;
+  }
+
+  const rows = Array.isArray(batch?.import_data?.rows) ? batch.import_data.rows : [];
+
+  if (!rows.length) {
+    companyImportRowsList.innerHTML = '<p>Este lote no tiene filas para revisión.</p>';
+    return;
+  }
+
+  companyImportRowsList.innerHTML = `
+    <div class="company-import-table-wrapper">
+      <table class="company-import-table">
+        <thead>
+          <tr>
+            <th>Fila</th>
+            <th>Producto</th>
+            <th>Categoría</th>
+            <th>Subcategoría</th>
+            <th>Línea</th>
+            <th>Estado</th>
+            <th>Imagen principal</th>
+            <th>Acción</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rows.map((row) => {
+            const lineName = row?.classification?.line?.name || 'Sin línea';
+            const categoryName = row?.classification?.line?.category_name || 'Sin categoría';
+            const subcategoryName = row?.classification?.line?.subcategory_name || 'Sin subcategoría';
+            const status = row?.validation?.status || 'pending_review';
+            const mainImage = row?.staging_images?.main_image || 'sin_imagen.png';
+            const mainImageUrl = resolveStagingImageUrl(mainImage);
+            const productName = row?.normalized?.name || row?.raw_data?.name || 'Sin nombre';
+
+            return `
+              <tr>
+                <td>${row.row_number}</td>
+                <td>${productName}</td>
+                <td>${categoryName}</td>
+                <td>${subcategoryName}</td>
+                <td>${lineName}</td>
+                <td><span class="company-import-status company-import-status--${status}">${status}</span></td>
+                <td>
+                  <div class="company-import-row-image-cell">
+                    ${mainImageUrl
+                      ? `<img src="${mainImageUrl}" alt="${mainImage}" loading="lazy" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">`
+                      : ''}
+                    <span style="display:${mainImageUrl ? 'none' : 'block'};">${mainImage}</span>
+                  </div>
+                </td>
+                <td>
+                  <button type="button" data-import-action="edit" data-row-number="${row.row_number}">Editar</button>
+                </td>
+              </tr>
+            `;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+};
+
+const loadImportBatches = async () => {
+  try {
+    const response = await requestJson(`${API_BASE_URL}/api/products/import/batches?limit=50`);
+    state.importReview.batches = Array.isArray(response.batches) ? response.batches : [];
+    renderImportBatchOptions();
+
+    if (!state.importReview.batches.length) {
+      setImportReviewFeedback('No hay lotes de importación todavía.');
+      renderSelectedBatchSummary(null);
+      if (companyImportRowsList) {
+        companyImportRowsList.innerHTML = '<p>Sube un archivo para empezar la revisión.</p>';
+      }
+      return;
+    }
+
+    setImportReviewFeedback('Lotes cargados. Selecciona uno para revisar.');
+  } catch (error) {
+    setImportReviewFeedback(error.message, 'error');
+  }
+};
+
+const loadImportBatchDetail = async (batchId) => {
+  if (!batchId) {
+    state.importReview.selectedBatchId = null;
+    state.importReview.selectedBatch = null;
+    renderSelectedBatchSummary(null);
+    if (companyImportRowsList) {
+      companyImportRowsList.innerHTML = '<p>Selecciona un lote para revisar filas.</p>';
+    }
+    return;
+  }
+
+  const response = await requestJson(`${API_BASE_URL}/api/products/import/batches/${batchId}`);
+  state.importReview.selectedBatchId = Number(batchId);
+  state.importReview.selectedBatch = response.batch || null;
+  renderSelectedBatchSummary(state.importReview.selectedBatch);
+  renderBatchRows(state.importReview.selectedBatch);
+};
+
+const fillImportRowLineOptions = (row) => {
+  if (!importRowLineIdInput) {
+    return;
+  }
+
+  const candidates = [row?.classification?.line, ...(row?.classification?.alternatives || [])]
+    .filter((candidate) => candidate && Number(candidate.id_line) > 0);
+  const uniqueMap = new Map();
+
+  candidates.forEach((candidate) => {
+    if (!uniqueMap.has(candidate.id_line)) {
+      uniqueMap.set(candidate.id_line, candidate);
+    }
+  });
+
+  const uniqueCandidates = Array.from(uniqueMap.values());
+  state.importReview.rowEditor.suggestedCandidates = uniqueCandidates;
+
+  importRowLineIdInput.innerHTML = ['<option value="">Mantener línea detectada</option>']
+    .concat(uniqueCandidates.map((candidate) => `<option value="${candidate.id_line}">${candidate.name} (${candidate.subcategory_name || 'sin subcategoría'})</option>`))
+    .join('');
+};
+
+const setImportDetectedClassification = (classification) => {
+  if (!importRowCategoryNameInput || !importRowSubcategoryNameInput) {
+    return;
+  }
+
+  importRowCategoryNameInput.value = classification?.category_name || '';
+  importRowSubcategoryNameInput.value = classification?.subcategory_name || '';
+};
+
+const resolveSelectedClassificationPreview = () => {
+  const manualLineId = importRowManualLineIdInput?.value ? Number(importRowManualLineIdInput.value) : null;
+  if (manualLineId && Number.isInteger(manualLineId) && manualLineId > 0) {
+    const manualLine = state.lines.find((line) => Number(line.id_line) === manualLineId);
+    if (manualLine) {
+      return {
+        category_name: manualLine.category_name || '',
+        subcategory_name: manualLine.subcategory_name || ''
+      };
+    }
+  }
+
+  const suggestedLineId = importRowLineIdInput?.value ? Number(importRowLineIdInput.value) : null;
+  if (suggestedLineId && Number.isInteger(suggestedLineId) && suggestedLineId > 0) {
+    const suggestedLine = (state.importReview.rowEditor.suggestedCandidates || [])
+      .find((candidate) => Number(candidate.id_line) === suggestedLineId);
+
+    if (suggestedLine) {
+      return {
+        category_name: suggestedLine.category_name || '',
+        subcategory_name: suggestedLine.subcategory_name || ''
+      };
+    }
+
+    const fallbackLine = state.lines.find((line) => Number(line.id_line) === suggestedLineId);
+    if (fallbackLine) {
+      return {
+        category_name: fallbackLine.category_name || '',
+        subcategory_name: fallbackLine.subcategory_name || ''
+      };
+    }
+  }
+
+  return state.importReview.rowEditor.originalClassification || { category_name: '', subcategory_name: '' };
+};
+
+const syncImportClassificationPreview = () => {
+  setImportDetectedClassification(resolveSelectedClassificationPreview());
+};
+
+const renderManualLineOptions = (searchValue = '') => {
+  if (!importRowManualLineIdInput) {
+    return;
+  }
+
+  const normalizedSearch = normalizeSearchValue(searchValue);
+  const candidates = state.lines.filter((line) => {
+    if (!normalizedSearch) {
+      return true;
+    }
+
+    return [line.name, line.category_name, line.subcategory_name]
+      .some((value) => normalizeSearchValue(value).includes(normalizedSearch));
+  });
+
+  const limitedCandidates = candidates.slice(0, 120);
+
+  importRowManualLineIdInput.innerHTML = ['<option value="">Sin selección manual</option>']
+    .concat(limitedCandidates.map((line) => (
+      `<option value="${line.id_line}">${line.category_name} / ${line.subcategory_name} / ${line.name}</option>`
+    )))
+    .join('');
+};
+
+const handleImportRowLineSearch = (event) => {
+  renderManualLineOptions(String(event.target.value || ''));
+};
+
+const handleImportRowSimilarLineChange = () => {
+  if (importRowLineIdInput?.value) {
+    if (importRowManualLineIdInput) {
+      importRowManualLineIdInput.value = '';
+    }
+  }
+
+  syncImportClassificationPreview();
+};
+
+const handleImportRowManualLineChange = () => {
+  if (importRowManualLineIdInput?.value) {
+    if (importRowLineIdInput) {
+      importRowLineIdInput.value = '';
+    }
+  }
+
+  syncImportClassificationPreview();
+};
+
+const openImportRowEditor = (rowNumber) => {
+  const selectedBatch = state.importReview.selectedBatch;
+  const rows = Array.isArray(selectedBatch?.import_data?.rows) ? selectedBatch.import_data.rows : [];
+  const row = rows.find((candidate) => Number(candidate.row_number) === Number(rowNumber));
+
+  if (!row) {
+    setImportReviewFeedback('No se encontró la fila seleccionada.', 'error');
+    return;
+  }
+
+  importRowNumberInput.value = String(row.row_number);
+  importRowNameInput.value = row?.normalized?.name || row?.raw_data?.name || '';
+  importRowBrandInput.value = row?.normalized?.brand || row?.raw_data?.brand || '';
+  importRowDescriptionInput.value = row?.normalized?.description || row?.raw_data?.description || '';
+  importRowPriceInput.value = row?.normalized?.price ?? '';
+  importRowQuantityInput.value = row?.normalized?.quantity ?? '';
+  importRowMinStockInput.value = row?.normalized?.min_stock ?? 0;
+  renderImportAttributeRows(inlineAttributesToEntries(attributesObjectToInlineText(row?.normalized?.attributes)));
+  state.importReview.rowEditor.originalClassification = {
+    category_name: row?.classification?.line?.category_name || '',
+    subcategory_name: row?.classification?.line?.subcategory_name || ''
+  };
+  setImportDetectedClassification(state.importReview.rowEditor.originalClassification);
+  importRowDecisionInput.value = row?.validation?.status === 'rejected' ? 'rejected' : 'approved';
+  state.importReview.rowEditor.existingMainImage = String(row?.staging_images?.main_image || '');
+  state.importReview.rowEditor.existingSecondaryImages = Array.isArray(row?.staging_images?.secondary_images)
+    ? row.staging_images.secondary_images
+    : [];
+  if (importRowMainImageFileInput) {
+    importRowMainImageFileInput.value = '';
+  }
+  if (importRowSecondaryImagesFilesInput) {
+    importRowSecondaryImagesFilesInput.value = '';
+  }
+  importRowNotesInput.value = row?.validation?.notes || '';
+  fillImportRowLineOptions(row);
+  if (importRowLineSearchInput) {
+    importRowLineSearchInput.value = '';
+  }
+  renderManualLineOptions('');
+  if (importRowManualLineIdInput) {
+    importRowManualLineIdInput.value = '';
+  }
+  syncImportClassificationPreview();
+  state.importReview.rowEditor.currentRowNumber = Number(row.row_number);
+  renderImportRowImagesPreview();
+
+  companyImportRowMessage.textContent = '';
+  openCompanyModal(companyImportRowModal);
+};
+
+const handleImportRowFormSubmit = async (event) => {
+  event.preventDefault();
+
+  try {
+    const batchId = Number(state.importReview.selectedBatchId || 0);
+    const rowNumber = Number(importRowNumberInput.value || 0);
+
+    if (!batchId || !rowNumber) {
+      throw new Error('No hay fila seleccionada para guardar');
+    }
+
+    companyImportRowMessage.textContent = 'Guardando revisión de fila...';
+
+    const payload = {
+      decision: String(importRowDecisionInput.value || 'approved'),
+      line_id: (() => {
+        const manualLineId = importRowManualLineIdInput?.value ? Number(importRowManualLineIdInput.value) : null;
+        if (manualLineId && Number.isInteger(manualLineId) && manualLineId > 0) {
+          return manualLineId;
+        }
+
+        return importRowLineIdInput.value ? Number(importRowLineIdInput.value) : null;
+      })(),
+      notes: String(importRowNotesInput.value || '').trim(),
+      row_updates: {
+        name: String(importRowNameInput.value || '').trim(),
+        brand: String(importRowBrandInput.value || '').trim(),
+        description: String(importRowDescriptionInput.value || '').trim(),
+        price: importRowPriceInput.value,
+        quantity: importRowQuantityInput.value,
+        min_stock: importRowMinStockInput.value,
+        attributes: collectImportAttributesInlineText()
+      }
+    };
+
+    await requestJson(`${API_BASE_URL}/api/products/import/batches/${batchId}/rows/${rowNumber}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    });
+
+    const mainImageFile = importRowMainImageFileInput?.files?.[0] || null;
+    const secondaryImageFiles = Array.from(importRowSecondaryImagesFilesInput?.files || []);
+
+    if (mainImageFile || secondaryImageFiles.length) {
+      const imageFormData = new FormData();
+
+      if (mainImageFile) {
+        imageFormData.append('main_image', mainImageFile);
+      }
+
+      secondaryImageFiles.forEach((file) => {
+        imageFormData.append('secondary_images', file);
+      });
+
+      const imageResponse = await fetch(`${API_BASE_URL}/api/products/import/batches/${batchId}/rows/${rowNumber}/images`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: imageFormData
+      });
+
+      const imagePayload = await imageResponse.json();
+      if (!imageResponse.ok) {
+        throw new Error(imagePayload.error || 'No se pudieron subir imágenes para la fila');
+      }
+    }
+
+    companyImportRowMessage.textContent = 'Fila actualizada correctamente.';
+    await loadImportBatchDetail(batchId);
+    closeCompanyModal(companyImportRowModal);
+    setImportReviewFeedback('Revisión de fila guardada correctamente.');
+  } catch (error) {
+    companyImportRowMessage.textContent = error.message;
+  }
+};
+
+const handleApproveImportBatch = async () => {
+  try {
+    const batchId = Number(state.importReview.selectedBatchId || 0);
+
+    if (!batchId) {
+      throw new Error('Selecciona un lote para aprobar');
+    }
+
+    setImportReviewFeedback('Aprobando lote...');
+
+    await requestJson(`${API_BASE_URL}/api/products/import/batches/${batchId}/approve`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({})
+    });
+
+    await loadImportBatchDetail(batchId);
+    await loadImportBatches();
+    setImportReviewFeedback('Lote aprobado correctamente.');
+  } catch (error) {
+    setImportReviewFeedback(error.message, 'error');
+  }
+};
+
+const handleDeleteImportBatch = async () => {
+  try {
+    const batchId = Number(state.importReview.selectedBatchId || 0);
+
+    if (!batchId) {
+      throw new Error('Selecciona un lote para eliminar');
+    }
+
+    const shouldDelete = globalThis.confirm(`¿Seguro que deseas eliminar el lote #${batchId}? Esta acción no se puede deshacer.`);
+    if (!shouldDelete) {
+      return;
+    }
+
+    setImportReviewFeedback('Eliminando lote...');
+
+    await requestJson(`${API_BASE_URL}/api/products/import/batches/${batchId}`, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+
+    state.importReview.selectedBatchId = null;
+    state.importReview.selectedBatch = null;
+    if (companyImportBatchSelect) {
+      companyImportBatchSelect.value = '';
+    }
+    renderSelectedBatchSummary(null);
+    if (companyImportRowsList) {
+      companyImportRowsList.innerHTML = '<p>Selecciona un lote para revisar filas.</p>';
+    }
+    renderImportBatchResult(null);
+
+    await loadImportBatches();
+    setImportReviewFeedback('Lote eliminado correctamente.');
+  } catch (error) {
+    setImportReviewFeedback(error.message, 'error');
+  }
+};
+
+const handlePublishImportBatch = async () => {
+  try {
+    const batchId = Number(state.importReview.selectedBatchId || 0);
+
+    if (!batchId) {
+      throw new Error('Selecciona un lote para publicar');
+    }
+
+    const shouldPublish = globalThis.confirm(`¿Publicar el lote #${batchId} al catálogo real?`);
+    if (!shouldPublish) {
+      return;
+    }
+
+    setImportReviewFeedback('Publicando lote en catálogo...');
+
+    const response = await requestJson(`${API_BASE_URL}/api/products/import/batches/${batchId}/publish`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({})
+    });
+
+    await loadImportBatchDetail(batchId);
+    await loadImportBatches();
+    goToOwnProductsPage(1);
+
+    const createdCount = Array.isArray(response.created_products) ? response.created_products.length : 0;
+    const errorsCount = Array.isArray(response.errors) ? response.errors.length : 0;
+    const errorDetails = errorsCount
+      ? response.errors
+        .map((entry) => `Fila ${entry?.row_number || '?'}: ${entry?.error || 'Error desconocido'}`)
+        .slice(0, 10)
+        .join(' | ')
+      : '';
+    const message = errorsCount
+      ? `Lote publicado parcialmente: ${createdCount} producto(s) creados, ${errorsCount} con error. ${errorDetails}`
+      : `Lote publicado correctamente: ${createdCount} producto(s) creados.`;
+
+    setImportReviewFeedback(message);
+  } catch (error) {
+    setImportReviewFeedback(error.message, 'error');
+  }
+};
+
+const handleImportRowsListClick = (event) => {
+  const targetButton = event.target.closest('button[data-import-action="edit"]');
+  if (!targetButton) {
+    return;
+  }
+
+  const rowNumber = Number(targetButton.dataset.rowNumber || 0);
+  if (!rowNumber) {
+    return;
+  }
+
+  openImportRowEditor(rowNumber);
+};
+
+const handleImportRowAttributesClick = (event) => {
+  const removeButton = event.target.closest('button[data-import-attr="remove"]');
+  if (!removeButton) {
+    return;
+  }
+
+  const rows = Array.from(importRowAttributesList?.querySelectorAll('.company-import-attribute-row') || []);
+  if (rows.length <= 1) {
+    const keyInput = rows[0]?.querySelector('[data-import-attr="key"]');
+    const valueInput = rows[0]?.querySelector('[data-import-attr="value"]');
+    if (keyInput) {
+      keyInput.value = '';
+    }
+    if (valueInput) {
+      valueInput.value = '';
+    }
+    return;
+  }
+
+  removeButton.closest('.company-import-attribute-row')?.remove();
+};
+
+const handleImportAddAttribute = () => {
+  if (!importRowAttributesList) {
+    return;
+  }
+
+  importRowAttributesList.insertAdjacentHTML('beforeend', createImportAttributeRowMarkup('', ''));
 };
 
 const normalizeSearchValue = (value) => String(value || '').trim().toLowerCase();
@@ -1062,12 +2011,12 @@ async function handleProductStockSubmit(event) {
   }
 }
 
-function goToOwnProductsPage(page) {
+async function goToOwnProductsPage(page) {
   if (page < 1 || page > state.pagination.total_pages) {
     return;
   }
 
-  loadOwnProducts(page).catch((error) => {
+  await loadOwnProducts(page).catch((error) => {
     companyProductFormMessage.innerText = error.message;
   });
 }
@@ -1088,6 +2037,28 @@ globalThis.editManagedProduct = editManagedProduct;
 globalThis.deleteManagedProductImage = deleteManagedProductImage;
 globalThis.openStatusModal = openStatusModal;
 globalThis.openStockModal = openStockModal;
+
+companyImportDownloadTemplateButton?.addEventListener('click', handleDownloadImportTemplate);
+companyImportUploadBatchButton?.addEventListener('click', handleUploadImportBatch);
+companyImportRefreshBatchesButton?.addEventListener('click', () => {
+  loadImportBatches().catch((error) => setImportReviewFeedback(error.message, 'error'));
+});
+companyImportBatchSelect?.addEventListener('change', (event) => {
+  const nextBatchId = Number(event.target.value || 0);
+  loadImportBatchDetail(nextBatchId).catch((error) => setImportReviewFeedback(error.message, 'error'));
+});
+companyImportRowsList?.addEventListener('click', handleImportRowsListClick);
+companyImportApproveBatchButton?.addEventListener('click', handleApproveImportBatch);
+companyImportPublishBatchButton?.addEventListener('click', handlePublishImportBatch);
+companyImportDeleteBatchButton?.addEventListener('click', handleDeleteImportBatch);
+companyImportRowForm?.addEventListener('submit', handleImportRowFormSubmit);
+importRowAttributesList?.addEventListener('click', handleImportRowAttributesClick);
+importRowAddAttributeButton?.addEventListener('click', handleImportAddAttribute);
+importRowMainImageFileInput?.addEventListener('change', renderImportRowImagesPreview);
+importRowSecondaryImagesFilesInput?.addEventListener('change', renderImportRowImagesPreview);
+importRowLineSearchInput?.addEventListener('input', handleImportRowLineSearch);
+importRowLineIdInput?.addEventListener('change', handleImportRowSimilarLineChange);
+importRowManualLineIdInput?.addEventListener('change', handleImportRowManualLineChange);
 
 productLineSearchInput.addEventListener('input', filterLines);
 companyProductsSearchInput.addEventListener('input', handleOwnProductsSearch);
@@ -1123,7 +2094,7 @@ fetchCurrentSession()
     }
 
     const company = session.data.company;
-    if (company.id_role_fk === 1) {
+    if (getCompanyRoleId(company) === 1) {
       throw new Error('Este módulo es solo para detallistas y mayoristas');
     }
 
@@ -1133,11 +2104,15 @@ fetchCurrentSession()
 
     state.session = session;
     companyProductsRoleNote.innerText = `Empresa actual: ${company.name}. Los productos que cargues quedan asociados a tu empresa.`;
+
+    syncImportTargetCompanyVisibility(company);
+
     if (companyProductsSortSelect) {
       companyProductsSortSelect.value = state.sort;
     }
 
     await loadLines();
+    await loadImportBatches();
     resetProductForm();
     hideProductEditor();
     closeCompanyModal(companyProductStatusModal);

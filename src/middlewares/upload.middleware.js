@@ -65,7 +65,7 @@ const uploadCompanyImage = multer({
 
 const uploadProductImage = multer({
   storage: createStorage(productDir, 'product'),
-  limits: { fileSize: 5 * 1024 * 1024 }
+  limits: { fileSize: 10 * 1024 * 1024 }
 });
 
 const uploadPurchaseEvidence = multer({
@@ -84,11 +84,26 @@ const uploadProductImages = uploadProductImage.fields([
   { name: 'secondary_images', maxCount: MAX_SECONDARY_PRODUCT_IMAGES }
 ]);
 
+const importSpreadsheetMimeTypes = new Set([
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/vnd.ms-excel',
+  'text/csv',
+  'application/csv',
+  'application/octet-stream'
+]);
+
+const uploadImportSpreadsheet = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: createFileFilter(importSpreadsheetMimeTypes, 'Solo se permiten archivos Excel o CSV')
+});
+
 module.exports = {
   uploadCustomerImage,
   uploadCompanyImage,
   uploadProductImage,
   uploadProductImages,
+  uploadImportSpreadsheet,
   uploadPurchaseEvidence,
   uploadCompanyLegalDocuments
 };

@@ -31,8 +31,12 @@ Proyecto en desarrollo activo.
 - Estados derivados de compras cuando el total queda cubierto por cashback.
 
 ### Modulos en analisis
+- Reestructuracion de cotizaciones en el apartado de catalogo.
 - Prestamos monetarios B2B entre mayorista y detallista.
 - Restricciones operativas por mora sin bloquear completamente la administracion del negocio.
+
+### Proxima fase
+- Ajustar el flujo de cotizaciones dentro del catalogo para ordenar la experiencia B2B antes de retomar el resto de analisis comerciales.
 
 ---
 

@@ -101,3 +101,7 @@ Crear una notificación solo cuando ocurra al menos una de estas condiciones:
 1. Cambia la responsabilidad de un actor.
 2. Cambia el riesgo o el permiso operativo.
 3. El usuario debe tomar una acción concreta.
+
+## Siguiente fase
+
+- reestructuracion de cotizaciones en el apartado de catalogo antes de ampliar el flujo comercial B2B

@@ -318,6 +318,10 @@ Company ──── Role
 |---|---|---|
 | Tabla `Transaction` | 🔴 Alta | Referenciada en `Cashback_History` pero no existe |
 | `sp_create_credit` | 🟡 Media | `30 DAY` hardcodeado — considerar parámetro |
+
+## Próxima fase de datos
+
+- reestructuracion de cotizaciones en el apartado de catalogo para preparar el flujo B2B sin mezclarlo con la operacion de productos actual
 | Password admin expuesto | 🔴 Alta | Mover a seeds o variables de entorno antes de producción |
 
 ---
