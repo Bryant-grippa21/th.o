@@ -22,6 +22,20 @@ const formatDateCompact = (value) => {
 
 const buildOrderCode = (checkoutId, createdAt) => `THO-${String(checkoutId).padStart(6, '0')}-${formatDateCompact(createdAt)}`;
 
+const isPaymentDueDateOpen = (paymentDueAt) => {
+  if (!paymentDueAt) {
+    return false;
+  }
+
+  const dueDate = new Date(paymentDueAt).getTime();
+
+  if (Number.isNaN(dueDate)) {
+    return false;
+  }
+
+  return dueDate >= Date.now();
+};
+
 const encodeGroupCashbackRef = (groupId) => CASHBACK_GROUP_REF_OFFSET + Number(groupId);
 const encodeCheckoutCashbackRef = (checkoutId) => CASHBACK_CHECKOUT_REF_OFFSET + Number(checkoutId);
 const decodeCheckoutCashbackRef = (value) => Number(value) - CASHBACK_CHECKOUT_REF_OFFSET;
@@ -151,6 +165,9 @@ const getGroupRows = async (connection, whereSql, params = []) => {
             pc.created_at AS checkout_created_at,
             pc.updated_at AS checkout_updated_at,
             co.name AS company_name,
+            co.email AS company_email,
+            co.cell_phone AS company_cell_phone,
+            co.img_profile AS company_img_profile,
             cu.name AS customer_name,
             cu.email AS customer_email
      FROM Purchase_Group pg
@@ -190,9 +207,11 @@ const getItemsByGroupIds = async (connection, groupIds) => {
             pi.created_at,
             p.name AS product_name,
             p.sku,
-            p.brand
+            p.brand,
+            pim.image_url AS main_image_url
      FROM Purchase_Item pi
      INNER JOIN Product p ON p.id_product = pi.id_product_fk
+     LEFT JOIN Product_Image pim ON pim.id_product_fk = p.id_product AND pim.is_main = TRUE
      WHERE pi.id_purchase_group_fk IN (${placeholders})
      ORDER BY pi.id_purchase_item ASC`,
     groupIds
@@ -513,7 +532,8 @@ const hydrateGroupCollection = async (connection, groupRows) => {
         id_product: item.id_product_fk,
         name: item.product_name,
         sku: item.sku,
-        brand: item.brand
+        brand: item.brand,
+        main_image_url: item.main_image_url
       }
     });
     itemsByGroupId.set(item.id_purchase_group_fk, currentItems);
@@ -586,6 +606,9 @@ const hydrateGroupCollection = async (connection, groupRows) => {
     company: {
       id_company: group.id_company_fk,
       name: group.company_name,
+      email: group.company_email,
+      cell_phone: group.company_cell_phone,
+      img_profile: group.company_img_profile,
       payment_methods: methodsByCompanyId.get(group.id_company_fk) || []
     },
     customer: {
@@ -1687,7 +1710,10 @@ const submitPurchaseEvidence = async ({ customerId, groupId, file, note }) => {
       throw new Error('Grupo de compra no encontrado');
     }
 
-    if (group.status !== 'PENDING_PAYMENT') {
+    const canSubmitEvidence = group.status === 'PENDING_PAYMENT'
+      || (group.status === 'REJECTED' && isPaymentDueDateOpen(group.payment_due_at));
+
+    if (!canSubmitEvidence) {
       throw new Error('El grupo no permite cargar evidencia');
     }
 

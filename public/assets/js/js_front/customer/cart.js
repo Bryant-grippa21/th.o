@@ -132,26 +132,24 @@ const renderCart = (cart) => {
 
     if (!product) {
       return `
-        <article class="customer-card">
-          <div class="customer-card__body">
+        <article class="customer-card customer-cart-item">
+          <div class="customer-cart-item__body">
             <p class="customer-card__title"><b>Producto ${item.id_product}</b></p>
             <p class="customer-card__meta">Ya no está disponible en el catálogo.</p>
-            <div class="customer-card__actions">
+            <div class="customer-card__actions customer-cart-item__cta-actions">
               <button type="button" onclick="removeCartItem(${item.id_product})">Eliminar</button>
             </div>
+          </div>
+          <div class="customer-cart-item__media">
+            <div class="customer-card__media-placeholder">Sin imagen</div>
           </div>
         </article>
       `;
     }
 
     return `
-      <article class="customer-card">
-        <div class="customer-card__media">
-          ${product.main_image_url
-      ? `<img src="${product.main_image_url}" alt="${product.name}">`
-      : '<div class="customer-card__media-placeholder">Sin imagen</div>'}
-        </div>
-        <div class="customer-card__body">
+      <article class="customer-card customer-cart-item">
+        <div class="customer-cart-item__body">
           <p class="customer-card__title"><b>${product.name || 'Sin nombre'}</b></p>
           <p class="customer-card__meta">SKU: ${product.sku}</p>
           <p class="customer-card__meta">Mayorista: ${product.company_name || 'Sin proveedor'}</p>
@@ -163,17 +161,22 @@ const renderCart = (cart) => {
           ${state.exchangeRate?.rate_bs_per_usd
       ? `<p class="customer-card__meta">Subtotal item Bs: Bs.S ${formatBsAmount(convertUsdToBs(Number(product.price || 0) * Number(item.quantity || 0)))}</p>`
       : ''}
-          <div class="customer-card__actions">
+          <div class="customer-card__actions customer-cart-item__qty-actions">
             <span>Cantidad</span>
             <button type="button" onclick="changeCartItemQuantity(${item.id_product}, -1)">-</button>
-            <input id="cart-quantity-${item.id_product}" type="number" min="1" step="1" value="${item.quantity}" style="width:72px;">
+            <input id="cart-quantity-${item.id_product}" type="number" min="1" step="1" value="${item.quantity}">
             <button type="button" onclick="changeCartItemQuantity(${item.id_product}, 1)">+</button>
           </div>
-          <div class="customer-card__actions">
+          <div class="customer-card__actions customer-cart-item__cta-actions">
             <a href="/products/detail.html?sku=${encodeURIComponent(product.sku)}">Ver detalle</a>
             <button type="button" onclick="updateCartItemQuantity(${item.id_product})">Actualizar cantidad</button>
             <button type="button" onclick="removeCartItem(${item.id_product})">Eliminar</button>
           </div>
+        </div>
+        <div class="customer-cart-item__media">
+          ${product.main_image_url
+      ? `<img src="${product.main_image_url}" alt="${product.name}">`
+      : '<div class="customer-card__media-placeholder">Sin imagen</div>'}
         </div>
       </article>
     `;

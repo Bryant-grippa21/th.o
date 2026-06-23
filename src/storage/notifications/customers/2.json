@@ -3,11 +3,11 @@
   "owner_id": 2,
   "items": [
     {
-      "event_key": "customer:2:group:2:status:APPROVED",
-      "read_at": "2026-05-27T08:44:49.011Z",
-      "created_at": "2026-05-27T07:45:09.000Z",
-      "updated_at": "2026-05-27T08:44:49.011Z"
+      "event_key": "customer:2:group:1:status:APPROVED",
+      "read_at": "2026-06-22T22:54:44.524Z",
+      "created_at": "2026-06-22T22:26:47.000Z",
+      "updated_at": "2026-06-22T22:54:44.524Z"
     }
   ],
-  "updated_at": "2026-05-27T08:44:49.011Z"
+  "updated_at": "2026-06-22T22:54:44.525Z"
 }

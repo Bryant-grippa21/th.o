@@ -622,7 +622,7 @@
     }
 
     try {
-      const data = await requestPublicJson(`${API_BASE_URL}/api/products/${productId}/reviews`);
+      const data = await requestPublicJson(`${API_BASE_URL}/api/products/${productId}/reviews?view=home`);
       state.reviewsSummary = data.summary || {
         total_reviews: 0,
         average_rating: 0,
@@ -672,10 +672,10 @@
       detailEndpoint = `${API_BASE_URL}/api/products/company/wholesale-catalog/sku/${encodeURIComponent(sku)}`;
       useAuthenticatedDetailRequest = true;
     } else {
-      detailEndpoint = `${API_BASE_URL}/api/products/catalog/sku/${encodeURIComponent(sku)}`;
+      detailEndpoint = `${API_BASE_URL}/api/products/catalog/sku/${encodeURIComponent(sku)}?view=home`;
     }
   } else if (lineId) {
-    detailEndpoint = `${API_BASE_URL}/api/products/catalog/${lineId}`;
+    detailEndpoint = `${API_BASE_URL}/api/products/catalog/${lineId}?view=home`;
   }
 
   if (detailEndpoint) {

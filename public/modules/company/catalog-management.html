@@ -17,7 +17,7 @@
     <div class="company-products-toolbar">
       <label>
         Buscar
-        <input id="company-wholesale-search" type="search" placeholder="Buscar por producto, marca, SKU, categoría o mayorista">
+        <input id="company-wholesale-search" type="search" placeholder="Buscar por SKU, empresa o producto">
       </label>
 
       <label>
@@ -41,11 +41,38 @@
   <p id="company-wholesale-feedback" class="company-panel-feedback"></p>
 
   <section class="company-panel">
+    <h2>Mi carrito B2B</h2>
+    <p id="company-b2b-cart-summary" class="company-panel-message">Cargando carrito...</p>
+    <p id="company-b2b-cart-feedback" class="company-panel-feedback"></p>
+    <div id="company-b2b-cart-list">
+      <p>Cargando carrito...</p>
+    </div>
+    <div class="company-card__actions" style="margin-top: 12px; flex-wrap: wrap; gap: 8px;">
+      <button id="company-b2b-cart-submit" type="button">Enviar cotización</button>
+      <a class="company-button-link" href="/modules/company/b2b-retailer.html">Ir a cotizaciones</a>
+      <button id="company-b2b-cart-clear" type="button">Vaciar carrito</button>
+    </div>
+  </section>
+
+  <section class="company-panel">
     <h2>Productos de mayoristas</h2>
     <div id="company-wholesale-products-list">
       <p>Cargando productos...</p>
     </div>
   </section>
+
+  <div id="company-product-modal" hidden style="position:fixed; inset:0; z-index:1200; background:rgba(15, 23, 42, 0.65); padding:24px; overflow:auto;">
+    <div style="max-width:900px; margin:40px auto; background:#fff; border-radius:18px; padding:24px; box-shadow:0 24px 80px rgba(0,0,0,0.25);">
+      <div style="display:flex; justify-content:space-between; gap:16px; align-items:flex-start; margin-bottom:16px;">
+        <div>
+          <p style="margin:0; text-transform:uppercase; letter-spacing:0.08em; font-size:12px; color:#64748b;">Detalle del producto</p>
+          <h3 id="company-product-modal-title" style="margin:6px 0 0;">Producto</h3>
+        </div>
+        <button id="company-product-modal-close" type="button">Cerrar</button>
+      </div>
+      <div id="company-product-modal-body"></div>
+    </div>
+  </div>
 
   <nav class="company-catalog-pagination" aria-label="Paginación del catálogo">
     <button id="company-wholesale-prev-page" type="button">Anterior</button>

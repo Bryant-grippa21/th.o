@@ -9,11 +9,15 @@ const purchasesSearchInput = document.getElementById('purchases-search');
 const purchaseDetailModal = document.getElementById('purchase-detail-modal');
 const purchaseDetailContent = document.getElementById('purchase-detail-content');
 const purchaseDetailCloseButton = document.getElementById('purchase-detail-close');
+const purchasePaymentsModal = document.getElementById('purchase-payments-modal');
+const purchasePaymentsContent = document.getElementById('purchase-payments-content');
+const purchasePaymentsCloseButton = document.getElementById('purchase-payments-close');
 
 const state = {
   checkouts: [],
   search: '',
-  selectedCheckoutId: null
+  selectedCheckoutId: null,
+  selectedPaymentsCheckoutId: null
 };
 
 const requestJson = async (url, options = {}) => {
@@ -114,6 +118,22 @@ const setFeedback = (message, type = 'info') => {
   purchasesFeedback.style.color = type === 'error' ? '#b00020' : '#1f5f2c';
 };
 
+const resolveCompanyLogoUrl = (company) => {
+  const imageName = String(company?.img_profile || '').trim();
+
+  if (!imageName) {
+    return '';
+  }
+
+  if (imageName.startsWith('http://') || imageName.startsWith('https://') || imageName.startsWith('/')) {
+    return imageName;
+  }
+
+  return `/uploads/profiles/companies/${imageName}`;
+};
+
+const resolveProductImageUrl = (product) => String(product?.main_image_url || '').trim();
+
 const getCheckoutDisplayStatus = (checkout) => {
   const groups = Array.isArray(checkout?.groups) ? checkout.groups : [];
   const deliveryStatuses = groups.map((group) => group.delivery?.status).filter(Boolean);
@@ -136,6 +156,10 @@ const getCheckoutDisplayStatus = (checkout) => {
 
   if (groups.every((group) => group.status === 'APPROVED')) {
     return 'Entregado';
+  }
+
+  if (groups.every((group) => group.status === 'REJECTED')) {
+    return 'Rechazado';
   }
 
   if (groups.some((group) => group.status === 'PAYMENT_SUBMITTED')) {
@@ -184,6 +208,10 @@ const getCheckoutPaymentSummary = (checkout) => {
     return 'Pago validado';
   }
 
+  if (groups.every((group) => group.status === 'REJECTED')) {
+    return 'Pago rechazado';
+  }
+
   if (groups.some((group) => group.status === 'PAYMENT_SUBMITTED')) {
     return 'Pago en revisión';
   }
@@ -195,104 +223,183 @@ const getCheckoutPaymentSummary = (checkout) => {
   return 'Pago con incidencias';
 };
 
-const getCheckoutTrackingSummary = (checkout) => {
-  const groups = Array.isArray(checkout?.groups) ? checkout.groups : [];
-  const deliveryStatuses = groups.map((group) => group.delivery?.status).filter(Boolean);
-  const approvedGroups = groups.filter((group) => group.status === 'APPROVED').length;
-
-  if (!groups.length) {
-    return 'Seguimiento no disponible';
-  }
-
-  if (deliveryStatuses.every((status) => status === 'DELIVERED') && deliveryStatuses.length) {
-    return 'Entrega completada';
-  }
-
-  if (deliveryStatuses.includes('SHIPPED')) {
-    return 'Pedido enviado';
-  }
-
-  if (deliveryStatuses.includes('PREPARING')) {
-    return 'Pedido en preparacion';
-  }
-
-  if (approvedGroups === groups.length) {
-    return 'Entrega completada';
-  }
-
-  if (approvedGroups > 0) {
-    return 'Entrega parcial';
-  }
-
-  return 'Despacho pendiente';
-};
-
-const getTimelineEntryMetadata = (status) => {
-  const normalizedStatus = String(status || '').trim().toUpperCase();
-  const metadata = {
-    ORDER_CONFIRMED: {
-      label: 'Pedido confirmado',
-      tone: 'info'
-    },
-    PAYMENT_SUBMITTED: {
-      label: 'Pago enviado por el cliente',
-      tone: 'warning'
-    },
-    APPROVED: {
-      label: 'Pago aprobado',
-      tone: 'success'
-    },
-    REJECTED: {
-      label: 'Pago rechazado',
-      tone: 'danger'
-    },
-    PENDING_PAYMENT: {
-      label: 'Pago pendiente',
-      tone: 'warning'
-    },
-    EXPIRED: {
-      label: 'Pedido expirado',
-      tone: 'danger'
-    },
-    PREPARING: {
-      label: 'Pedido en preparación',
-      tone: 'info'
-    },
-    SHIPPED: {
-      label: 'Pedido enviado',
-      tone: 'info'
-    },
-    DELIVERED: {
-      label: 'Pedido entregado',
-      tone: 'success'
-    },
-    SUBMITTED: {
-      label: 'Enviado',
-      tone: 'info'
-    }
-  };
-
-  if (metadata[normalizedStatus]) {
-    return metadata[normalizedStatus];
-  }
-
-  return {
-    label: getPurchaseStatusLabel(normalizedStatus),
-    tone: 'info'
-  };
-};
-
 const renderPaymentMethods = (paymentMethods) => {
   if (!Array.isArray(paymentMethods) || !paymentMethods.length) {
     return '<li>La empresa aún no ha registrado métodos de pago.</li>';
   }
 
   return paymentMethods.map((method) => {
-    const bankSegment = method.bank_name ? ` - ${method.bank_name}` : '';
-    const accountSegment = method.account_number ? ` - ${method.account_number}` : '';
+    const bankName = String(method.bank_name || 'Sin banco').trim();
+    const methodType = String(method.method_type || 'Sin tipo').trim();
+    const accountNumber = String(method.account_number || 'Sin número de cuenta').trim();
+    const accountHolder = String(method.account_holder || 'Sin titular').trim();
+    const instructions = String(method.instructions || 'Sin instrucciones').trim();
 
-    return `<li>${escapeHtml(method.label)} (${escapeHtml(method.method_type)})${escapeHtml(bankSegment)}${escapeHtml(accountSegment)}</li>`;
+    return `
+      <li>
+        <p><b>Banco:</b> ${escapeHtml(bankName)}</p>
+        <p><b>Titular:</b> ${escapeHtml(accountHolder)}</p>
+        <p><b>Tipo:</b> ${escapeHtml(methodType)}</p>
+        <p><b>Número de cuenta:</b> ${escapeHtml(accountNumber)}</p>
+        <p><b>Instrucciones:</b> ${escapeHtml(instructions)}</p>
+      </li>
+    `;
   }).join('');
+};
+
+const renderPaymentHistoryGroups = (groups) => groups.map((group) => {
+  const items = Array.isArray(group.items) ? group.items : [];
+  const evidences = Array.isArray(group.evidences) ? group.evidences : [];
+  const paymentMethods = Array.isArray(group.company?.payment_methods) ? group.company.payment_methods : [];
+  const companyName = group.company?.name || 'Sin proveedor';
+  const companyLogoUrl = resolveCompanyLogoUrl(group.company);
+  const companyEmail = group.company?.email || 'No disponible';
+  const companyPhone = group.company?.cell_phone || 'No disponible';
+  const paymentDueAt = group.payment_due_at || null;
+  const paymentWindowOpen = Boolean(paymentDueAt) && new Date(paymentDueAt).getTime() >= Date.now();
+  const canUploadEvidence = group.status === 'PENDING_PAYMENT'
+    || (group.status === 'REJECTED' && paymentWindowOpen);
+  const paymentStatus = getPurchaseStatusLabel(group.status);
+  const decisions = String(group.review_note || 'Sin observaciones').trim();
+  const uploadActionLabel = group.status === 'REJECTED' ? 'Reenviar pago' : 'Subir pago';
+
+  return `
+    <details class="customer-card customer-purchase-group">
+      <summary class="customer-purchase-group__summary">
+        <div class="customer-purchase-group__header">
+          <div class="customer-purchase-group__logo">
+            ${companyLogoUrl
+              ? `<img src="${escapeHtml(companyLogoUrl)}" alt="Logo de ${escapeHtml(companyName)}">`
+              : '<span>Sin logo</span>'}
+          </div>
+          <div class="customer-purchase-group__header-copy">
+            <p class="customer-purchase-group__eyebrow">Grupo #${escapeHtml(group.id_purchase_group)}</p>
+            <h4 class="customer-purchase-group__title">${escapeHtml(companyName)}</h4>
+            <p class="customer-purchase-group__meta"><b>Email:</b> ${escapeHtml(companyEmail)}</p>
+            <p class="customer-purchase-group__meta"><b>Celular:</b> ${escapeHtml(companyPhone)}</p>
+            <p class="customer-purchase-group__meta"><b>Estado:</b> ${escapeHtml(paymentStatus)}</p>
+          </div>
+        </div>
+      </summary>
+      <div class="customer-card__body">
+        <p><b>Estado del pago:</b> ${escapeHtml(paymentStatus)}</p>
+        <p><b>Vencimiento:</b> ${escapeHtml(formatDateTime(group.payment_due_at))}</p>
+        <p><b>Total a pagar:</b> ${escapeHtml(buildCurrencyPairLabel(group.total_payable_usd, group.total_payable_bs))}</p>
+        <p><b>Decisión / observación:</b> ${escapeHtml(decisions)}</p>
+        <details class="customer-subdetails">
+          <summary>Métodos de pago</summary>
+          <ul>${renderPaymentMethods(paymentMethods)}</ul>
+        </details>
+        <details class="customer-subdetails">
+          <summary>Historial de evidencias (${evidences.length})</summary>
+          <ul>${renderGroupEvidences(evidences)}</ul>
+        </details>
+        ${canUploadEvidence ? `
+          <details class="customer-subdetails">
+            <summary>${uploadActionLabel}</summary>
+            <form data-evidence-form="${group.id_purchase_group}">
+              <input name="evidence" type="file" accept="image/*,.pdf" required>
+              <br><br>
+              <textarea name="note" rows="3" placeholder="Nota opcional para la empresa"></textarea>
+              <br><br>
+              <button type="submit">${uploadActionLabel}</button>
+            </form>
+          </details>
+        ` : ''}
+      </div>
+    </details>
+  `;
+}).join('');
+
+const renderCheckoutProductsOnly = (groups) => {
+  if (!Array.isArray(groups) || !groups.length) {
+    return '<p>Sin grupos registrados.</p>';
+  }
+
+  return groups.map((group) => {
+    const items = Array.isArray(group.items) ? group.items : [];
+    const companyName = group.company?.name || 'Sin proveedor';
+    const companyLogoUrl = resolveCompanyLogoUrl(group.company);
+    const companyEmail = group.company?.email || 'No disponible';
+    const companyPhone = group.company?.cell_phone || 'No disponible';
+
+    return `
+      <details class="customer-card customer-purchase-group">
+        <summary class="customer-purchase-group__summary">
+          <div class="customer-purchase-group__header">
+            <div class="customer-purchase-group__logo">
+              ${companyLogoUrl
+                ? `<img src="${escapeHtml(companyLogoUrl)}" alt="Logo de ${escapeHtml(companyName)}">`
+                : '<span>Sin logo</span>'}
+            </div>
+            <div class="customer-purchase-group__header-copy">
+              <p class="customer-purchase-group__eyebrow">Grupo #${escapeHtml(group.id_purchase_group)}</p>
+              <h4 class="customer-purchase-group__title">${escapeHtml(companyName)}</h4>
+              <p class="customer-purchase-group__meta"><b>Email:</b> ${escapeHtml(companyEmail)}</p>
+              <p class="customer-purchase-group__meta"><b>Celular:</b> ${escapeHtml(companyPhone)}</p>
+              <p class="customer-purchase-group__meta"><b>Estado:</b> ${escapeHtml(getPurchaseStatusLabel(group.status))}</p>
+            </div>
+          </div>
+        </summary>
+        <div class="customer-purchase-group__items">
+          ${items.length ? items.map((item) => renderGroupProductItem(item)).join('') : '<p>Sin productos registrados.</p>'}
+        </div>
+      </details>
+    `;
+  }).join('');
+};
+
+const getCheckoutCustomerInfo = (checkout) => {
+  const groups = Array.isArray(checkout?.groups) ? checkout.groups : [];
+  const firstGroup = groups.find(Boolean) || {};
+  const groupCheckout = firstGroup.checkout || {};
+
+  return {
+    name: firstGroup.customer?.name || checkout?.shipping_contact_name || groupCheckout.shipping_contact_name || 'Pendiente',
+    phone: firstGroup.checkout?.shipping_phone || checkout?.shipping_phone || groupCheckout.shipping_phone || 'Pendiente',
+    email: firstGroup.customer?.email || 'Pendiente',
+    address: firstGroup.checkout?.shipping_address_snapshot || checkout?.shipping_address_snapshot || groupCheckout.shipping_address_snapshot || 'Pendiente de registrar'
+  };
+};
+
+const renderGroupProductItem = (item) => {
+  const productName = item.product?.name || `Producto ${item.id_product}`;
+  const productImageUrl = resolveProductImageUrl(item.product);
+  const productSku = item.product?.sku || 'Sin SKU';
+  const productBrand = item.product?.brand || 'Sin marca';
+  const unitPriceLabel = buildCurrencyPairLabel(item.unit_price_usd_snapshot, item.unit_price_bs_snapshot);
+  const cashbackLabel = Number(item.cashback_generated || 0) > 0
+    ? `<p><b>Cashback potencial:</b> USD ${escapeHtml(formatAmount(item.cashback_generated))}</p>`
+    : '';
+
+  return `
+    <article class="customer-purchase-product">
+      <div class="customer-purchase-product__media">
+        ${productImageUrl
+          ? `
+            <button
+              type="button"
+              class="customer-purchase-product__image"
+              data-product-preview-trigger
+              data-product-preview-src="${escapeHtml(productImageUrl)}"
+              data-product-preview-title="${escapeHtml(productName)}"
+            >
+              <img src="${escapeHtml(productImageUrl)}" alt="${escapeHtml(productName)}">
+            </button>
+          `
+          : '<div class="customer-purchase-product__image-placeholder">Sin imagen</div>'}
+      </div>
+      <div class="customer-purchase-product__details">
+        <p class="customer-purchase-product__title"><b>${escapeHtml(productName)}</b></p>
+        <p><b>SKU:</b> ${escapeHtml(productSku)}</p>
+        <p><b>Marca:</b> ${escapeHtml(productBrand)}</p>
+        <p><b>Cantidad:</b> ${escapeHtml(item.quantity)}</p>
+        <p><b>Precio unitario:</b> ${escapeHtml(unitPriceLabel)}</p>
+        <p><b>Total item:</b> ${escapeHtml(buildCurrencyPairLabel(item.subtotal_usd, item.subtotal_bs))}</p>
+        ${cashbackLabel}
+      </div>
+    </article>
+  `;
 };
 
 const renderGroupItems = (items) => {
@@ -335,9 +442,6 @@ const renderCheckoutGroups = (groups) => groups.map((group) => {
         <p>Cashback usado: ${escapeHtml(buildCurrencyPairLabel(group.cashback_redeemed_usd, group.cashback_redeemed_bs))}</p>
         <p>Total a pagar: ${escapeHtml(buildCurrencyPairLabel(group.total_payable_usd, group.total_payable_bs))}</p>
         <p>Cashback ${group.status === 'APPROVED' ? 'acreditado' : 'potencial'}: USD ${escapeHtml(formatAmount(items.reduce((sum, item) => sum + Number(item.cashback_generated || 0), 0)))}</p>
-        <p>Estado logístico: ${escapeHtml(group.delivery?.status || 'Sin seguimiento')}</p>
-        <p>Transportista: ${escapeHtml(group.delivery?.carrier_name || 'Pendiente')}</p>
-        <p>Guia: ${escapeHtml(group.delivery?.tracking_code || 'Pendiente')}</p>
         <p>Pago vence: ${escapeHtml(formatDateTime(group.payment_due_at))}</p>
         <p>Nota de revision: ${escapeHtml(group.review_note || 'Sin observaciones')}</p>
         <details class="customer-subdetails">
@@ -375,145 +479,32 @@ const renderCheckoutGroups = (groups) => groups.map((group) => {
   `;
 }).join('');
 
-const renderCheckoutTimeline = (checkout) => {
-  const groups = Array.isArray(checkout?.groups) ? checkout.groups : [];
-  const timelineEntries = groups
-    .flatMap((group) => (Array.isArray(group.status_history) ? group.status_history : []))
-    .sort((left, right) => new Date(left.created_at) - new Date(right.created_at));
-
-  if (timelineEntries.length) {
-    const timelineHtml = timelineEntries.map((entry) => {
-      const metadata = getTimelineEntryMetadata(entry.status);
-      const noteHtml = entry.note
-        ? `<p class="customer-tracking-item__note">${escapeHtml(entry.note)}</p>`
-        : '';
-
-      return `
-        <li class="customer-tracking-item customer-tracking-item--${escapeHtml(metadata.tone)}">
-          <span class="customer-tracking-item__dot" aria-hidden="true"></span>
-          <article class="customer-tracking-item__content">
-            <p class="customer-tracking-item__title">${escapeHtml(metadata.label)}</p>
-            <p class="customer-tracking-item__meta">${escapeHtml(formatDateTime(entry.created_at))}</p>
-            ${noteHtml}
-          </article>
-        </li>
-      `;
-    }).join('');
-
-    return `
-      <ol class="customer-tracking-list">
-        ${timelineHtml}
-      </ol>
-    `;
-  }
-
-  const approvedGroups = groups.filter((group) => group.status === 'APPROVED').length;
-  const submittedGroups = groups.filter((group) => group.status === 'PAYMENT_SUBMITTED').length;
-
-  const events = [
-    {
-      title: 'Pedido confirmado',
-      date: formatDateTime(checkout.created_at),
-      done: true
-    },
-    {
-      title: 'Pago enviado',
-      date: submittedGroups ? `${submittedGroups} grupo(s) con evidencia` : 'Pendiente',
-      done: submittedGroups > 0
-    },
-    {
-      title: 'Pago aprobado',
-      date: approvedGroups ? `${approvedGroups} grupo(s) aprobados` : 'Pendiente',
-      done: approvedGroups > 0
-    },
-    {
-      title: 'Entrega',
-      date: approvedGroups === groups.length && groups.length ? 'Completada' : 'Pendiente de módulo logístico',
-      done: approvedGroups === groups.length && groups.length > 0
-    }
-  ];
-
-  return `
-    <ol class="customer-tracking-list">
-      ${events.map((event) => {
-        const tone = event.done ? 'success' : 'warning';
-        const noteHtml = event.done
-          ? '<p class="customer-tracking-item__note">Evento completado</p>'
-          : '<p class="customer-tracking-item__note">Pendiente</p>';
-
-        return `
-          <li class="customer-tracking-item customer-tracking-item--${tone}">
-            <span class="customer-tracking-item__dot" aria-hidden="true"></span>
-            <article class="customer-tracking-item__content">
-              <p class="customer-tracking-item__title">${escapeHtml(event.title)}</p>
-              <p class="customer-tracking-item__meta">${escapeHtml(event.date)}</p>
-              ${noteHtml}
-            </article>
-          </li>
-        `;
-      }).join('')}
-    </ol>
-  `;
-};
-
 const renderCheckoutDetail = (checkout) => {
   const groups = Array.isArray(checkout?.groups) ? checkout.groups : [];
-  const allItems = getCheckoutPrimaryItems(checkout);
-  const checkoutCode = checkout.order_code || `#${checkout.id_checkout}`;
-  const firstTrackedGroup = groups.find((group) => group.delivery?.tracking_code || group.delivery?.estimated_delivery_at) || null;
-  const estimatedDeliveryLabel = firstTrackedGroup?.delivery?.estimated_delivery_at
-    ? formatDateTime(firstTrackedGroup.delivery.estimated_delivery_at)
-    : 'Pendiente de módulo logístico';
-  const shippingAddress = [
-    checkout.shipping_address_snapshot,
-    checkout.shipping_reference,
-    checkout.shipping_city,
-    checkout.shipping_state
-  ].filter(Boolean).join(', ');
-  const itemsHtml = allItems.length
-    ? allItems.map((item) => {
-        const productName = item.product?.name || `Producto ${item.id_product}`;
-        return `<li>${escapeHtml(productName)} | Cantidad: ${escapeHtml(item.quantity)} | ${escapeHtml(buildCurrencyPairLabel(item.subtotal_usd, item.subtotal_bs))}</li>`;
-      }).join('')
-    : '<li>Sin productos.</li>';
-
+  const customerInfo = getCheckoutCustomerInfo(checkout);
   return `
     <section class="customer-detail-section">
-      <p><b>Número de orden:</b> ${escapeHtml(checkoutCode)}</p>
-      <p><b>Fecha:</b> ${escapeHtml(formatDateTime(checkout.created_at))}</p>
-      <p><b>Estado:</b> ${escapeHtml(getCheckoutDisplayStatus(checkout))}</p>
-      <p><b>Total:</b> ${escapeHtml(buildCurrencyPairLabel(checkout.total_payable_usd, checkout.total_payable_bs))}</p>
-      <p><b>Pago:</b> ${escapeHtml(getCheckoutPaymentSummary(checkout))}</p>
+      <h3>Información del cliente</h3>
+      <p><b>Nombre:</b> ${escapeHtml(customerInfo.name)}</p>
+      <p><b>Celular:</b> ${escapeHtml(customerInfo.phone)}</p>
+      <p><b>Email:</b> ${escapeHtml(customerInfo.email)}</p>
+      <p><b>Dirección:</b> ${escapeHtml(customerInfo.address)}</p>
     </section>
 
     <section class="customer-detail-section">
       <h3>Productos</h3>
-      <ul>
-        ${itemsHtml}
-      </ul>
+      ${renderCheckoutProductsOnly(groups)}
     </section>
 
-    <section class="customer-detail-section">
-      <h3>Información del pedido</h3>
-      <p><b>Cashback usado:</b> ${escapeHtml(buildCurrencyPairLabel(checkout.cashback_redeemed_usd, checkout.cashback_redeemed_bs))}</p>
-      <p><b>Total original:</b> ${escapeHtml(buildCurrencyPairLabel(checkout.total_usd, checkout.total_bs))}</p>
-      <p><b>Tasa usada:</b> ${escapeHtml(formatAmount(checkout.exchange_rate_snapshot))}</p>
-      <p><b>Contacto:</b> ${escapeHtml(checkout.shipping_contact_name || 'Pendiente')}</p>
-      <p><b>Teléfono:</b> ${escapeHtml(checkout.shipping_phone || 'Pendiente')}</p>
-      <p><b>Dirección de envío:</b> ${escapeHtml(shippingAddress || 'Pendiente de registrar')}</p>
-      <p><b>Número de seguimiento:</b> ${escapeHtml(firstTrackedGroup?.delivery?.tracking_code || 'Pendiente de módulo logístico')}</p>
-      <p><b>Entrega estimada:</b> ${escapeHtml(estimatedDeliveryLabel)}</p>
-    </section>
-
-    <section class="customer-detail-section">
-      <h3>Seguimiento del pedido</h3>
-      ${renderCheckoutTimeline(checkout)}
-    </section>
-
-    <section class="customer-detail-section">
-      <h3>Grupos por proveedor</h3>
-      ${renderCheckoutGroups(groups)}
-    </section>
+    <dialog id="customer-product-preview-dialog">
+      <article class="customer-product-preview-dialog">
+        <div class="customer-dialog-header">
+          <h3 data-product-preview-title>Vista ampliada</h3>
+          <button type="button" class="customer-button-secondary" data-product-preview-close>Cerrar</button>
+        </div>
+        <img data-product-preview-image src="" alt="Vista ampliada del producto">
+      </article>
+    </dialog>
   `;
 };
 
@@ -527,6 +518,103 @@ const openPurchaseDetail = (checkoutId) => {
   state.selectedCheckoutId = Number(checkout.id_checkout);
   purchaseDetailContent.innerHTML = renderCheckoutDetail(checkout);
   purchaseDetailModal.showModal();
+  bindProductPreviewButtons();
+  bindEvidenceForms();
+};
+
+const bindProductPreviewButtons = () => {
+  if (!purchaseDetailContent) {
+    return;
+  }
+
+  const dialog = purchaseDetailContent.querySelector('#customer-product-preview-dialog');
+
+  if (!dialog) {
+    return;
+  }
+
+  const previewImage = dialog.querySelector('[data-product-preview-image]');
+  const previewTitle = dialog.querySelector('[data-product-preview-title]');
+
+  const closeDialog = () => {
+    dialog.close();
+
+    if (previewImage) {
+      previewImage.src = '';
+      previewImage.alt = 'Vista ampliada del producto';
+    }
+
+    if (previewTitle) {
+      previewTitle.textContent = 'Vista ampliada';
+    }
+  };
+
+  dialog.querySelectorAll('[data-product-preview-trigger]').forEach((trigger) => {
+    trigger.addEventListener('click', () => {
+      const imageUrl = String(trigger.dataset.productPreviewSrc || '').trim();
+      const imageTitle = String(trigger.dataset.productPreviewTitle || 'Producto').trim();
+
+      if (!imageUrl) {
+        return;
+      }
+
+      if (previewImage) {
+        previewImage.src = imageUrl;
+        previewImage.alt = imageTitle;
+      }
+
+      if (previewTitle) {
+        previewTitle.textContent = imageTitle;
+      }
+
+      dialog.showModal();
+    });
+  });
+
+  const closeButton = dialog.querySelector('[data-product-preview-close]');
+  if (closeButton) {
+    closeButton.addEventListener('click', closeDialog);
+  }
+
+  dialog.addEventListener('click', (event) => {
+    if (event.target === dialog) {
+      closeDialog();
+    }
+  });
+};
+
+const renderPurchasePaymentsDetail = (checkout) => {
+  const groups = Array.isArray(checkout?.groups) ? checkout.groups : [];
+  const checkoutCode = checkout.order_code || `#${checkout.id_checkout}`;
+  const paymentDueAt = checkout.payment_due_at
+    || groups.find((group) => group?.payment_due_at)?.payment_due_at
+    || null;
+
+  return `
+    <section class="customer-detail-section">
+      <p><b>Número de orden:</b> ${escapeHtml(checkoutCode)}</p>
+       <p><b>Resumen de pago:</b> ${escapeHtml(getCheckoutPaymentSummary(checkout))}</p>
+    </section>
+
+    <section class="customer-detail-section">
+       <p><b>Estado:</b> ${escapeHtml(getCheckoutDisplayStatus(checkout))}</p>
+       <p><b>Pago vence:</b> ${escapeHtml(formatDateTime(paymentDueAt))}</p>
+      <h3>Pagos e historial</h3>
+      ${renderPaymentHistoryGroups(groups)}
+    </section>
+  `;
+};
+
+const openPurchasePayments = (checkoutId) => {
+  const checkout = state.checkouts.find((item) => Number(item.id_checkout) === Number(checkoutId));
+
+  if (!checkout || !purchasePaymentsModal || !purchasePaymentsContent) {
+    return;
+  }
+
+  state.selectedPaymentsCheckoutId = Number(checkout.id_checkout);
+  purchasePaymentsContent.innerHTML = renderPurchasePaymentsDetail(checkout);
+  purchasePaymentsModal.showModal();
   bindEvidenceForms();
 };
 
@@ -564,9 +652,9 @@ const renderPurchases = (checkouts) => {
           <p class="customer-card__meta">Productos: ${escapeHtml(getCheckoutPrimaryItemSummary(checkout))}</p>
           <p class="customer-card__meta">Proveedor(es): ${escapeHtml(providerSummary)}</p>
           <p class="customer-card__meta">Pago: ${escapeHtml(getCheckoutPaymentSummary(checkout))}</p>
-          <p class="customer-card__meta">Seguimiento: ${escapeHtml(getCheckoutTrackingSummary(checkout))}</p>
           <div class="customer-card__actions">
-            <button type="button" data-view-purchase="${checkout.id_checkout}">Ver detalles</button>
+            <button type="button" data-view-purchase="${checkout.id_checkout}">Detalles de la compra</button>
+            <button type="button" class="customer-button-secondary" data-view-purchase-payments="${checkout.id_checkout}">Pagos e historial</button>
           </div>
         </div>
       </article>
@@ -584,6 +672,12 @@ const bindPurchaseDetailButtons = () => {
   document.querySelectorAll('[data-view-purchase]').forEach((button) => {
     button.addEventListener('click', () => {
       openPurchaseDetail(button.dataset.viewPurchase);
+    });
+  });
+
+  document.querySelectorAll('[data-view-purchase-payments]').forEach((button) => {
+    button.addEventListener('click', () => {
+      openPurchasePayments(button.dataset.viewPurchasePayments);
     });
   });
 };
@@ -686,6 +780,20 @@ if (purchaseDetailCloseButton) {
 if (purchaseDetailModal) {
   purchaseDetailModal.addEventListener('close', () => {
     state.selectedCheckoutId = null;
+  });
+}
+
+if (purchasePaymentsCloseButton) {
+  purchasePaymentsCloseButton.addEventListener('click', () => {
+    if (purchasePaymentsModal) {
+      purchasePaymentsModal.close();
+    }
+  });
+}
+
+if (purchasePaymentsModal) {
+  purchasePaymentsModal.addEventListener('close', () => {
+    state.selectedPaymentsCheckoutId = null;
   });
 }
 

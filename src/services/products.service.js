@@ -448,9 +448,11 @@ const insertProductOnLine = async (connection, productData) => {
     lineId,
     companyId,
     name,
+    sku_intern,
     brand,
     description,
     price,
+    cost_price,
     attributes,
     quantity,
     min_stock,
@@ -460,10 +462,10 @@ const insertProductOnLine = async (connection, productData) => {
 
   const [productResult] = await connection.query(
     `INSERT INTO Product (
-       id_line_fk, id_company_fk, sku, name, brand, description, price, attributes
+       id_line_fk, id_company_fk, sku, sku_intern, name, brand, description, price, cost_price, attributes
      )
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    [lineId, companyId, resolvedSku, name, brand, description, price, attributes]
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [lineId, companyId, resolvedSku, sku_intern ?? null, name, brand, description, price, cost_price ?? null, attributes]
   );
 
   const productId = productResult.insertId;
@@ -502,6 +504,15 @@ const listProductsForManagement = async (filters = {}) => {
     values.push(`%${normalizedSearch}%`, `%${normalizedSearch}%`);
   }
 
+  const normalizedSkuInternSearch = typeof filters.skuInternSearch === 'string'
+    ? filters.skuInternSearch.trim()
+    : '';
+
+  if (normalizedSkuInternSearch) {
+    conditions.push('p.sku_intern LIKE ?');
+    values.push(`%${normalizedSkuInternSearch}%`);
+  }
+
   appendLikeFilter(conditions, values, filters.company, 'co.name LIKE ?');
   appendExactFilter(conditions, values, Number.isInteger(filters.categoryId) && filters.categoryId > 0, 'c.id_category = ?', filters.categoryId);
   appendLikeFilter(conditions, values, filters.category, 'c.name LIKE ?');
@@ -531,10 +542,12 @@ const listProductsForManagement = async (filters = {}) => {
        p.id_product,
        p.id_line_fk,
        p.sku,
+       p.sku_intern,
        p.name,
        p.brand,
        p.description,
        p.price,
+       p.cost_price,
        p.attributes,
        p.is_active,
        p.created_at,
@@ -604,6 +617,16 @@ const listProductImageRowsByProductId = async (productId, connection = pool) => 
   return rows;
 };
 
+const resolvePublicCatalogRoleCondition = (view = 'catalog') => {
+  const normalizedView = String(view || 'catalog').trim().toLowerCase();
+
+  if (normalizedView === 'home') {
+    return "(ro.name = 'DETALLISTA' OR ro.name = 'MAYORISTA')";
+  }
+
+  return "ro.name = 'MAYORISTA'";
+};
+
 const listPublicCatalog = async (filters = {}) => {
   const safePage = Number.isInteger(filters.page) && filters.page > 0 ? filters.page : 1;
   const safeLimit = Number.isInteger(filters.limit) && filters.limit > 0 ? filters.limit : 20;
@@ -613,11 +636,12 @@ const listPublicCatalog = async (filters = {}) => {
     ? filters.categoryId
     : null;
   const normalizedSort = String(filters.sort || 'reviews_desc').trim().toLowerCase();
+  const roleCondition = resolvePublicCatalogRoleCondition(filters.view);
   const conditions = [
     'l.is_active = TRUE',
     'p.is_active = TRUE',
     's.quantity > 0',
-    "ro.name = 'DETALLISTA'"
+    roleCondition
   ];
   const values = [];
 
@@ -769,7 +793,8 @@ const listRecommendedProducts = async ({ limit = 10, excludeSku = null } = {}) =
     .map((product) => normalizeProductName(product, product.line_name)));
 };
 
-const ensurePublicProductExists = async (productId, connection = pool) => {
+const ensurePublicProductExists = async (productId, connection = pool, view = 'home') => {
+  const roleCondition = resolvePublicCatalogRoleCondition(view);
   const [rows] = await connection.query(
     `SELECT
        p.id_product,
@@ -783,6 +808,7 @@ const ensurePublicProductExists = async (productId, connection = pool) => {
      INNER JOIN Role ro ON ro.id_role = co.id_role_fk
      INNER JOIN Line l ON l.id_line = p.id_line_fk
      WHERE p.id_product = ?
+       AND ${roleCondition}
      LIMIT 1`,
     [productId]
   );
@@ -791,7 +817,7 @@ const ensurePublicProductExists = async (productId, connection = pool) => {
     throw new Error('Producto no encontrado');
   }
 
-  if (rows[0].company_role !== 'DETALLISTA') {
+  if (rows[0].company_role !== 'DETALLISTA' && rows[0].company_role !== 'MAYORISTA') {
     throw new Error('Producto no disponible en catálogo público');
   }
 
@@ -862,6 +888,8 @@ const listWholesaleCatalog = async (filters = {}) => {
        p.description,
        p.id_company_fk,
        co.name AS company_name,
+       co.email AS company_email,
+       co.mail_address AS company_address,
        l.id_line,
        l.name AS line_name,
        c.id_category,
@@ -922,8 +950,8 @@ const listWholesaleCatalog = async (filters = {}) => {
   };
 };
 
-const listProductReviews = async (productId) => {
-  await ensurePublicProductExists(productId);
+const listProductReviews = async (productId, view = 'home') => {
+  await ensurePublicProductExists(productId, pool, view);
 
   const [rows] = await pool.query(
     `SELECT
@@ -985,7 +1013,7 @@ const createProductReview = async ({ productId, reviewer, rating, comment = null
     throw new Error('Usuario no válido para reseña');
   }
 
-  await ensurePublicProductExists(normalizedProductId);
+  await ensurePublicProductExists(normalizedProductId, pool, 'home');
 
   const idCustomer = reviewer.entity === 'customer' ? Number(reviewer.id) : null;
   const idCompany = reviewer.entity === 'company' ? Number(reviewer.id) : null;
@@ -1046,7 +1074,8 @@ const createProductReview = async ({ productId, reviewer, rating, comment = null
   };
 };
 
-const getPublicProductDetail = async (productId) => {
+const getPublicProductDetail = async (productId, view = 'catalog') => {
+  const roleCondition = resolvePublicCatalogRoleCondition(view);
   const [lineRows] = await pool.query(
     `SELECT
        l.id_line,
@@ -1093,7 +1122,7 @@ const getPublicProductDetail = async (productId) => {
      LEFT JOIN Product_Image pi ON pi.id_product_fk = p.id_product AND pi.is_main = TRUE
      WHERE p.id_line_fk = ?
        AND p.is_active = TRUE
-       AND ro.name = 'DETALLISTA'
+       AND ${roleCondition}
      ORDER BY p.id_product ASC`,
     [productId]
   );
@@ -1111,8 +1140,9 @@ const getPublicProductDetail = async (productId) => {
   };
 };
 
-const getPublicProductDetailBySku = async (sku) => {
+const getPublicProductDetailBySku = async (sku, view = 'catalog') => {
   const normalizedSku = String(sku || '').trim();
+  const roleCondition = resolvePublicCatalogRoleCondition(view);
 
   if (!normalizedSku) {
     return null;
@@ -1127,7 +1157,7 @@ const getPublicProductDetailBySku = async (sku) => {
      WHERE p.sku = ?
        AND p.is_active = TRUE
        AND l.is_active = TRUE
-       AND ro.name = 'DETALLISTA'
+       AND ${roleCondition}
      LIMIT 1`,
     [normalizedSku]
   );
@@ -1313,10 +1343,12 @@ const getManagedProductById = async (productId, companyId = null, connection = p
        p.id_line_fk,
        p.id_company_fk AS id_company,
        p.sku,
+       p.sku_intern,
        p.name,
        p.brand,
        p.description,
        p.price,
+       p.cost_price,
        p.attributes,
        p.is_active,
        p.created_at,
@@ -1463,9 +1495,11 @@ const createProductFull = async (productData) => {
     line_name,
     id_subcategory,
     id_company,
+    sku_intern,
     brand,
     description,
     price,
+    cost_price,
     attributes,
     quantity,
     min_stock,
@@ -1498,9 +1532,11 @@ const createProductFull = async (productData) => {
       lineId,
       companyId: id_company,
       name,
+      sku_intern,
       brand,
       description,
       price,
+      cost_price,
       attributes,
       quantity,
       min_stock,
@@ -1530,9 +1566,11 @@ const createProductFull = async (productData) => {
        p.id_company_fk,
        p.brand,
        p.sku,
+      p.sku_intern,
       p.name,
        p.description,
        p.price,
+      p.cost_price,
        p.attributes,
        s.quantity,
        s.min_stock,
@@ -1566,9 +1604,11 @@ const createProductFromReference = async (productData) => {
     reference_line_id,
     id_company,
     name,
+    sku_intern,
     brand,
     description,
     price,
+    cost_price,
     attributes,
     quantity,
     min_stock,
@@ -1593,9 +1633,11 @@ const createProductFromReference = async (productData) => {
       lineId: referenceLine.id_line,
       companyId: id_company,
       name,
+      sku_intern,
       brand,
       description,
       price,
+      cost_price,
       attributes,
       quantity,
       min_stock,
@@ -1620,9 +1662,11 @@ const createProductFromReference = async (productData) => {
        p.id_company_fk,
        p.brand,
        p.sku,
+      p.sku_intern,
       p.name,
        p.description,
        p.price,
+      p.cost_price,
        p.attributes,
        s.quantity,
        s.min_stock,
@@ -1643,6 +1687,65 @@ const createProductFromReference = async (productData) => {
     ...mapProductImageFields(rows[0] ?? null),
     secondary_images
   };
+};
+
+const resolveManagedProductUpdateValues = (existingProduct, updates) => {
+  const resolvedName = updates.name == null
+    ? existingProduct.name
+    : String(updates.name).trim();
+
+  if (!resolvedName) {
+    throw new Error('name es requerido');
+  }
+
+  return {
+    resolvedName,
+    resolvedInternalSku: updates.sku_intern == null
+      ? existingProduct.sku_intern
+      : String(updates.sku_intern).trim() || null,
+    resolvedBrand: updates.brand == null ? existingProduct.brand : String(updates.brand).trim() || null,
+    resolvedDescription: updates.description == null ? existingProduct.description : String(updates.description).trim() || null,
+    resolvedPrice: updates.price == null ? existingProduct.price : updates.price,
+    resolvedCostPrice: updates.cost_price == null ? existingProduct.cost_price : updates.cost_price,
+    resolvedAttributes: updates.attributes == null ? existingProduct.attributes : updates.attributes,
+    resolvedMinStock: updates.min_stock == null ? existingProduct.min_stock : updates.min_stock
+  };
+};
+
+const syncManagedProductImages = async (connection, productId, existingProduct, files, imageUrlsToDelete) => {
+  let nextSortOrder = existingProduct.images.reduce(
+    (highestSortOrder, image) => Math.max(highestSortOrder, Number(image.sort_order) || 0),
+    0
+  );
+
+  if (files.mainImage) {
+    const existingImages = await listProductImageRowsByProductId(productId, connection);
+    const currentMainImage = existingImages.find((image) => Boolean(image.is_main));
+
+    if (currentMainImage) {
+      await connection.query(
+        'DELETE FROM Product_Image WHERE id_image = ? LIMIT 1',
+        [currentMainImage.id_image]
+      );
+      imageUrlsToDelete.push(currentMainImage.image_url);
+    }
+
+    await connection.query(
+      'INSERT INTO Product_Image (id_product_fk, image_url, is_main, sort_order) VALUES (?, ?, TRUE, 0)',
+      [productId, files.mainImage]
+    );
+  }
+
+  if (!Array.isArray(files.secondaryImages) || !files.secondaryImages.length) {
+    return;
+  }
+
+  const secondaryRows = files.secondaryImages.map((imageUrl, index) => [productId, imageUrl, false, nextSortOrder + index + 1]);
+
+  await connection.query(
+    'INSERT INTO Product_Image (id_product_fk, image_url, is_main, sort_order) VALUES ?',
+    [secondaryRows]
+  );
 };
 
 const addVariant = async (variantData) => {
@@ -1702,30 +1805,29 @@ const updateManagedProduct = async (productId, companyId, updates = {}, files = 
       throw new Error('Producto no existe o no pertenece a la empresa');
     }
 
-    const resolvedName = updates.name == null
-      ? existingProduct.name
-      : String(updates.name).trim();
-
-    if (!resolvedName) {
-      throw new Error('name es requerido');
-    }
-
-    const resolvedBrand = updates.brand == null ? existingProduct.brand : String(updates.brand).trim() || null;
-    const resolvedDescription = updates.description == null ? existingProduct.description : String(updates.description).trim() || null;
-    const resolvedPrice = updates.price == null ? existingProduct.price : updates.price;
-    const resolvedAttributes = updates.attributes == null ? existingProduct.attributes : updates.attributes;
-    const resolvedMinStock = updates.min_stock == null ? existingProduct.min_stock : updates.min_stock;
+    const {
+      resolvedName,
+      resolvedInternalSku,
+      resolvedBrand,
+      resolvedDescription,
+      resolvedPrice,
+      resolvedCostPrice,
+      resolvedAttributes,
+      resolvedMinStock
+    } = resolveManagedProductUpdateValues(existingProduct, updates);
 
     await connection.query(
       `UPDATE Product
        SET name = ?,
+           sku_intern = ?,
            brand = ?,
            description = ?,
            price = ?,
+           cost_price = ?,
            attributes = ?,
            updated_at = CURRENT_TIMESTAMP
        WHERE id_product = ?`,
-      [resolvedName, resolvedBrand, resolvedDescription, resolvedPrice, resolvedAttributes, productId]
+      [resolvedName, resolvedInternalSku, resolvedBrand, resolvedDescription, resolvedPrice, resolvedCostPrice, resolvedAttributes, productId]
     );
 
     await connection.query(
@@ -1736,37 +1838,7 @@ const updateManagedProduct = async (productId, companyId, updates = {}, files = 
       [resolvedMinStock, productId]
     );
 
-    let nextSortOrder = existingProduct.images.reduce(
-      (highestSortOrder, image) => Math.max(highestSortOrder, Number(image.sort_order) || 0),
-      0
-    );
-
-    if (files.mainImage) {
-      const existingImages = await listProductImageRowsByProductId(productId, connection);
-      const currentMainImage = existingImages.find((image) => Boolean(image.is_main));
-
-      if (currentMainImage) {
-        await connection.query(
-          'DELETE FROM Product_Image WHERE id_image = ? LIMIT 1',
-          [currentMainImage.id_image]
-        );
-        imageUrlsToDelete.push(currentMainImage.image_url);
-      }
-
-      await connection.query(
-        'INSERT INTO Product_Image (id_product_fk, image_url, is_main, sort_order) VALUES (?, ?, TRUE, 0)',
-        [productId, files.mainImage]
-      );
-    }
-
-    if (Array.isArray(files.secondaryImages) && files.secondaryImages.length) {
-      const secondaryRows = files.secondaryImages.map((imageUrl, index) => [productId, imageUrl, false, nextSortOrder + index + 1]);
-
-      await connection.query(
-        'INSERT INTO Product_Image (id_product_fk, image_url, is_main, sort_order) VALUES ?',
-        [secondaryRows]
-      );
-    }
+    await syncManagedProductImages(connection, productId, existingProduct, files, imageUrlsToDelete);
 
     await connection.commit();
     deleteProductImageFiles(imageUrlsToDelete);

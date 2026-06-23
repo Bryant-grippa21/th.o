@@ -1,0 +1,538 @@
+﻿<!DOCTYPE html>
+<html lang="es" xml:lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Dashboard admin</title>
+  <style>
+    body {
+      font-family: Georgia, 'Times New Roman', serif;
+      line-height: 1.4;
+      margin: 24px;
+    }
+
+    .admin-toolbar,
+    .admin-module-nav,
+    .admin-filter-bar,
+    .admin-pagination,
+    .admin-card-actions,
+    .admin-overview-grid,
+    .admin-summary-grid {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .admin-toolbar,
+    .admin-module-nav,
+    .admin-filter-bar,
+    .admin-summary-grid,
+    .admin-overview-grid,
+    .admin-card-list {
+      margin-bottom: 16px;
+    }
+
+    .admin-module-button[data-active="true"] {
+      font-weight: 700;
+    }
+
+    .admin-panel,
+    .admin-summary-card,
+    .admin-entity-card,
+    .admin-report-card {
+      border: 1px solid #cfcfcf;
+      background: #fff;
+    }
+
+    .admin-panel,
+    .admin-report-card {
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+
+    .admin-summary-card {
+      min-width: 180px;
+      padding: 12px 14px;
+    }
+
+    .admin-summary-card p,
+    .admin-report-card p,
+    .admin-entity-card p {
+      margin: 0 0 8px 0;
+    }
+
+    .admin-card-list {
+      display: grid;
+      gap: 16px;
+    }
+
+    .admin-entity-card {
+      display: flex;
+      gap: 16px;
+      align-items: flex-start;
+      padding: 16px;
+    }
+
+    .admin-entity-media {
+      width: 88px;
+      min-width: 88px;
+      height: 88px;
+      border-radius: 50%;
+      overflow: hidden;
+      border: 1px solid #cfcfcf;
+      background: #f5f5f5;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 28px;
+      font-weight: 700;
+    }
+
+    .admin-entity-media img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .admin-entity-content {
+      flex: 1;
+      min-width: 240px;
+    }
+
+    .admin-card-actions {
+      margin-top: 12px;
+    }
+
+    .admin-pagination {
+      margin-top: 12px;
+    }
+  </style>
+  <link rel="stylesheet" href="/assets/css/base.css">
+  <link rel="stylesheet" href="/assets/css/admin.css">
+</head>
+<body>
+
+<h1>Dashboard admin</h1>
+
+<div class="admin-toolbar">
+  <a href="/index.html" aria-label="Volver al landing">
+    <img src="/uploads/default/Logo.png" alt="Logo tuherramienta.online" style="height:40px; width:auto; display:block;">
+  </a>
+  <button onclick="logout()">Cerrar sesión</button>
+</div>
+
+<h2>Módulos</h2>
+<div class="admin-module-nav">
+  <button class="admin-module-button" data-admin-module-button="dashboard" type="button" onclick="showAdminModule('dashboard')">Dashboard</button>
+  <button class="admin-module-button" data-admin-module-button="customers" type="button" onclick="showAdminModule('customers')">Clientes</button>
+  <button class="admin-module-button" data-admin-module-button="companies" type="button" onclick="showAdminModule('companies')">Jurídicos</button>
+  <button class="admin-module-button" data-admin-module-button="products" type="button" onclick="showAdminModule('products')">Productos</button>
+  <button class="admin-module-button" data-admin-module-button="purchases" type="button" onclick="showAdminModule('purchases')">Compras y ventas</button>
+  <button class="admin-module-button" data-admin-module-button="exchange" type="button" onclick="showAdminModule('exchange')">Tasa</button>
+</div>
+<br>
+
+<section id="admin-module-dashboard" class="admin-panel">
+  <h2>Dashboard</h2>
+  <div id="admin-dashboard-overview">
+    <p>Cargando resumen general...</p>
+  </div>
+
+  <div id="admin-dashboard-reports" class="admin-overview-grid">
+    <article class="admin-report-card">
+      <p><b>Reportes y estadísticas</b></p>
+      <p>Este módulo queda reservado para los reportes ejecutivos y métricas consolidadas que están en progreso.</p>
+    </article>
+  </div>
+</section>
+
+<section id="admin-module-customers" hidden>
+  <h2>Clientes</h2>
+  <div class="admin-filter-bar">
+    <label>
+      Buscar por nombre
+      <input id="customer-filter-name" type="text" placeholder="Nombre del cliente">
+    </label>
+    <label>
+      Buscar por correo
+      <input id="customer-filter-email" type="text" placeholder="Correo del cliente">
+    </label>
+    <label>
+      Estado
+      <select id="customer-filter-status">
+        <option value="">Todos</option>
+        <option value="active">No bloqueados</option>
+        <option value="blocked">Bloqueados</option>
+      </select>
+    </label>
+    <button type="button" onclick="applyCustomerFilters()">Buscar</button>
+    <button type="button" onclick="resetCustomerFilters()">Limpiar</button>
+  </div>
+
+  <div id="admin-customer-summary">
+    <p>Cargando resumen...</p>
+  </div>
+
+  <div id="admin-customer-list" class="admin-card-list">
+    <p>Cargando customers...</p>
+  </div>
+
+  <div id="admin-customer-pagination" class="admin-pagination"></div>
+</section>
+
+<section id="admin-module-companies" hidden>
+  <h2>Jurídicos</h2>
+  <div class="admin-filter-bar">
+    <label>
+      Buscar por nombre
+      <input id="company-filter-name" type="text" placeholder="Nombre de la empresa">
+    </label>
+    <label>
+      Buscar por RIF
+      <input id="company-filter-document" type="text" placeholder="RIF de la empresa">
+    </label>
+    <label>
+      Buscar por correo
+      <input id="company-filter-email" type="text" placeholder="Correo de la empresa">
+    </label>
+    <label>
+      Estado jurídico
+      <select id="company-filter-verification-status">
+        <option value="">Todos</option>
+        <option value="PENDING_REVIEW">Pendiente de revisión</option>
+        <option value="CHANGES_REQUESTED">Correcciones solicitadas</option>
+        <option value="APPROVED">Aprobado</option>
+        <option value="REJECTED">Rechazado</option>
+      </select>
+    </label>
+    <button type="button" onclick="applyCompanyFilters()">Buscar</button>
+    <button type="button" onclick="resetCompanyFilters()">Limpiar</button>
+  </div>
+
+  <div id="admin-company-summary">
+    <p>Cargando resumen...</p>
+  </div>
+
+  <div id="admin-company-list" class="admin-card-list">
+    <p>Cargando empresas...</p>
+  </div>
+
+  <div id="admin-company-pagination" class="admin-pagination"></div>
+</section>
+
+<section id="admin-module-exchange" hidden>
+  <h2>Tasa de cambio</h2>
+
+  <div id="admin-exchange-summary">
+    <p>Cargando tasa actual...</p>
+  </div>
+
+  <form id="admin-exchange-form">
+    <label>
+      Bs por USD
+      <input id="admin-exchange-rate-input" type="number" min="0.0001" step="0.0001" required>
+    </label>
+    <button type="submit">Registrar tasa</button>
+  </form>
+
+  <p id="admin-exchange-message"></p>
+
+  <div id="admin-exchange-list">
+    <p>Cargando historial...</p>
+  </div>
+</section>
+
+<section id="admin-module-products" hidden>
+  <h2>Productos</h2>
+  <div>
+    <button type="button" onclick="showProductSubmenu('list')">Listado general</button>
+  </div>
+
+  <section id="admin-product-submenu-list">
+    <h3>Listado de productos</h3>
+    <div>
+      <label>
+        Buscar por nombre
+        <input id="product-filter-name" type="text" placeholder="Nombre del producto">
+      </label>
+      <label>
+        Empresa o mayorista
+        <input id="product-filter-company" type="text" placeholder="Empresa o mayorista">
+      </label>
+      <label>
+        Categoría
+        <select id="product-filter-category" onchange="handleProductCategoryChange()">
+          <option value="">Todas las categorías</option>
+        </select>
+      </label>
+      <label>
+        Subcategoría
+        <select id="product-filter-subcategory" onchange="handleProductSubcategoryChange()">
+          <option value="">Todas las subcategorías</option>
+        </select>
+      </label>
+      <label>
+        Línea
+        <select id="product-filter-line">
+          <option value="">Todas las líneas</option>
+        </select>
+      </label>
+      <button type="button" onclick="applyProductFilters()">Buscar</button>
+      <button type="button" onclick="resetProductFilters()">Limpiar</button>
+    </div>
+
+    <div id="admin-product-summary">
+      <p>Cargando productos...</p>
+    </div>
+
+    <div id="admin-product-list">
+      <p>Cargando listado...</p>
+    </div>
+
+    <div id="admin-product-pagination">
+      <p></p>
+    </div>
+
+    <section id="admin-product-editor" hidden>
+      <h3>Gestionar producto</h3>
+      <form id="admin-product-editor-form">
+        <input id="admin-edit-product-id" type="hidden">
+        <input id="admin-edit-product-company-id" type="hidden">
+
+        <label>
+          Nombre
+          <input id="admin-edit-product-name" type="text" required>
+        </label>
+        <label>
+          Marca
+          <input id="admin-edit-product-brand" type="text">
+        </label>
+        <br><br>
+
+        <label>
+          Descripción
+          <textarea id="admin-edit-product-description" rows="4"></textarea>
+        </label>
+        <br><br>
+
+        <label>
+          Precio
+          <input id="admin-edit-product-price" type="number" min="0" step="0.01" required>
+        </label>
+        <label>
+          Stock mínimo
+          <input id="admin-edit-product-min-stock" type="number" min="0" step="1">
+        </label>
+        <br><br>
+
+        <fieldset>
+          <legend>Atributos</legend>
+          <label>Atributo 1 <input id="admin-edit-product-attribute-key-1" type="text"></label>
+          <label>Valor 1 <input id="admin-edit-product-attribute-value-1" type="text"></label>
+          <br><br>
+          <label>Atributo 2 <input id="admin-edit-product-attribute-key-2" type="text"></label>
+          <label>Valor 2 <input id="admin-edit-product-attribute-value-2" type="text"></label>
+          <br><br>
+          <label>Atributo 3 <input id="admin-edit-product-attribute-key-3" type="text"></label>
+          <label>Valor 3 <input id="admin-edit-product-attribute-value-3" type="text"></label>
+          <br><br>
+          <label>Atributo 4 <input id="admin-edit-product-attribute-key-4" type="text"></label>
+          <label>Valor 4 <input id="admin-edit-product-attribute-value-4" type="text"></label>
+        </fieldset>
+        <br><br>
+
+        <div id="admin-edit-product-images"></div>
+        <br>
+
+        <label>
+          Nueva imagen principal
+          <input id="admin-edit-product-main-image" type="file" accept="image/*">
+        </label>
+        <div id="admin-edit-product-main-image-preview"></div>
+        <br>
+
+        <label>
+          Nuevas imágenes secundarias
+          <input id="admin-edit-product-secondary-images" type="file" accept="image/*" multiple>
+        </label>
+        <div id="admin-edit-product-secondary-images-preview"></div>
+        <br><br>
+
+        <button type="submit">Guardar cambios</button>
+        <button id="admin-edit-product-cancel" type="button">Cancelar</button>
+      </form>
+      <p id="admin-product-editor-message"></p>
+
+      <div id="admin-product-stock-history"></div>
+      <div id="admin-product-stock-history-pagination"></div>
+    </section>
+  </section>
+</section>
+
+<section id="admin-module-purchases" hidden>
+  <h2>Compras y ventas</h2>
+
+  <div id="admin-purchases-summary">
+    <p>Cargando resumen...</p>
+  </div>
+
+  <section>
+    <h3>Compras generales</h3>
+    <div id="admin-purchases-checkouts-list">
+      <p>Cargando compras...</p>
+    </div>
+  </section>
+
+  <section>
+    <h3>Ventas generales</h3>
+    <div id="admin-purchases-sales-list">
+      <p>Cargando ventas...</p>
+    </div>
+  </section>
+</section>
+
+<div id="admin-customer-modal" hidden style="position:fixed; inset:0; background:rgba(0,0,0,0.35); padding:24px; overflow:auto; z-index:100;">
+  <div style="background:#fff; border:1px solid #ccc; padding:16px; max-width:640px; margin:0 auto;">
+    <div style="display:flex; justify-content:space-between; gap:12px; align-items:center; margin-bottom:12px;">
+      <h3 style="margin:0;">Editar cliente</h3>
+      <button id="admin-customer-modal-close" type="button">Cerrar</button>
+    </div>
+
+    <form id="admin-customer-modal-form">
+      <input id="admin-customer-modal-id" type="hidden">
+
+      <label>
+        Nombre
+        <input id="admin-customer-modal-name" type="text" required>
+      </label>
+      <br><br>
+
+      <label>
+        Email
+        <input id="admin-customer-modal-email" type="email" required>
+      </label>
+      <br><br>
+
+      <label>
+        Nueva contraseña
+        <input id="admin-customer-modal-password" type="password" placeholder="Opcional">
+      </label>
+      <br><br>
+
+      <div>
+        <h4>Recuperación de cuenta</h4>
+        <div id="admin-customer-modal-recovery-summary">
+          <p>Cargando solicitud...</p>
+        </div>
+      </div>
+
+      <label>
+        Acción sobre recuperación
+        <select id="admin-customer-modal-recovery-action">
+          <option value="">Sin cambios</option>
+          <option value="RESOLVED">Marcar como resuelta</option>
+          <option value="REJECTED">Rechazar solicitud</option>
+        </select>
+      </label>
+      <br><br>
+
+      <label>
+        Nota de revisión
+        <textarea id="admin-customer-modal-recovery-note" rows="3" placeholder="Observaciones del admin"></textarea>
+      </label>
+      <br><br>
+
+      <button type="submit">Guardar cambios</button>
+    </form>
+
+    <p id="admin-customer-modal-message"></p>
+  </div>
+</div>
+
+<div id="admin-company-modal" hidden style="position:fixed; inset:0; background:rgba(0,0,0,0.35); padding:24px; overflow:auto; z-index:100;">
+  <div style="background:#fff; border:1px solid #ccc; padding:16px; max-width:640px; margin:0 auto;">
+    <div style="display:flex; justify-content:space-between; gap:12px; align-items:center; margin-bottom:12px;">
+      <h3 style="margin:0;">Editar jurídico</h3>
+      <button id="admin-company-modal-close" type="button">Cerrar</button>
+    </div>
+
+    <form id="admin-company-modal-form">
+      <input id="admin-company-modal-id" type="hidden">
+
+      <p><b>Empresa:</b> <span id="admin-company-modal-name"></span></p>
+      <p><b>RIF:</b> <span id="admin-company-modal-rif"></span></p>
+      <p><b>Email:</b> <span id="admin-company-modal-email"></span></p>
+
+      <label>
+        Rol
+        <select id="admin-company-modal-role"></select>
+      </label>
+      <br><br>
+
+      <label>
+        Nueva contraseña
+        <input id="admin-company-modal-password" type="password" placeholder="Opcional">
+      </label>
+      <br><br>
+
+      <label>
+        Estado jurídico
+        <select id="admin-company-modal-verification-status">
+          <option value="PENDING_REVIEW">Pendiente de revisión</option>
+          <option value="CHANGES_REQUESTED">Solicitar correcciones</option>
+          <option value="APPROVED">Aprobar</option>
+          <option value="REJECTED">Rechazar</option>
+        </select>
+      </label>
+      <br><br>
+
+      <label>
+        Nota de revisión
+        <textarea id="admin-company-modal-verification-note" rows="4" placeholder="Observaciones para la empresa"></textarea>
+      </label>
+      <br><br>
+
+      <label>
+        <input id="admin-company-modal-can-buy" type="checkbox">
+        Puede comprar
+      </label>
+      <br>
+      <label>
+        <input id="admin-company-modal-can-sell" type="checkbox">
+        Puede vender
+      </label>
+      <br><br>
+
+      <div>
+        <h4>Recaudos cargados</h4>
+        <div id="admin-company-modal-documents-list">
+          <p>Cargando recaudos...</p>
+        </div>
+      </div>
+
+      <div>
+        <h4>Historial jurídico</h4>
+        <div id="admin-company-modal-history-list">
+          <p>Cargando historial...</p>
+        </div>
+      </div>
+      <br>
+
+      <button type="submit">Guardar cambios</button>
+    </form>
+
+    <p id="admin-company-modal-message"></p>
+  </div>
+</div>
+
+<script src="/assets/js/js_front/utils/auth.js"></script>
+<script src="/assets/js/js_front/utils/global-header.js"></script>
+<script src="/assets/js/js_front/admin/dashboard.js"></script>
+
+</body>
+</html>
+
+
+
+
+

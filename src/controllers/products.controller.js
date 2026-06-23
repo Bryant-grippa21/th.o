@@ -222,9 +222,11 @@ const buildProductUpdateInput = (req) => {
     },
     updates: {
       name: req.body.name ?? null,
+      sku_intern: req.body.sku_intern ?? null,
       brand: req.body.brand ?? null,
       description: req.body.description ?? null,
       price: req.body.price == null || req.body.price === '' ? null : Number(req.body.price),
+      cost_price: req.body.cost_price == null || req.body.cost_price === '' ? null : Number(req.body.cost_price),
       attributes: req.body.attributes == null ? null : normalizeProductAttributes(req.body.attributes),
       min_stock: req.body.min_stock == null || req.body.min_stock === '' ? null : Number(req.body.min_stock)
     }
@@ -354,6 +356,7 @@ const getManagedProducts = async (req, res) => {
       page,
       limit,
       search: String(req.query.query ?? req.query.name ?? '').trim(),
+      skuInternSearch: String(req.query.sku_intern ?? req.query.skuIntern ?? '').trim(),
       company: String(req.query.company ?? '').trim(),
       categoryId: categoryResult.value,
       subcategoryId: subcategoryResult.value,
@@ -445,6 +448,7 @@ const getPublicCatalog = async (req, res) => {
     const page = req.query.page ? Number(req.query.page) : 1;
     const limit = req.query.limit ? Number(req.query.limit) : 20;
     const categoryResult = parseOptionalPositiveInteger(req.query.category_id, 'category_id');
+    const view = String(req.query.view ?? 'catalog').trim().toLowerCase() || 'catalog';
 
     if (!Number.isInteger(page) || page <= 0) {
       return res.status(400).json({ error: 'page inválido' });
@@ -463,7 +467,8 @@ const getPublicCatalog = async (req, res) => {
       limit,
       query: String(req.query.q ?? '').trim(),
       categoryId: categoryResult.value,
-      sort: String(req.query.sort ?? 'reviews_desc').trim().toLowerCase() || 'reviews_desc'
+      sort: String(req.query.sort ?? 'reviews_desc').trim().toLowerCase() || 'reviews_desc',
+      view
     });
 
     return res.status(200).json(result);
@@ -526,12 +531,13 @@ const getRecommendedProducts = async (req, res) => {
 const getProductReviews = async (req, res) => {
   try {
     const productId = Number(req.params.productId);
+    const view = String(req.query.view ?? 'home').trim().toLowerCase() || 'home';
 
     if (!Number.isInteger(productId) || productId <= 0) {
       return res.status(400).json({ error: 'productId inválido' });
     }
 
-    const result = await listProductReviews(productId);
+    const result = await listProductReviews(productId, view);
 
     return res.status(200).json(result);
   } catch (error) {
@@ -594,12 +600,13 @@ const createPublicProductReview = async (req, res) => {
 const getPublicProduct = async (req, res) => {
   try {
     const productId = Number(req.params.productId);
+    const view = String(req.query.view ?? 'catalog').trim().toLowerCase() || 'catalog';
 
     if (!Number.isInteger(productId) || productId <= 0) {
       return res.status(400).json({ error: 'productId inválido' });
     }
 
-    const product = await getPublicProductDetail(productId);
+    const product = await getPublicProductDetail(productId, view);
 
     if (!product) {
       return res.status(404).json({ error: 'Producto no encontrado' });
@@ -615,12 +622,13 @@ const getPublicProduct = async (req, res) => {
 const getPublicProductBySku = async (req, res) => {
   try {
     const sku = String(req.params.sku ?? '').trim();
+    const view = String(req.query.view ?? 'catalog').trim().toLowerCase() || 'catalog';
 
     if (!sku) {
       return res.status(400).json({ error: 'sku inválido' });
     }
 
-    const product = await getPublicProductDetailBySku(sku);
+    const product = await getPublicProductDetailBySku(sku, view);
 
     if (!product) {
       return res.status(404).json({ error: 'Producto no encontrado' });
@@ -862,15 +870,19 @@ const createProductManual = async (req, res) => {
     const ownerCompanyId = resolveManagedCompanyScope(req, id_company);
     const parsedAttributes = normalizeProductAttributes(attributes);
     const { mainImage, secondaryImages } = extractUploadedProductImages(req.files);
+    const internalSku = req.body.sku_intern ?? null;
+    const costPrice = req.body.cost_price == null || req.body.cost_price === '' ? null : Number(req.body.cost_price);
 
     const product = reference_line_id
       ? await createProductFromReference({
         name: name.trim(),
         reference_line_id: Number(reference_line_id),
         id_company: ownerCompanyId,
+        sku_intern: internalSku,
         brand: brand ?? null,
         description: description ?? null,
         price: Number(price),
+        cost_price: costPrice,
         attributes: parsedAttributes,
         quantity: Number(quantity),
         min_stock: min_stock == null || min_stock === '' ? 0 : Number(min_stock),
@@ -882,9 +894,11 @@ const createProductManual = async (req, res) => {
         line_name: line_name?.trim() || null,
         id_subcategory: Number(id_subcategory),
         id_company: ownerCompanyId,
+        sku_intern: internalSku,
         brand: brand ?? null,
         description: description ?? null,
         price: Number(price),
+        cost_price: costPrice,
         attributes: parsedAttributes,
         quantity: Number(quantity),
         min_stock: min_stock == null || min_stock === '' ? 0 : Number(min_stock),

@@ -5,6 +5,7 @@ const companyProductsSummary = document.getElementById('company-products-summary
 const companyProductsList = document.getElementById('company-products-list');
 const companyProductsPagination = document.getElementById('company-products-pagination');
 const companyProductsSearchInput = document.getElementById('company-products-search');
+const companyProductsInternalSkuSearchInput = document.getElementById('company-products-internal-sku-search');
 const companyProductsCategorySelect = document.getElementById('company-products-category');
 const companyProductsSubcategorySelect = document.getElementById('company-products-subcategory');
 const companyProductsSortSelect = document.getElementById('company-products-sort');
@@ -35,6 +36,8 @@ const importRowAttributesList = document.getElementById('import-row-attributes-l
 const importRowAddAttributeButton = document.getElementById('import-row-add-attribute');
 const importRowCategoryNameInput = document.getElementById('import-row-category-name');
 const importRowSubcategoryNameInput = document.getElementById('import-row-subcategory-name');
+const importRowSkuInternInput = document.getElementById('import-row-sku-intern');
+const importRowCostPriceInput = document.getElementById('import-row-cost-price');
 const importRowLineIdInput = document.getElementById('import-row-line-id');
 const importRowLineSearchInput = document.getElementById('import-row-line-search');
 const importRowManualLineIdInput = document.getElementById('import-row-manual-line-id');
@@ -43,6 +46,8 @@ const importRowMainImageFileInput = document.getElementById('import-row-main-ima
 const importRowSecondaryImagesFilesInput = document.getElementById('import-row-secondary-images-files');
 const importRowImagesPreview = document.getElementById('import-row-images-preview');
 const importRowNotesInput = document.getElementById('import-row-notes');
+const editProductSkuInternInput = document.getElementById('edit-product-sku-intern');
+const editProductCostPriceInput = document.getElementById('edit-product-cost-price');
 const companyImportRowMessage = document.getElementById('company-import-row-message');
 const companyImportTargetCompanyWrapper = document.getElementById('company-import-target-company-wrapper');
 const companyImportTargetCompanyInput = document.getElementById('company-import-target-company');
@@ -50,6 +55,8 @@ const closeCompanyProductModalButton = document.getElementById('close-company-pr
 const companyProductModal = document.getElementById('company-product-modal');
 const companyProductEditorModal = document.getElementById('company-product-editor-modal');
 const closeCompanyProductEditorModalButton = document.getElementById('close-company-product-editor-modal');
+const productSkuInternInput = document.getElementById('product-sku-intern');
+const productCostPriceInput = document.getElementById('product-cost-price');
 const companyProductStatusModal = document.getElementById('company-product-status-modal');
 const companyProductStatusForm = document.getElementById('company-product-status-form');
 const statusProductIdInput = document.getElementById('status-product-id');
@@ -90,8 +97,7 @@ const editProductCancelButton = document.getElementById('edit-product-cancel');
 
 const MAX_SECONDARY_IMAGES = 7;
 const PREVIEW_IMAGE_STYLE = 'width:96px; height:96px; object-fit:cover; border:1px solid #ccc; border-radius:4px;';
-const DEFAULT_STAGING_PRODUCT_IMAGE_URL = '/uploads/products/default/producto_default.png';
-
+const DEFAULT_STAGING_PRODUCT_IMAGE_URL = '/uploads/products/defaults/producto_default.svg';
 const state = {
   session: null,
   lines: [],
@@ -99,6 +105,7 @@ const state = {
   categories: [],
   subcategories: [],
   productSearch: '',
+  productInternalSearch: '',
   categoryId: null,
   subcategoryId: null,
   sort: 'price_desc',
@@ -141,7 +148,10 @@ const state = {
       originalClassification: null,
       suggestedCandidates: [],
       existingMainImage: '',
-      existingSecondaryImages: []
+      existingMainImageSource: 'subcategory_default',
+      existingMainImageUrl: '',
+      existingSecondaryImages: [],
+      selectedSecondaryImageFiles: []
     }
   }
 };
@@ -234,6 +244,7 @@ const parseFilenameFromContentDisposition = (value) => {
 const handleDownloadImportTemplate = async () => {
   try {
     setImportFeedback('Generando plantilla...');
+    const filename = 'plantilla automatizaciones de productos V1.xlsx';
 
     const response = await fetch(`${API_BASE_URL}/api/products/import/template`, {
       method: 'GET',
@@ -245,7 +256,6 @@ const handleDownloadImportTemplate = async () => {
       throw new Error(body.error || 'No se pudo descargar la plantilla');
     }
 
-    const filename = parseFilenameFromContentDisposition(response.headers.get('content-disposition')) || 'plantilla-importacion-productos.xlsx';
     const blob = await response.blob();
     const downloadUrl = URL.createObjectURL(blob);
     const anchor = document.createElement('a');
@@ -354,9 +364,10 @@ const inlineAttributesToEntries = (attributesInput) => {
     });
 };
 
-const resolveStagingImageUrl = (imageName) => {
+const resolveStagingImageUrl = (imageName, imageSource = '') => {
   const normalizedName = String(imageName || '').trim();
   const normalizedNameForMatch = normalizeSearchValue(normalizedName);
+  const normalizedSource = String(imageSource || '').trim().toLowerCase();
 
   if (!normalizedName) {
     return '';
@@ -376,7 +387,19 @@ const resolveStagingImageUrl = (imageName) => {
     return normalizedName;
   }
 
+  if (normalizedSource === 'subcategory_default') {
+    return `/uploads/products/defaults/${normalizedName}`;
+  }
+
+  if (normalizedSource === 'uploaded') {
+    return `/uploads/products/${normalizedName}`;
+  }
+
   return `/uploads/products/${normalizedName}`;
+};
+
+const getImageFileName = (imageName) => {
+  return '';
 };
 
 const clearImportRowImagePreviews = () => {
@@ -393,39 +416,43 @@ const renderImportRowImagesPreview = () => {
   clearImportRowImagePreviews();
 
   const previewItems = [];
+  const previewMainImageUrl = resolveImportRowPreviewMainImageUrl();
 
   const mainFile = importRowMainImageFileInput?.files?.[0] || null;
   if (mainFile) {
     const url = URL.createObjectURL(mainFile);
     state.importReview.rowEditor.previewUrls.push(url);
     previewItems.push({ label: 'Principal (archivo)', name: mainFile.name, url });
-  } else {
-    const name = String(state.importReview.rowEditor.existingMainImage || '').trim();
-    const url = resolveStagingImageUrl(name);
-    if (url) {
-      previewItems.push({ label: 'Principal actual', name, url });
-    }
+  } else if (previewMainImageUrl) {
+    previewItems.push({
+      label: 'Principal actual',
+      name: '',
+      url: previewMainImageUrl
+    });
   }
 
-  const secondaryFiles = Array.from(importRowSecondaryImagesFilesInput?.files || []);
+  const secondaryFiles = Array.isArray(state.importReview.rowEditor.selectedSecondaryImageFiles)
+    ? state.importReview.rowEditor.selectedSecondaryImageFiles
+    : [];
+
   if (secondaryFiles.length) {
     secondaryFiles.forEach((file, index) => {
       const url = URL.createObjectURL(file);
       state.importReview.rowEditor.previewUrls.push(url);
       previewItems.push({ label: `Secundaria ${index + 1} (archivo)`, name: file.name, url });
     });
-  } else {
-    const secondaryNames = Array.isArray(state.importReview.rowEditor.existingSecondaryImages)
-      ? state.importReview.rowEditor.existingSecondaryImages
-      : [];
-
-    secondaryNames.forEach((name, index) => {
-      const url = resolveStagingImageUrl(name);
-      if (url) {
-        previewItems.push({ label: `Secundaria actual ${index + 1}`, name, url });
-      }
-    });
   }
+
+  const secondaryNames = Array.isArray(state.importReview.rowEditor.existingSecondaryImages)
+    ? state.importReview.rowEditor.existingSecondaryImages
+    : [];
+
+  secondaryNames.forEach((name, index) => {
+    const url = resolveStagingImageUrl(name);
+    if (url) {
+      previewItems.push({ label: `Secundaria actual ${index + 1}`, name, url });
+    }
+  });
 
   if (!previewItems.length) {
     importRowImagesPreview.innerHTML = '<p>No hay imágenes asignadas a esta fila.</p>';
@@ -439,7 +466,6 @@ const renderImportRowImagesPreview = () => {
         <figure class="company-import-image-preview-card">
           <img src="${item.url}" alt="${item.label}" loading="lazy" onerror="this.closest('figure').classList.add('company-import-image-preview-card--error'); this.style.display='none'; this.nextElementSibling.style.display='block';">
           <div class="company-import-image-preview-fallback" style="display:none;">No disponible</div>
-          <figcaption>${item.label}: ${item.name || 'sin nombre'}</figcaption>
         </figure>
       `).join('')}
     </div>
@@ -591,7 +617,8 @@ const renderBatchRows = (batch) => {
             const subcategoryName = row?.classification?.line?.subcategory_name || 'Sin subcategoría';
             const status = row?.validation?.status || 'pending_review';
             const mainImage = row?.staging_images?.main_image || 'sin_imagen.png';
-            const mainImageUrl = resolveStagingImageUrl(mainImage);
+            const mainImageUrl = row?.staging_images?.main_image_url
+              || resolveStagingImageUrl(mainImage, row?.staging_images?.main_image_source);
             const productName = row?.normalized?.name || row?.raw_data?.name || 'Sin nombre';
 
             return `
@@ -605,9 +632,8 @@ const renderBatchRows = (batch) => {
                 <td>
                   <div class="company-import-row-image-cell">
                     ${mainImageUrl
-                      ? `<img src="${mainImageUrl}" alt="${mainImage}" loading="lazy" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">`
-                      : ''}
-                    <span style="display:${mainImageUrl ? 'none' : 'block'};">${mainImage}</span>
+                      ? `<img src="${mainImageUrl}" alt="${productName}" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('div'), { className: 'company-import-image-preview-fallback', textContent: 'Sin imagen' }));">`
+                      : '<div class="company-import-image-preview-fallback">Sin imagen</div>'}
                   </div>
                 </td>
                 <td>
@@ -693,6 +719,17 @@ const setImportDetectedClassification = (classification) => {
   importRowSubcategoryNameInput.value = classification?.subcategory_name || '';
 };
 
+const resolveImportRowPreviewMainImageUrl = () => {
+  if (state.importReview.rowEditor.existingMainImageUrl) {
+    return state.importReview.rowEditor.existingMainImageUrl;
+  }
+
+  return resolveStagingImageUrl(
+    state.importReview.rowEditor.existingMainImage,
+    state.importReview.rowEditor.existingMainImageSource
+  );
+};
+
 const resolveSelectedClassificationPreview = () => {
   const manualLineId = importRowManualLineIdInput?.value ? Number(importRowManualLineIdInput.value) : null;
   if (manualLineId && Number.isInteger(manualLineId) && manualLineId > 0) {
@@ -700,7 +737,8 @@ const resolveSelectedClassificationPreview = () => {
     if (manualLine) {
       return {
         category_name: manualLine.category_name || '',
-        subcategory_name: manualLine.subcategory_name || ''
+        subcategory_name: manualLine.subcategory_name || '',
+        line_name: manualLine.name || ''
       };
     }
   }
@@ -713,7 +751,8 @@ const resolveSelectedClassificationPreview = () => {
     if (suggestedLine) {
       return {
         category_name: suggestedLine.category_name || '',
-        subcategory_name: suggestedLine.subcategory_name || ''
+        subcategory_name: suggestedLine.subcategory_name || '',
+        line_name: suggestedLine.name || ''
       };
     }
 
@@ -721,16 +760,18 @@ const resolveSelectedClassificationPreview = () => {
     if (fallbackLine) {
       return {
         category_name: fallbackLine.category_name || '',
-        subcategory_name: fallbackLine.subcategory_name || ''
+        subcategory_name: fallbackLine.subcategory_name || '',
+        line_name: fallbackLine.name || ''
       };
     }
   }
 
-  return state.importReview.rowEditor.originalClassification || { category_name: '', subcategory_name: '' };
+  return state.importReview.rowEditor.originalClassification || { category_name: '', subcategory_name: '', line_name: '' };
 };
 
 const syncImportClassificationPreview = () => {
   setImportDetectedClassification(resolveSelectedClassificationPreview());
+  renderImportRowImagesPreview();
 };
 
 const renderManualLineOptions = (searchValue = '') => {
@@ -796,19 +837,25 @@ const openImportRowEditor = (rowNumber) => {
   importRowBrandInput.value = row?.normalized?.brand || row?.raw_data?.brand || '';
   importRowDescriptionInput.value = row?.normalized?.description || row?.raw_data?.description || '';
   importRowPriceInput.value = row?.normalized?.price ?? '';
+  importRowSkuInternInput.value = row?.normalized?.sku_intern || row?.raw_data?.sku_intern || '';
+  importRowCostPriceInput.value = row?.normalized?.cost_price ?? row?.raw_data?.cost_price ?? '';
   importRowQuantityInput.value = row?.normalized?.quantity ?? '';
   importRowMinStockInput.value = row?.normalized?.min_stock ?? 0;
   renderImportAttributeRows(inlineAttributesToEntries(attributesObjectToInlineText(row?.normalized?.attributes)));
   state.importReview.rowEditor.originalClassification = {
     category_name: row?.classification?.line?.category_name || '',
-    subcategory_name: row?.classification?.line?.subcategory_name || ''
+    subcategory_name: row?.classification?.line?.subcategory_name || '',
+    line_name: row?.classification?.line?.name || ''
   };
   setImportDetectedClassification(state.importReview.rowEditor.originalClassification);
   importRowDecisionInput.value = row?.validation?.status === 'rejected' ? 'rejected' : 'approved';
   state.importReview.rowEditor.existingMainImage = String(row?.staging_images?.main_image || '');
+  state.importReview.rowEditor.existingMainImageSource = String(row?.staging_images?.main_image_source || 'subcategory_default');
+  state.importReview.rowEditor.existingMainImageUrl = String(row?.staging_images?.main_image_url || '');
   state.importReview.rowEditor.existingSecondaryImages = Array.isArray(row?.staging_images?.secondary_images)
     ? row.staging_images.secondary_images
     : [];
+  state.importReview.rowEditor.selectedSecondaryImageFiles = [];
   if (importRowMainImageFileInput) {
     importRowMainImageFileInput.value = '';
   }
@@ -859,6 +906,8 @@ const handleImportRowFormSubmit = async (event) => {
       row_updates: {
         name: String(importRowNameInput.value || '').trim(),
         brand: String(importRowBrandInput.value || '').trim(),
+        sku_intern: String(importRowSkuInternInput?.value || '').trim(),
+        cost_price: importRowCostPriceInput?.value ?? '',
         description: String(importRowDescriptionInput.value || '').trim(),
         price: importRowPriceInput.value,
         quantity: importRowQuantityInput.value,
@@ -876,7 +925,9 @@ const handleImportRowFormSubmit = async (event) => {
     });
 
     const mainImageFile = importRowMainImageFileInput?.files?.[0] || null;
-    const secondaryImageFiles = Array.from(importRowSecondaryImagesFilesInput?.files || []);
+    const secondaryImageFiles = Array.isArray(state.importReview.rowEditor.selectedSecondaryImageFiles)
+      ? state.importReview.rowEditor.selectedSecondaryImageFiles
+      : [];
 
     if (mainImageFile || secondaryImageFiles.length) {
       const imageFormData = new FormData();
@@ -1066,6 +1117,22 @@ const handleImportAddAttribute = () => {
 };
 
 const normalizeSearchValue = (value) => String(value || '').trim().toLowerCase();
+
+const buildDefaultSubcategoryImageName = (options = {}) => {
+  const subcategoryName = String(options.subcategoryName || '').trim();
+  const lineName = String(options.lineName || '').trim();
+  const productName = String(options.productName || '').trim();
+  const categoryName = String(options.categoryName || '').trim();
+
+  const slug = [subcategoryName, lineName, productName, categoryName]
+    .map((value) => normalizeSearchValue(value).replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, ''))
+    .find(Boolean) || 'producto_default';
+  if (slug === 'producto_default') {
+    return DEFAULT_STAGING_PRODUCT_IMAGE_URL;
+  }
+
+  return `/uploads/products/defaults/${slug}.png`;
+};
 
 const parseAttributesObject = (attributes) => {
   if (!attributes) {
@@ -1420,6 +1487,12 @@ const renderProducts = (products) => {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2
     });
+    const costPriceLabel = product.cost_price == null || product.cost_price === ''
+      ? 'No definido'
+      : `USD ${Number(product.cost_price || 0).toLocaleString('es-VE', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+      })}`;
     const statusLabel = product.is_active ? 'Publicado' : 'Inactivo';
     const statusClass = product.is_active ? 'company-product-card__badge' : 'company-product-card__badge company-product-card__badge--inactive';
 
@@ -1450,6 +1523,14 @@ const renderProducts = (products) => {
             <div class="company-product-card__stat">
               <small>SKU</small>
               <strong>${product.sku}</strong>
+            </div>
+            <div class="company-product-card__stat">
+              <small>SKU interno</small>
+              <strong>${product.sku_intern || 'No definido'}</strong>
+            </div>
+            <div class="company-product-card__stat">
+              <small>Costo</small>
+              <strong>${costPriceLabel}</strong>
             </div>
           </div>
         </div>
@@ -1489,6 +1570,10 @@ const loadOwnProducts = async (page = 1) => {
     query.set('query', state.productSearch);
   }
 
+  if (state.productInternalSearch) {
+    query.set('sku_intern', state.productInternalSearch);
+  }
+
   if (state.categoryId) {
     query.set('category_id', String(state.categoryId));
   }
@@ -1510,6 +1595,13 @@ const loadOwnProducts = async (page = 1) => {
 
 function handleOwnProductsSearch(event) {
   state.productSearch = event.target.value.trim();
+  loadOwnProducts(1).catch((error) => {
+    companyProductFormMessage.innerText = error.message;
+  });
+}
+
+function handleOwnProductsInternalSkuSearch(event) {
+  state.productInternalSearch = event.target.value.trim();
   loadOwnProducts(1).catch((error) => {
     companyProductFormMessage.innerText = error.message;
   });
@@ -1647,10 +1739,43 @@ const mergeSecondaryImages = (incomingFiles) => {
   }
 };
 
+const mergeImportRowSecondaryImages = (incomingFiles) => {
+  const currentFiles = Array.isArray(state.importReview.rowEditor.selectedSecondaryImageFiles)
+    ? state.importReview.rowEditor.selectedSecondaryImageFiles
+    : [];
+  const currentKeys = new Set(currentFiles.map(buildSecondaryImageKey));
+
+  incomingFiles.forEach((file) => {
+    const fileKey = buildSecondaryImageKey(file);
+
+    if (!currentKeys.has(fileKey)) {
+      currentFiles.push(file);
+      currentKeys.add(fileKey);
+    }
+  });
+
+  if (currentFiles.length > MAX_SECONDARY_IMAGES) {
+    state.importReview.rowEditor.selectedSecondaryImageFiles = currentFiles.slice(0, MAX_SECONDARY_IMAGES);
+    return;
+  }
+
+  state.importReview.rowEditor.selectedSecondaryImageFiles = currentFiles;
+};
+
 const handleSecondaryImagesChange = () => {
   mergeSecondaryImages(Array.from(productSecondaryImagesInput.files));
   productSecondaryImagesInput.value = '';
   renderSecondaryImagesPreview();
+};
+
+const handleImportRowSecondaryImagesChange = () => {
+  mergeImportRowSecondaryImages(Array.from(importRowSecondaryImagesFilesInput?.files || []));
+
+  if (importRowSecondaryImagesFilesInput) {
+    importRowSecondaryImagesFilesInput.value = '';
+  }
+
+  renderImportRowImagesPreview();
 };
 
 const clearSecondaryImages = () => {
@@ -1701,6 +1826,8 @@ const showProductEditor = (product) => {
   editProductBrandInput.value = product.brand || '';
   editProductDescriptionInput.value = product.description || '';
   editProductPriceInput.value = product.price ?? '';
+  editProductSkuInternInput.value = product.sku_intern || '';
+  editProductCostPriceInput.value = product.cost_price ?? '';
   editProductMinStockInput.value = product.min_stock ?? 0;
   populateAttributeInputs('edit-product', product.attributes);
   renderCurrentImages(product);
@@ -1762,6 +1889,8 @@ async function handleCreateProduct(event) {
     formData.set('brand', document.getElementById('product-brand').value.trim());
     formData.set('description', document.getElementById('product-description').value.trim());
     formData.set('price', document.getElementById('product-price').value);
+    formData.set('sku_intern', String(productSkuInternInput?.value || '').trim());
+    formData.set('cost_price', productCostPriceInput?.value || '');
     formData.set('quantity', document.getElementById('product-quantity').value);
     formData.set('min_stock', document.getElementById('product-min-stock').value || '0');
     formData.set('attributes', buildAttributesValue('product'));
@@ -1814,6 +1943,8 @@ async function handleEditProduct(event) {
     formData.set('brand', editProductBrandInput.value.trim());
     formData.set('description', editProductDescriptionInput.value.trim());
     formData.set('price', editProductPriceInput.value);
+    formData.set('sku_intern', String(editProductSkuInternInput?.value || '').trim());
+    formData.set('cost_price', editProductCostPriceInput?.value || '');
     formData.set('min_stock', editProductMinStockInput.value || '0');
     formData.set('attributes', buildAttributesValue('edit-product'));
 
@@ -2055,13 +2186,14 @@ companyImportRowForm?.addEventListener('submit', handleImportRowFormSubmit);
 importRowAttributesList?.addEventListener('click', handleImportRowAttributesClick);
 importRowAddAttributeButton?.addEventListener('click', handleImportAddAttribute);
 importRowMainImageFileInput?.addEventListener('change', renderImportRowImagesPreview);
-importRowSecondaryImagesFilesInput?.addEventListener('change', renderImportRowImagesPreview);
+importRowSecondaryImagesFilesInput?.addEventListener('change', handleImportRowSecondaryImagesChange);
 importRowLineSearchInput?.addEventListener('input', handleImportRowLineSearch);
 importRowLineIdInput?.addEventListener('change', handleImportRowSimilarLineChange);
 importRowManualLineIdInput?.addEventListener('change', handleImportRowManualLineChange);
 
 productLineSearchInput.addEventListener('input', filterLines);
 companyProductsSearchInput.addEventListener('input', handleOwnProductsSearch);
+companyProductsInternalSkuSearchInput?.addEventListener('input', handleOwnProductsInternalSkuSearch);
 companyProductsCategorySelect?.addEventListener('change', handleOwnProductsCategoryFilter);
 companyProductsSubcategorySelect?.addEventListener('change', handleOwnProductsSubcategoryFilter);
 companyProductsSortSelect?.addEventListener('change', handleOwnProductsSort);

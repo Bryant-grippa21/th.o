@@ -89,61 +89,6 @@ const getPurchaseStatusLabel = (status) => {
   return labels[status] || status || 'Sin estado';
 };
 
-const getTrackingEntryMetadata = (status) => {
-  const normalizedStatus = String(status || '').trim().toUpperCase();
-  const metadata = {
-    ORDER_CONFIRMED: {
-      label: 'Pedido confirmado',
-      tone: 'info'
-    },
-    PAYMENT_SUBMITTED: {
-      label: 'Pago enviado por el cliente',
-      tone: 'warning'
-    },
-    APPROVED: {
-      label: 'Pago aprobado',
-      tone: 'success'
-    },
-    REJECTED: {
-      label: 'Pago rechazado',
-      tone: 'danger'
-    },
-    PENDING_PAYMENT: {
-      label: 'Pago pendiente',
-      tone: 'warning'
-    },
-    EXPIRED: {
-      label: 'Pedido expirado',
-      tone: 'danger'
-    },
-    PREPARING: {
-      label: 'Pedido en preparacion',
-      tone: 'info'
-    },
-    SHIPPED: {
-      label: 'Pedido enviado',
-      tone: 'info'
-    },
-    DELIVERED: {
-      label: 'Pedido entregado',
-      tone: 'success'
-    },
-    SUBMITTED: {
-      label: 'Enviado',
-      tone: 'info'
-    }
-  };
-
-  if (metadata[normalizedStatus]) {
-    return metadata[normalizedStatus];
-  }
-
-  return {
-    label: getPurchaseStatusLabel(normalizedStatus),
-    tone: 'info'
-  };
-};
-
 const formatDateTime = (value) => {
   if (!value) {
     return 'Sin fecha';
@@ -231,36 +176,6 @@ const resetPaymentMethodForm = () => {
 const getGroupPrimaryEvidence = (group) => {
   const evidences = Array.isArray(group?.evidences) ? group.evidences : [];
   return evidences.length ? evidences[0] : null;
-};
-
-const renderGroupTrackingTimeline = (group) => {
-  const timelineEntries = Array.isArray(group?.status_history) ? group.status_history : [];
-
-  if (!timelineEntries.length) {
-    return '<p>Sin movimientos de seguimiento registrados.</p>';
-  }
-
-  const sortedEntries = [...timelineEntries].sort((left, right) => new Date(left.created_at) - new Date(right.created_at));
-
-  return `
-    <ol class="company-tracking-list">
-      ${sortedEntries.map((entry) => {
-        const metadata = getTrackingEntryMetadata(entry.status);
-        const noteHtml = entry.note ? `<p class="company-tracking-item__note">${entry.note}</p>` : '';
-
-        return `
-          <li class="company-tracking-item company-tracking-item--${metadata.tone}">
-            <span class="company-tracking-item__dot" aria-hidden="true"></span>
-            <article class="company-tracking-item__content">
-              <p class="company-tracking-item__title">${metadata.label}</p>
-              <p class="company-tracking-item__meta">${formatDateTime(entry.created_at)}</p>
-              ${noteHtml}
-            </article>
-          </li>
-        `;
-      }).join('')}
-    </ol>
-  `;
 };
 
 const updateNewPaymentMethodButtonVisibility = () => {
@@ -460,11 +375,12 @@ const renderPurchaseDetailModal = (groupId) => {
         : '<p>Sin productos asociados.</p>'}
     </div>
 
-    <h3>Informacion de envio</h3>
+    <h3>Informacion del cliente</h3>
     <section class="company-purchase-detail-shipping">
-      <p><b>Direccion:</b> ${group.shipping_address || group.customer?.mail_address || 'No disponible'}</p>
-      <p><b>Numero de seguimiento:</b> ${group.tracking_code || 'No disponible'}</p>
-      <p><b>Entrega estimada:</b> ${formatDateTime(group.estimated_delivery_at)}</p>
+      <p><b>Nombre:</b> ${group.customer?.name || 'Sin nombre'}</p>
+      <p><b>Celular:</b> ${group.customer?.cell_phone || 'No disponible'}</p>
+      <p><b>Email:</b> ${group.customer?.email || 'Sin correo'}</p>
+      <p><b>Direccion:</b> ${group.customer?.mail_address || 'No disponible'}</p>
     </section>
 
     <h3>Evidencias de pago</h3>
@@ -481,11 +397,6 @@ const renderPurchaseDetailModal = (groupId) => {
           `;
         }).join('')
         : '<p>Sin evidencias cargadas.</p>'}
-    </section>
-
-    <h3>Seguimiento del pedido</h3>
-    <section class="company-purchase-detail-shipping">
-      ${renderGroupTrackingTimeline(group)}
     </section>
   `;
 };

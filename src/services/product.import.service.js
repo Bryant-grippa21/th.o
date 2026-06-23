@@ -5,12 +5,19 @@ const pool = require('../config/db');
 const { listLineReferences, createProductFromReference } = require('./products.service');
 
 const PRODUCT_UPLOADS_DIR = path.resolve(__dirname, '../../public/uploads/products');
-const DEFAULT_PRODUCT_IMAGE_PATH = 'default/producto_default.png';
+const PRODUCT_DEFAULTS_DIR = path.join(PRODUCT_UPLOADS_DIR, 'defaults');
+const DEFAULT_PRODUCT_IMAGE_PATH = 'defaults/producto_default.svg';
+const DEFAULT_PRODUCT_IMAGE_URL = `/uploads/products/${DEFAULT_PRODUCT_IMAGE_PATH}`;
+const DEFAULT_PRODUCT_IMAGE_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.webp', '.gif', '.svg']);
+
+let cachedDefaultProductImages = null;
 
 const HEADER_ALIASES = {
   name: ['nombre del producto', 'nombre producto', 'product name', 'nombre'],
   brand: ['marca del producto', 'marca', 'brand'],
+  sku_intern: ['sku interno', 'sku_intern', 'sku propio', 'codigo interno', 'código interno'],
   price: ['precio en decimales', 'precio', 'price'],
+  cost_price: ['precio de costo', 'cost price', 'cost_price', 'costo'],
   quantity: ['cantidad disponible', 'cantidad', 'stock', 'stock disponible'],
   min_stock: ['stock minimo', 'stock mínimo', 'min stock', 'stock minimo recomendado'],
   attributes: ['atributos', 'attributes'],
@@ -34,20 +41,153 @@ const normalizeHeaderKey = (value) => normalizeForMatch(value).replace(/\s+/g, '
 
 const toSnakeCaseSlug = (value) => normalizeForMatch(value).replace(/\s+/g, '_');
 
-const buildDefaultSubcategoryImageName = (subcategoryName) => {
-  const slug = toSnakeCaseSlug(subcategoryName);
-  if (!slug) {
-    return `/uploads/products/${DEFAULT_PRODUCT_IMAGE_PATH}`;
+const toCompactSlug = (value) => normalizeForMatch(value).replace(/\s+/g, '');
+
+const toDefaultImageStem = (value) => normalizeForMatch(value)
+  .replace(/\s+/g, '_')
+  .replace(/_+/g, '_')
+  .replace(/^_+|_+$/g, '');
+
+const normalizeImageToken = (value) => normalizeForMatch(value)
+  .split(' ')
+  .map((token) => {
+    if (token.length > 4 && token.endsWith('es')) {
+      return token.slice(0, -2);
+    }
+
+    if (token.length > 3 && token.endsWith('s')) {
+      return token.slice(0, -1);
+    }
+
+    return token;
+  })
+  .filter(Boolean);
+
+const getDefaultProductImagesCatalog = () => {
+  if (Array.isArray(cachedDefaultProductImages)) {
+    return cachedDefaultProductImages;
   }
 
-  const subcategoryDefaultImageName = `${slug}_default.png`;
-  const subcategoryDefaultImagePath = path.join(PRODUCT_UPLOADS_DIR, 'default', subcategoryDefaultImageName);
+  try {
+    const entries = fs.readdirSync(PRODUCT_DEFAULTS_DIR, { withFileTypes: true });
+    cachedDefaultProductImages = entries
+      .filter((entry) => entry.isFile())
+      .map((entry) => {
+        const extension = path.extname(entry.name).toLowerCase();
+        if (!DEFAULT_PRODUCT_IMAGE_EXTENSIONS.has(extension)) {
+          return null;
+        }
 
-  if (fs.existsSync(subcategoryDefaultImagePath)) {
-    return `/uploads/products/default/${subcategoryDefaultImageName}`;
+        const baseName = path.basename(entry.name, extension);
+        return {
+          fileName: entry.name,
+          baseName,
+          normalizedBaseName: normalizeForMatch(baseName),
+          normalizedTokens: normalizeImageToken(baseName),
+          url: `/uploads/products/defaults/${entry.name}`
+        };
+      })
+      .filter(Boolean);
+  } catch {
+    cachedDefaultProductImages = [];
   }
 
-  return `/uploads/products/${DEFAULT_PRODUCT_IMAGE_PATH}`;
+  return cachedDefaultProductImages;
+};
+
+const resolveStoredImportImageUrl = (imageName, imageSource = '', validationStatus = '') => {
+  const normalizedName = String(imageName || '').trim();
+  const normalizedSource = String(imageSource || '').trim().toLowerCase();
+  const normalizedStatus = String(validationStatus || '').trim().toLowerCase();
+
+  if (!normalizedName) {
+    return DEFAULT_PRODUCT_IMAGE_URL;
+  }
+
+  if (normalizedName.startsWith('http://') || normalizedName.startsWith('https://') || normalizedName.startsWith('/')) {
+    return normalizedName;
+  }
+
+  const defaultImagePath = path.join(PRODUCT_DEFAULTS_DIR, normalizedName);
+  if (normalizedStatus === 'pending_review') {
+    return DEFAULT_PRODUCT_IMAGE_URL;
+  }
+
+  if (normalizedSource === 'subcategory_default' && fs.existsSync(defaultImagePath)) {
+    return `/uploads/products/defaults/${normalizedName}`;
+  }
+
+  if (normalizedSource === 'subcategory_default') {
+    return DEFAULT_PRODUCT_IMAGE_URL;
+  }
+
+  return `/uploads/products/${normalizedName}`;
+};
+
+const normalizeImportBatchImages = (importData) => {
+  if (!importData || typeof importData !== 'object' || !Array.isArray(importData.rows)) {
+    return importData;
+  }
+
+  return {
+    ...importData,
+    rows: importData.rows.map((row) => {
+      const stagingImages = row?.staging_images || {};
+      const mainImage = String(stagingImages.main_image || '').trim();
+      const mainImageSource = String(stagingImages.main_image_source || 'subcategory_default').trim();
+      const validationStatus = String(row?.validation?.status || '').trim();
+
+      return {
+        ...row,
+        staging_images: {
+          ...stagingImages,
+          main_image_url: resolveStoredImportImageUrl(mainImage, mainImageSource, validationStatus)
+        }
+      };
+    })
+  };
+};
+
+const resolveDefaultProductImage = (options = {}) => {
+  const subcategoryName = String(options.subcategoryName || '').trim();
+  const validationStatus = String(options.validationStatus || '').trim().toLowerCase();
+  const subcategoryStem = toDefaultImageStem(subcategoryName);
+
+  const catalog = getDefaultProductImagesCatalog();
+
+  if (!catalog.length) {
+    return DEFAULT_PRODUCT_IMAGE_URL;
+  }
+
+  if (!subcategoryStem || validationStatus === 'pending_review') {
+    return DEFAULT_PRODUCT_IMAGE_URL;
+  }
+
+  for (const image of catalog) {
+    const imageStem = toDefaultImageStem(path.basename(image.fileName, path.extname(image.fileName)));
+
+    if (imageStem === subcategoryStem) {
+      return image.url;
+    }
+  }
+
+  for (const image of catalog) {
+    const imageStem = toDefaultImageStem(path.basename(image.fileName, path.extname(image.fileName)));
+
+    if (imageStem === `${subcategoryStem}_default`) {
+      return image.url;
+    }
+  }
+
+  return DEFAULT_PRODUCT_IMAGE_URL;
+};
+
+const buildDefaultSubcategoryImageName = (subcategoryNameOrOptions) => {
+  if (subcategoryNameOrOptions && typeof subcategoryNameOrOptions === 'object') {
+    return resolveDefaultProductImage(subcategoryNameOrOptions);
+  }
+
+  return resolveDefaultProductImage({ subcategoryName: subcategoryNameOrOptions });
 };
 
 const parseSecondaryImagesInput = (value) => {
@@ -254,7 +394,9 @@ const toCanonicalRow = (row) => ({
   source_code: String(resolveHeaderValue(row, HEADER_ALIASES.source_code)).trim(),
   name: String(resolveHeaderValue(row, HEADER_ALIASES.name)).trim(),
   brand: String(resolveHeaderValue(row, HEADER_ALIASES.brand)).trim(),
+  sku_intern: String(resolveHeaderValue(row, HEADER_ALIASES.sku_intern)).trim(),
   price: resolveHeaderValue(row, HEADER_ALIASES.price),
+  cost_price: resolveHeaderValue(row, HEADER_ALIASES.cost_price),
   quantity: resolveHeaderValue(row, HEADER_ALIASES.quantity),
   min_stock: resolveHeaderValue(row, HEADER_ALIASES.min_stock),
   attributes: resolveHeaderValue(row, HEADER_ALIASES.attributes),
@@ -389,12 +531,19 @@ const createImportBatchFromSpreadsheet = async ({
     const attributeResult = parseFlexibleAttributes(canonicalRow.attributes);
     const normalizedName = canonicalRow.name ? canonicalRow.name.trim() : '';
     const normalizedBrand = canonicalRow.brand ? canonicalRow.brand.trim() : '';
+    const normalizedInternalSku = canonicalRow.sku_intern ? canonicalRow.sku_intern.trim() : '';
     const price = parseDecimal(canonicalRow.price);
+    const costPrice = parseDecimal(canonicalRow.cost_price);
     const quantity = parsePositiveInteger(canonicalRow.quantity, true);
     const minStock = parsePositiveInteger(canonicalRow.min_stock, true) ?? 0;
     const lineSearchInput = canonicalRow.line_name || normalizedName;
     const lineMatch = findBestLineMatch(lineSearchInput, lineReferences);
-    const defaultMainImage = buildDefaultSubcategoryImageName(lineMatch.bestMatch?.subcategory_name);
+    const sourceCode = canonicalRow.source_code || `IMP-${Date.now()}-${String(rowNumber).padStart(3, '0')}`;
+    const validationStatus = lineMatch.status === 'pending_review' ? 'pending_review' : 'auto_matched';
+    const defaultMainImage = buildDefaultSubcategoryImageName({
+      subcategoryName: lineMatch.bestMatch?.subcategory_name,
+      validationStatus
+    });
     const providedMainImage = String(canonicalRow.main_image || '').trim();
     const secondaryImages = parseSecondaryImagesInput(canonicalRow.secondary_images);
     const warnings = [...attributeResult.warnings];
@@ -420,9 +569,8 @@ const createImportBatchFromSpreadsheet = async ({
       warnings.push('Se asignó imagen por defecto genérica por falta de subcategoría detectada');
     }
 
-    const sourceCode = canonicalRow.source_code || `IMP-${Date.now()}-${String(rowNumber).padStart(3, '0')}`;
-    const validationStatus = errors.length > 0 ? 'invalid' : lineMatch.status;
-    const reviewRequired = validationStatus !== 'auto_matched' || warnings.length > 0;
+    const finalValidationStatus = errors.length > 0 ? 'invalid' : validationStatus;
+    const reviewRequired = finalValidationStatus !== 'auto_matched' || warnings.length > 0;
 
     return {
       row_number: rowNumber,
@@ -430,7 +578,9 @@ const createImportBatchFromSpreadsheet = async ({
       raw_data: {
         name: canonicalRow.name,
         brand: canonicalRow.brand,
+        sku_intern: canonicalRow.sku_intern,
         price: canonicalRow.price,
+        cost_price: canonicalRow.cost_price,
         quantity: canonicalRow.quantity,
         min_stock: canonicalRow.min_stock,
         attributes: canonicalRow.attributes,
@@ -442,7 +592,9 @@ const createImportBatchFromSpreadsheet = async ({
       normalized: {
         name: normalizedName,
         brand: normalizedBrand,
+        sku_intern: normalizedInternalSku || null,
         price,
+        cost_price: costPrice,
         quantity,
         min_stock: minStock,
         description: canonicalRow.description || null,
@@ -476,7 +628,7 @@ const createImportBatchFromSpreadsheet = async ({
         }))
       },
       validation: {
-        status: validationStatus,
+        status: finalValidationStatus,
         review_required: reviewRequired,
         warnings,
         errors
@@ -559,7 +711,7 @@ const createImportBatchFromSpreadsheet = async ({
     approved_rows: autoMatchedRows,
     pending_review_rows: pendingReviewRows,
     invalid_rows: invalidRows,
-    import_data: batchPayload,
+    import_data: normalizeImportBatchImages(batchPayload),
     file_name: file.originalname,
     created_by_id_company: createdByCompanyId,
     validation_notes: validationNotes
@@ -605,8 +757,8 @@ const getImportBatchById = async (batchId, companyId = null) => {
   return {
     ...batch,
     import_data: typeof batch.import_data === 'string'
-      ? JSON.parse(batch.import_data)
-      : batch.import_data
+      ? normalizeImportBatchImages(JSON.parse(batch.import_data))
+      : normalizeImportBatchImages(batch.import_data)
   };
 };
 
@@ -739,8 +891,25 @@ const applyManualLineSelection = (nextRow, nextClassification, lineId, lineRefer
   };
 
   const currentMainSource = String(nextRow?.staging_images?.main_image_source || '').trim();
-  if (!nextRow.staging_images?.main_image || currentMainSource === 'subcategory_default') {
-    const nextDefaultImage = buildDefaultSubcategoryImageName(matchedAlternative.subcategory_name);
+  if (currentMainSource === 'manual' || currentMainSource === 'uploaded') {
+    nextRow.staging_images = {
+      ...(nextRow.staging_images ? nextRow.staging_images : {}),
+      main_image: String(nextRow?.staging_images?.main_image || '').trim(),
+      main_image_source: currentMainSource || 'manual',
+      secondary_images: Array.isArray(nextRow?.staging_images?.secondary_images)
+        ? nextRow.staging_images.secondary_images
+        : []
+    };
+    return;
+  }
+
+  {
+    const nextDefaultImage = buildDefaultSubcategoryImageName({
+      subcategoryName: matchedAlternative.subcategory_name,
+      lineName: matchedAlternative.line_name,
+      productName: nextRow?.normalized?.name,
+      categoryName: matchedAlternative.category_name
+    });
     nextRow.staging_images = {
       ...(nextRow.staging_images ? nextRow.staging_images : {}),
       main_image: nextDefaultImage,
@@ -772,6 +941,12 @@ const applyRowUpdatesToRow = (nextRow, nextValidation, rowUpdates) => {
     nextRawData.brand = brandValue;
   }
 
+  if (Object.hasOwn(rowUpdates, 'sku_intern')) {
+    const internalSkuValue = String(rowUpdates.sku_intern || '').trim();
+    nextNormalized.sku_intern = internalSkuValue || null;
+    nextRawData.sku_intern = internalSkuValue;
+  }
+
   if (Object.hasOwn(rowUpdates, 'description')) {
     const descriptionValue = String(rowUpdates.description || '').trim();
     nextNormalized.description = descriptionValue || null;
@@ -782,6 +957,12 @@ const applyRowUpdatesToRow = (nextRow, nextValidation, rowUpdates) => {
     const parsedPrice = parseDecimal(rowUpdates.price);
     nextNormalized.price = parsedPrice;
     nextRawData.price = rowUpdates.price;
+  }
+
+  if (Object.hasOwn(rowUpdates, 'cost_price')) {
+    const parsedCostPrice = parseDecimal(rowUpdates.cost_price);
+    nextNormalized.cost_price = parsedCostPrice;
+    nextRawData.cost_price = rowUpdates.cost_price;
   }
 
   if (Object.hasOwn(rowUpdates, 'quantity')) {
@@ -964,7 +1145,10 @@ const approveImportBatch = async ({ batchId, companyId = null, approvedByCompany
       },
       staging_images: {
         main_image: row?.staging_images?.main_image
-          || buildDefaultSubcategoryImageName(row?.classification?.line?.subcategory_name),
+          || buildDefaultSubcategoryImageName({
+            subcategoryName: row?.classification?.line?.subcategory_name,
+            validationStatus: row?.validation?.status
+          }),
         main_image_source: row?.staging_images?.main_image_source || 'subcategory_default',
         secondary_images: Array.isArray(row?.staging_images?.secondary_images)
           ? row.staging_images.secondary_images
@@ -1036,9 +1220,14 @@ const buildPublishRowProductPayload = (row, companyId) => {
     reference_line_id: lineId,
     id_company: companyId,
     name,
+    sku_intern: String(row?.normalized?.sku_intern || row?.raw_data?.sku_intern || '').trim() || null,
     brand: String(row?.normalized?.brand || '').trim() || null,
     description: String(row?.normalized?.description || '').trim() || null,
     price,
+    cost_price: (() => {
+      const parsedCostPrice = Number(row?.normalized?.cost_price);
+      return Number.isFinite(parsedCostPrice) && parsedCostPrice >= 0 ? parsedCostPrice : null;
+    })(),
     attributes: JSON.stringify(
       row?.normalized?.attributes && typeof row.normalized.attributes === 'object'
         ? row.normalized.attributes
@@ -1232,7 +1421,10 @@ const updateImportBatchRowImages = async ({
     }
 
     if (!nextImages.main_image) {
-      nextImages.main_image = buildDefaultSubcategoryImageName(row?.classification?.line?.subcategory_name);
+      nextImages.main_image = buildDefaultSubcategoryImageName({
+        subcategoryName: row?.classification?.line?.subcategory_name,
+        validationStatus: row?.validation?.status
+      });
       nextImages.main_image_source = 'subcategory_default';
     }
 

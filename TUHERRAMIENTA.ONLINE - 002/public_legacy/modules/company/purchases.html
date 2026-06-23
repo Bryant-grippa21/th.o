@@ -1,0 +1,91 @@
+﻿<!DOCTYPE html>
+<html lang="es" xml:lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Compras y pagos</title>
+  <link rel="stylesheet" href="/assets/css/base.css">
+  <link rel="stylesheet" href="/assets/css/company.css">
+</head>
+<body>
+
+<h1>Compras y pagos</h1>
+<div id="company-layout-nav"></div>
+
+<label>
+  Buscar compra
+  <input id="company-purchases-search" type="search" placeholder="Buscar por grupo, orden, cliente, producto o estado">
+</label>
+
+<br><br>
+
+<p id="company-purchases-summary">Cargando información...</p>
+<p id="company-purchases-feedback"></p>
+
+<section>
+  <details>
+    <summary><b>Métodos de pago</b></summary>
+    <br>
+  <form id="company-payment-method-form">
+    <label>
+      Tipo
+      <input name="method_type" type="text" placeholder="Ej: transferencia" required>
+    </label>
+    <br><br>
+
+    <label>
+      Etiqueta
+      <input name="label" type="text" placeholder="Ej: Banco Provincial" required>
+    </label>
+    <br><br>
+
+    <label>
+      Titular
+      <input name="account_holder" type="text">
+    </label>
+    <br><br>
+
+    <label>
+      Número de cuenta o referencia
+      <input name="account_number" type="text">
+    </label>
+    <br><br>
+
+    <label>
+      Banco
+      <input name="bank_name" type="text">
+    </label>
+    <br><br>
+
+    <label>
+      Instrucciones
+      <textarea name="instructions" rows="3"></textarea>
+    </label>
+    <br><br>
+
+    <button type="submit">Guardar método</button>
+  </form>
+
+  <div id="company-payment-methods-list">
+    <p>Cargando métodos...</p>
+  </div>
+  </details>
+</section>
+
+<section>
+  <h2>Grupos de compra</h2>
+  <div id="company-purchase-groups-list">
+    <p>Cargando grupos...</p>
+  </div>
+</section>
+
+<script src="/assets/js/js_front/utils/auth.js"></script>
+<script src="/assets/js/js_front/utils/global-header.js"></script>
+<script src="/assets/js/js_front/company/layout.js"></script>
+<script src="/assets/js/js_front/company/purchases.js"></script>
+
+</body>
+</html>
+
+
+
+

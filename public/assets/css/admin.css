@@ -782,7 +782,7 @@
 	background: rgba(5, 16, 29, 0.62);
 	padding: 24px;
 	overflow: auto;
-	z-index: 100;
+	z-index: 2500;
 	backdrop-filter: blur(2px);
 }
 

@@ -14,11 +14,74 @@
 
 <p id="company-products-role-note"></p>
 
+<details class="company-panel company-import-panel company-import-accordion">
+  <summary class="company-import-accordion__summary">
+    <span>
+      <strong>Carga masiva de productos</strong>
+      <small>Descarga plantilla, valida archivos y revisa lotes</small>
+    </span>
+  </summary>
+
+  <div class="company-import-accordion__content">
+    <p class="company-panel-note">Descarga la plantilla, completa tus filas y sube el archivo para validación automática.</p>
+
+    <div class="company-import-grid">
+      <label>
+        Archivo de carga (.xlsx, .xls, .csv)
+        <input id="company-import-file" type="file" accept=".xlsx,.xls,.csv">
+      </label>
+
+      <label id="company-import-target-company-wrapper" class="company-import-target-company-wrapper" hidden>
+        Empresa destino (solo admin)
+        <input id="company-import-target-company" type="number" min="1" step="1" placeholder="ID de empresa">
+      </label>
+    </div>
+
+    <div class="company-products-toolbar-actions company-products-toolbar-actions--import">
+      <button id="company-import-download-template" type="button" class="company-button-secondary">Descargar plantilla Excel</button>
+      <button id="company-import-upload-batch" type="button">Subir archivo masivo</button>
+    </div>
+
+    <p id="company-import-feedback" class="company-panel-feedback"></p>
+    <div id="company-import-result" class="company-panel-message" hidden></div>
+
+    <div class="company-products-toolbar-actions company-products-toolbar-actions--import">
+      <button id="company-import-refresh-batches" type="button" class="company-button-secondary">Actualizar lotes</button>
+    </div>
+
+    <div class="company-import-review-grid">
+      <label>
+        Lote en revisión
+        <select id="company-import-batch-select">
+          <option value="">Seleccione un lote</option>
+        </select>
+      </label>
+    </div>
+
+    <p id="company-import-review-feedback" class="company-panel-feedback"></p>
+    <div id="company-import-batch-summary" class="company-panel-message" hidden></div>
+    <div id="company-import-rows-list" class="company-import-rows-list">
+      <p>Selecciona un lote para revisar filas.</p>
+    </div>
+
+    <div class="company-products-toolbar-actions company-products-toolbar-actions--import">
+      <button id="company-import-approve-batch" type="button">Aprobar lote</button>
+      <button id="company-import-publish-batch" type="button">Publicar lote</button>
+      <button id="company-import-delete-batch" type="button" class="company-button-secondary">Eliminar lote</button>
+    </div>
+  </div>
+</details>
+
 <section class="company-panel">
   <div class="company-products-toolbar">
     <label>
       Nombre o SKU
       <input id="company-products-search" type="search" placeholder="Buscar por nombre o SKU">
+    </label>
+
+    <label>
+      SKU interno
+      <input id="company-products-internal-sku-search" type="search" placeholder="Buscar por SKU interno">
     </label>
 
     <label>
@@ -52,56 +115,6 @@
 
   <div class="company-products-toolbar-actions">
     <button id="open-company-product-modal" type="button">Subir producto manualmente</button>
-  </div>
-</section>
-
-<section class="company-panel company-import-panel">
-  <h2>Carga masiva de productos</h2>
-  <p class="company-panel-note">Descarga la plantilla, completa tus filas y sube el archivo para validación automática.</p>
-
-  <div class="company-import-grid">
-    <label>
-      Archivo de carga (.xlsx, .xls, .csv)
-      <input id="company-import-file" type="file" accept=".xlsx,.xls,.csv">
-    </label>
-
-    <label id="company-import-target-company-wrapper" class="company-import-target-company-wrapper" hidden>
-      Empresa destino (solo admin)
-      <input id="company-import-target-company" type="number" min="1" step="1" placeholder="ID de empresa">
-    </label>
-  </div>
-
-  <div class="company-products-toolbar-actions company-products-toolbar-actions--import">
-    <button id="company-import-download-template" type="button" class="company-button-secondary">Descargar plantilla Excel</button>
-    <button id="company-import-upload-batch" type="button">Subir archivo masivo</button>
-  </div>
-
-  <p id="company-import-feedback" class="company-panel-feedback"></p>
-  <div id="company-import-result" class="company-panel-message" hidden></div>
-
-  <div class="company-products-toolbar-actions company-products-toolbar-actions--import">
-    <button id="company-import-refresh-batches" type="button" class="company-button-secondary">Actualizar lotes</button>
-  </div>
-
-  <div class="company-import-review-grid">
-    <label>
-      Lote en revisión
-      <select id="company-import-batch-select">
-        <option value="">Seleccione un lote</option>
-      </select>
-    </label>
-  </div>
-
-  <p id="company-import-review-feedback" class="company-panel-feedback"></p>
-  <div id="company-import-batch-summary" class="company-panel-message" hidden></div>
-  <div id="company-import-rows-list" class="company-import-rows-list">
-    <p>Selecciona un lote para revisar filas.</p>
-  </div>
-
-  <div class="company-products-toolbar-actions company-products-toolbar-actions--import">
-    <button id="company-import-approve-batch" type="button">Aprobar lote</button>
-    <button id="company-import-publish-batch" type="button">Publicar lote</button>
-    <button id="company-import-delete-batch" type="button" class="company-button-secondary">Eliminar lote</button>
   </div>
 </section>
 
@@ -154,6 +167,18 @@
         <label>
           Marca
           <input id="product-brand" name="brand" type="text">
+        </label>
+      </div>
+
+      <div class="company-form-grid company-form-grid--two">
+        <label>
+          SKU interno
+          <input id="product-sku-intern" name="sku_intern" type="text" placeholder="Opcional">
+        </label>
+
+        <label>
+          Precio de costo
+          <input id="product-cost-price" name="cost_price" type="number" min="0" step="0.01" placeholder="Opcional">
         </label>
       </div>
 
@@ -282,6 +307,18 @@
         <label>
           Marca
           <input id="edit-product-brand" name="brand" type="text">
+        </label>
+      </div>
+
+      <div class="company-form-grid company-form-grid--two">
+        <label>
+          SKU interno
+          <input id="edit-product-sku-intern" name="sku_intern" type="text" placeholder="Opcional">
+        </label>
+
+        <label>
+          Precio de costo
+          <input id="edit-product-cost-price" name="cost_price" type="number" min="0" step="0.01" placeholder="Opcional">
         </label>
       </div>
 
@@ -431,6 +468,17 @@
         <label>
           Marca
           <input id="import-row-brand" type="text">
+        </label>
+      </div>
+
+      <div class="company-form-grid company-form-grid--two">
+        <label>
+          SKU interno
+          <input id="import-row-sku-intern" type="text" placeholder="Opcional">
+        </label>
+        <label>
+          Precio de costo
+          <input id="import-row-cost-price" type="number" min="0" step="0.01" placeholder="Opcional">
         </label>
       </div>
 

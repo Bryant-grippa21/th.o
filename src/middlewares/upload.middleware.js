@@ -16,12 +16,14 @@ const companyDir = path.join(__dirname, '../../public/uploads/profiles/companies
 const productDir = path.join(__dirname, '../../public/uploads/products');
 const purchaseEvidenceDir = path.join(__dirname, '../../public/uploads/purchases/evidences');
 const companyLegalDocumentsDir = path.join(__dirname, '../../public/uploads/company/legal-documents');
+const b2bEvidenceDir = path.join(__dirname, '../storage/b2b/evidencias');
 
 ensureDir(customerDir);
 ensureDir(companyDir);
 ensureDir(productDir);
 ensureDir(purchaseEvidenceDir);
 ensureDir(companyLegalDocumentsDir);
+ensureDir(b2bEvidenceDir);
 
 const companyLegalMimeTypes = new Set([
   'image/jpeg',
@@ -79,6 +81,19 @@ const uploadCompanyLegalDocuments = multer({
   fileFilter: createFileFilter(companyLegalMimeTypes, 'Solo se permiten imagenes y archivos PDF')
 });
 
+const b2bEvidenceMimeTypes = new Set([
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'application/pdf'
+]);
+
+const uploadB2BEvidence = multer({
+  storage: createStorage(b2bEvidenceDir, 'b2b_evidence'),
+  limits: { fileSize: 8 * 1024 * 1024 },
+  fileFilter: createFileFilter(b2bEvidenceMimeTypes, 'Solo se permiten imagenes y archivos PDF')
+});
+
 const uploadProductImages = uploadProductImage.fields([
   { name: 'main_image', maxCount: 1 },
   { name: 'secondary_images', maxCount: MAX_SECONDARY_PRODUCT_IMAGES }
@@ -105,5 +120,6 @@ module.exports = {
   uploadProductImages,
   uploadImportSpreadsheet,
   uploadPurchaseEvidence,
-  uploadCompanyLegalDocuments
+  uploadCompanyLegalDocuments,
+  uploadB2BEvidence
 };

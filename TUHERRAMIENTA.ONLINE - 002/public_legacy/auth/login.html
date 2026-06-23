@@ -1,0 +1,48 @@
+﻿<!DOCTYPE html>
+<html lang="es" xml:lang="es">
+
+<head>
+  <title>Login</title>
+  <link rel="stylesheet" href="/assets/css/base.css">
+  <link rel="stylesheet" href="/assets/css/auth.css">
+</head>
+
+<body>
+
+  <h2>Login</h2>
+
+  <label for="login-entity">Tipo de acceso</label><br>
+  <select id="login-entity" onchange="onLoginEntityChange()">
+    <option value="customer">Customer</option>
+    <option value="company">Company / Admin</option>
+  </select><br><br>
+
+  <input id="email" placeholder="Email"><br>
+  <input id="password" type="password" placeholder="Password"><br>
+
+  <button onclick="login()">Entrar</button>
+
+  <br><br>
+
+  <a href="/auth/account-recovery.html">Olvidé mi contraseña</a>
+  <br><br>
+
+  <a href="/auth/register.html">Registrarse</a>
+  <br><br>
+
+  <div id="login-google-section">
+    <div id="google-signin-root"></div>
+  </div>
+
+  <script src="/assets/js/js_front/utils/auth.js"></script>
+<script src="/assets/js/js_front/utils/global-header.js"></script>
+  <script src="/assets/js/js_front/auth/google.js"></script>
+  <script src="/assets/js/js_front/auth/login.js"></script>
+
+</body>
+
+</html>
+
+
+
+

@@ -7,6 +7,7 @@ Este directorio guarda estructuras JSON temporales o de soporte que hoy no está
 - `customers/cart/`: carrito por cliente.
 - `customers/favorites/`: favoritos por cliente.
 - `customers/account-recovery/`: solicitudes de recuperación de cuenta por cliente.
+- `b2b/retailer-cart/`: carrito temporal B2B del detallista, guardado en JSON por empresa.
 - `notifications/customers/`: estado de lectura de notificaciones de clientes.
 - `notifications/companies/`: estado de lectura de notificaciones de empresas.
 - `notifications/admins/`: estado de lectura de notificaciones del admin.

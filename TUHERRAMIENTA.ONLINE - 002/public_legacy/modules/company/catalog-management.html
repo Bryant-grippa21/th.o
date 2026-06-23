@@ -1,0 +1,61 @@
+﻿<!DOCTYPE html>
+<html lang="es" xml:lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Catálogo mayorista</title>
+  <link rel="stylesheet" href="/assets/css/base.css">
+  <link rel="stylesheet" href="/assets/css/company.css">
+</head>
+<body>
+
+<h1>Catálogo mayorista</h1>
+<div id="company-layout-nav"></div>
+
+<label>
+  Buscar
+  <input id="company-wholesale-search" type="search" placeholder="Buscar por producto, marca, SKU, categoría o mayorista">
+</label>
+
+<label>
+  Ordenar por
+  <select id="company-wholesale-sort">
+    <option value="recent">Más recientes</option>
+    <option value="reviews_desc">Mejor valorados</option>
+  </select>
+</label>
+
+<label>
+  Categoría
+  <select id="company-wholesale-category">
+    <option value="">Todas las categorías</option>
+  </select>
+</label>
+
+<p id="company-wholesale-summary">Cargando información...</p>
+<p id="company-wholesale-feedback"></p>
+
+<section>
+  <h2>Productos de mayoristas</h2>
+  <div id="company-wholesale-products-list">
+    <p>Cargando productos...</p>
+  </div>
+</section>
+
+<nav aria-label="Paginación del catálogo">
+  <button id="company-wholesale-prev-page" type="button">Anterior</button>
+  <span id="company-wholesale-page-label">Página 1 de 1</span>
+  <button id="company-wholesale-next-page" type="button">Siguiente</button>
+</nav>
+
+<script src="/assets/js/js_front/utils/auth.js"></script>
+<script src="/assets/js/js_front/utils/global-header.js"></script>
+<script src="/assets/js/js_front/company/layout.js"></script>
+<script src="/assets/js/js_front/company/catalog-management.js"></script>
+
+</body>
+</html>
+
+
+
+
+

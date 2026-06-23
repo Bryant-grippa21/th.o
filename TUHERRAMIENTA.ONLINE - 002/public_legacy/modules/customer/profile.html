@@ -1,0 +1,41 @@
+﻿<!DOCTYPE html>
+<html lang="es" xml:lang="es">
+<head>
+  <title>Perfil</title>
+  <link rel="stylesheet" href="/assets/css/base.css">
+  <link rel="stylesheet" href="/assets/css/customer.css">
+</head>
+<body>
+
+<h2>Perfil</h2>
+
+<div id="customer-layout-nav">
+  <p>Cargando navegación...</p>
+</div>
+
+<p id="profile-feedback"></p>
+
+<p>Imagen actual</p>
+<div id="profile-image-preview">Cargando imagen...</div>
+<input id="profile-image" type="file" accept="image/*"><br>
+<button type="button" onclick="uploadProfileImage()">Actualizar imagen</button>
+
+<br><br>
+
+<input id="phone" placeholder="Teléfono"><br>
+<input id="address" placeholder="Dirección"><br>
+<input id="password" placeholder="Nueva contraseña"><br>
+
+<button onclick="update()">Actualizar</button>
+
+<script src="/assets/js/js_front/utils/auth.js"></script>
+<script src="/assets/js/js_front/utils/global-header.js"></script>
+<script src="/assets/js/js_front/customer/layout.js"></script>
+<script src="/assets/js/js_front/customer/profile.js"></script>
+
+</body>
+</html>
+
+
+
+

@@ -1,0 +1,57 @@
+﻿<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <title>Registro</title>
+  <link rel="stylesheet" href="/assets/css/base.css">
+  <link rel="stylesheet" href="/assets/css/auth.css">
+</head>
+
+<body>
+
+  <h2>Registro</h2>
+
+  <label for="register-entity">Tipo de registro</label><br>
+  <select id="register-entity" onchange="onRegisterEntityChange()">
+    <option value="customer">Customer</option>
+    <option value="company">Company</option>
+  </select><br><br>
+
+  <div id="customer-register-fields">
+    <input id="name" placeholder="Nombre"><br>
+  </div>
+
+  <div id="company-register-fields" hidden>
+    <input id="company_name" placeholder="Nombre de la empresa"><br>
+    <input id="rif" placeholder="RIF (solo números)" inputmode="numeric" maxlength="12"><br>
+    <p>El registro jurídico queda pendiente hasta que ingreses y cargues tus recaudos en el perfil de empresa.</p>
+    <p>Recaudos permitidos: registro mercantil, acta de asamblea, RIF, cedula y RIF del representante, licencia de actividad economica.</p>
+  </div>
+
+  <input id="email" placeholder="Email"><br>
+  <input id="password" type="password" placeholder="Password"><br>
+  <input id="phone" placeholder="Teléfono"><br>
+  <input id="address" placeholder="Dirección"><br>
+
+  <button onclick="register()">Registrar</button>
+
+  <br><br>
+
+  <a href="/auth/login.html">Volver a login</a>
+
+  <div id="register-google-section">
+    <div id="google-signin-root"></div>
+  </div>
+
+  <script src="/assets/js/js_front/utils/auth.js"></script>
+<script src="/assets/js/js_front/utils/global-header.js"></script>
+  <script src="/assets/js/js_front/auth/google.js"></script>
+  <script src="/assets/js/js_front/auth/register.js"></script>
+
+</body>
+
+</html>
+
+
+
+

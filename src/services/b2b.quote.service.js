@@ -1,4 +1,10 @@
+const path = require('node:path');
 const pool = require('../config/db');
+const {
+  getRetailerCart,
+  clearRetailerCart,
+  PAYMENT_MODE: CART_PAYMENT_MODE
+} = require('./b2b.retailer.cart.service');
 
 const COMPANY_ROLE = {
   ADMIN: 1,
@@ -18,6 +24,8 @@ const QUOTE_STATUSES = new Set([
   'PAID',
   'OVERDUE'
 ]);
+
+const PAYMENT_MODES = new Set(['ONE_TIME', 'INSTALLMENTS']);
 
 const normalizeText = (value, maxLength = 255) => {
   const normalized = String(value || '').trim();
@@ -62,6 +70,20 @@ const normalizeQuoteStatus = (value) => {
   return normalized;
 };
 
+const normalizePaymentMode = (value) => {
+  const normalized = String(value || '').trim().toUpperCase();
+
+  if (!normalized) {
+    return CART_PAYMENT_MODE.ONE_TIME;
+  }
+
+  if (!PAYMENT_MODES.has(normalized)) {
+    throw new Error('payment_mode invalido');
+  }
+
+  return normalized;
+};
+
 const buildQuoteCode = () => {
   const now = new Date();
   const yyyy = now.getFullYear();
@@ -75,7 +97,22 @@ const mapQuoteRow = (row) => ({
   ...row,
   subtotal_usd: Number(row.subtotal_usd || 0),
   additional_charges_usd: Number(row.additional_charges_usd || 0),
-  total_usd: Number(row.total_usd || 0)
+  total_usd: Number(row.total_usd || 0),
+  retailer_payload_json: (() => {
+    if (!row?.retailer_payload_json) {
+      return null;
+    }
+
+    if (typeof row.retailer_payload_json !== 'string') {
+      return row.retailer_payload_json;
+    }
+
+    try {
+      return JSON.parse(row.retailer_payload_json);
+    } catch {
+      return row.retailer_payload_json;
+    }
+  })()
 });
 
 const ensureCompanyExists = async (connection, companyId) => {
@@ -261,6 +298,57 @@ const getQuoteDelivery = async (connection, quoteId) => {
   return rows[0] || null;
 };
 
+const roundAmount = (value) => Math.round(Number(value) * 100) / 100;
+
+const getSubmittedEvidenceTotal = async (connection, quoteId) => {
+  const [rows] = await connection.query(
+    `SELECT COALESCE(SUM(amount_reported_usd), 0) AS total_reported
+     FROM B2B_Quote_Payment_Evidence
+     WHERE id_b2b_quote_fk = ?
+       AND review_status != 'REJECTED'`,
+    [Number(quoteId)]
+  );
+
+  return Number(rows[0]?.total_reported || 0);
+};
+
+const getApprovedEvidenceTotal = async (connection, quoteId) => {
+  const [rows] = await connection.query(
+    `SELECT COALESCE(SUM(amount_reported_usd), 0) AS total_approved
+     FROM B2B_Quote_Payment_Evidence
+     WHERE id_b2b_quote_fk = ?
+       AND review_status = 'APPROVED'`,
+    [Number(quoteId)]
+  );
+
+  return Number(rows[0]?.total_approved || 0);
+};
+
+const listCompanyPaymentMethods = async (connection, companyId) => {
+  const [rows] = await connection.query(
+    `SELECT id_payment_method,
+            method_type,
+            label,
+            account_holder,
+            account_number,
+            bank_name,
+            instructions,
+            is_active,
+            created_at,
+            updated_at
+     FROM Company_Payment_Method
+     WHERE id_company_fk = ?
+       AND is_active = TRUE
+     ORDER BY label ASC, id_payment_method DESC`,
+    [Number(companyId)]
+  );
+
+  return rows.map((row) => ({
+    ...row,
+    is_active: Boolean(row.is_active)
+  }));
+};
+
 const appendQuoteHistory = async (connection, { quoteId, fromStatus, toStatus, note, performedBy }) => {
   await connection.query(
     `INSERT INTO B2B_Quote_Status_History (
@@ -359,6 +447,162 @@ const createDraft = async ({ retailerId, wholesalerId, currencyCode, notes, expi
 
     await connection.commit();
     return draft;
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally {
+    connection.release();
+  }
+};
+
+const createQuotesFromRetailerCart = async ({ retailerId }) => {
+  const normalizedRetailerId = normalizePositiveInt(retailerId, 'retailerId');
+  const cart = await getRetailerCart(normalizedRetailerId);
+
+  if (String(cart.status) === 'LOCKED') {
+    throw new Error('El carrito B2B ya fue enviado');
+  }
+
+  const groups = Array.isArray(cart.groups) ? cart.groups.filter((group) => Array.isArray(group.items) && group.items.length > 0) : [];
+
+  if (!groups.length) {
+    throw new Error('El carrito B2B no tiene grupos para cotizar');
+  }
+
+  const connection = await pool.getConnection();
+
+  try {
+    await connection.beginTransaction();
+
+    const createdQuotes = [];
+
+    for (const group of groups) {
+      const safeCompanyId = normalizePositiveInt(group.company_id, 'company_id');
+      const company = await ensureCompanyExists(connection, safeCompanyId);
+
+      if (Number(company.id_role_fk) !== COMPANY_ROLE.WHOLESALER) {
+        throw new Error('Cada grupo del carrito debe pertenecer a un mayorista');
+      }
+
+      if (!company.can_sell) {
+        throw new Error('La empresa del grupo no tiene permiso de venta');
+      }
+
+      const groupItems = Array.isArray(group.items) ? group.items : [];
+      let subtotal = 0;
+
+      const [quoteResult] = await connection.query(
+        `INSERT INTO B2B_Quote (
+           quote_code,
+           id_retailer_fk,
+           id_wholesaler_fk,
+           source_draft_id,
+           status,
+           requested_at,
+           currency_code,
+           retailer_note,
+           created_by_company_id,
+           updated_by_company_id,
+           payment_mode,
+           retailer_payload_json
+         )
+         VALUES (?, ?, ?, NULL, 'REQUESTED', CURRENT_TIMESTAMP, ?, ?, ?, ?, ?, ?)`,
+        [
+          buildQuoteCode(),
+          normalizedRetailerId,
+          safeCompanyId,
+          'USD',
+          normalizeText(group.note, 1000),
+          normalizedRetailerId,
+          normalizedRetailerId,
+          normalizePaymentMode(group.payment_mode),
+          JSON.stringify({
+            company_id: safeCompanyId,
+            company_name: normalizeText(group.company_name, 255),
+            company_email: normalizeText(group.company_email, 255),
+            company_phone: normalizeText(group.company_phone, 30),
+            company_image_url: normalizeText(group.company_image_url, 255),
+            payment_mode: normalizePaymentMode(group.payment_mode),
+            note: normalizeText(group.note, 1000),
+            items: groupItems.map((item) => ({
+              id_product: Number(item.id_product),
+              quantity: Number(item.quantity),
+              product_name: normalizeText(item.product_name, 255),
+              sku: normalizeText(item.sku, 64),
+              unit_price_usd: Number(item.unit_price_usd || 0),
+              company_id: safeCompanyId,
+              company_name: normalizeText(group.company_name, 255),
+              company_email: normalizeText(group.company_email, 255),
+              company_phone: normalizeText(group.company_phone, 30),
+              company_image_url: normalizeText(group.company_image_url, 255),
+              main_image_url: normalizeText(item.main_image_url, 255),
+              created_at: item.created_at,
+              updated_at: item.updated_at
+            }))
+          })
+        ]
+      );
+
+      const quoteId = Number(quoteResult.insertId);
+
+      for (const item of groupItems) {
+        const quantity = normalizePositiveInt(item.quantity, 'quantity');
+        const unitPrice = normalizeMoney(item.unit_price_usd, 'unit_price_usd');
+        const itemSubtotal = normalizeMoney(quantity * unitPrice, 'subtotal_usd');
+
+        subtotal += itemSubtotal;
+
+        await connection.query(
+          `INSERT INTO B2B_Quote_Item (
+             id_b2b_quote_fk,
+             id_product_fk,
+             product_name_snapshot,
+             sku_snapshot,
+             unit_price_usd,
+             quantity,
+             subtotal_usd
+           ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          [
+            quoteId,
+            normalizePositiveInt(item.id_product, 'id_product'),
+            normalizeText(item.product_name, 255),
+            normalizeText(item.sku, 64),
+            unitPrice,
+            quantity,
+            itemSubtotal
+          ]
+        );
+      }
+
+      subtotal = normalizeMoney(subtotal, 'subtotal_usd');
+
+      await connection.query(
+        `UPDATE B2B_Quote
+         SET subtotal_usd = ?,
+             additional_charges_usd = 0,
+             total_usd = ?,
+             updated_by_company_id = ?
+         WHERE id_b2b_quote = ?`,
+        [subtotal, subtotal, normalizedRetailerId, quoteId]
+      );
+
+      await appendQuoteHistory(connection, {
+        quoteId,
+        fromStatus: null,
+        toStatus: 'REQUESTED',
+        note: normalizeText(group.note, 1000) || 'Solicitud enviada desde carrito B2B',
+        performedBy: normalizedRetailerId
+      });
+
+      const quote = await getQuoteById(connection, quoteId);
+      createdQuotes.push(mapQuoteRow(quote));
+    }
+
+    await connection.commit();
+
+    await clearRetailerCart(normalizedRetailerId);
+
+    return createdQuotes;
   } catch (error) {
     await connection.rollback();
     throw error;
@@ -690,13 +934,17 @@ const getQuoteDetail = async ({ quoteId, companyId }) => {
 
     assertQuoteCompanyAccess(quote, safeCompanyId);
 
-    const [items, charges, evidences, history, delivery] = await Promise.all([
+    const [items, charges, evidences, history, delivery, paymentMethods] = await Promise.all([
       listQuoteItems(connection, safeQuoteId),
       listQuoteCharges(connection, safeQuoteId),
       listQuoteEvidences(connection, safeQuoteId),
       listQuoteHistory(connection, safeQuoteId),
-      getQuoteDelivery(connection, safeQuoteId)
+      getQuoteDelivery(connection, safeQuoteId),
+      listCompanyPaymentMethods(connection, quote.id_wholesaler_fk)
     ]);
+
+    const approvedPaymentsUsd = await getApprovedEvidenceTotal(connection, safeQuoteId);
+    const remainingBalanceUsd = Math.max(roundAmount(quote.total_usd - approvedPaymentsUsd), 0);
 
     return {
       ...mapQuoteRow(quote),
@@ -704,14 +952,44 @@ const getQuoteDetail = async ({ quoteId, companyId }) => {
       charges,
       evidences,
       history,
-      delivery
+      delivery,
+      payment_methods: paymentMethods,
+      approved_payments_usd: approvedPaymentsUsd,
+      remaining_balance_usd: remainingBalanceUsd
     };
   } finally {
     connection.release();
   }
 };
 
-const respondQuoteAsWholesaler = async ({ quoteId, wholesalerId, items, charges, wholesalerNote }) => {
+const rejectQuoteAsWholesaler = async ({ connection, quote, safeQuoteId, safeWholesalerId, wholesalerNote }) => {
+  if (!String(wholesalerNote || '').trim()) {
+    throw new Error('Nota es requerida para rechazar la cotizacion');
+  }
+
+  await connection.query(
+    `UPDATE B2B_Quote
+     SET status = 'REJECTED',
+         rejected_at = CURRENT_TIMESTAMP,
+         wholesaler_note = ?,
+         updated_by_company_id = ?
+     WHERE id_b2b_quote = ?`,
+    [normalizeText(wholesalerNote, 1000), safeWholesalerId, safeQuoteId]
+  );
+
+  await appendQuoteHistory(connection, {
+    quoteId: safeQuoteId,
+    fromStatus: quote.status,
+    toStatus: 'REJECTED',
+    note: normalizeText(wholesalerNote, 1000),
+    performedBy: safeWholesalerId
+  });
+
+  const updatedQuote = await getQuoteById(connection, safeQuoteId);
+  return mapQuoteRow(updatedQuote);
+};
+
+const respondQuoteAsWholesaler = async ({ quoteId, wholesalerId, items, charges, wholesalerNote, decision }) => {
   const connection = await pool.getConnection();
 
   try {
@@ -719,6 +997,7 @@ const respondQuoteAsWholesaler = async ({ quoteId, wholesalerId, items, charges,
 
     const safeQuoteId = normalizePositiveInt(quoteId, 'quoteId');
     const safeWholesalerId = normalizePositiveInt(wholesalerId, 'wholesalerId');
+    const safeDecision = String(decision || 'QUOTE').trim().toUpperCase();
 
     const quote = await getQuoteById(connection, safeQuoteId);
 
@@ -728,6 +1007,19 @@ const respondQuoteAsWholesaler = async ({ quoteId, wholesalerId, items, charges,
 
     if (!['REQUESTED', 'QUOTED'].includes(String(quote.status))) {
       throw new Error('La cotizacion no permite ser actualizada por el mayorista');
+    }
+
+    if (safeDecision === 'REJECTED') {
+      const result = await rejectQuoteAsWholesaler({
+        connection,
+        quote,
+        safeQuoteId,
+        safeWholesalerId,
+        wholesalerNote
+      });
+
+      await connection.commit();
+      return result;
     }
 
     if (!Array.isArray(items) || !items.length) {
@@ -883,6 +1175,7 @@ const updateQuoteStatusByRetailer = async ({ quoteId, retailerId, nextStatus, no
 
     if (nextStatus === 'ACCEPTED') {
       updateColumns.push('accepted_at = CURRENT_TIMESTAMP');
+      updateColumns.push('payment_due_at = DATE_ADD(CURRENT_TIMESTAMP, INTERVAL 30 DAY)');
     }
 
     if (nextStatus === 'REJECTED') {
@@ -1095,7 +1388,7 @@ const confirmDeliveryByRetailer = async ({ quoteId, retailerId, note }) => {
   }
 };
 
-const submitPaymentEvidenceByRetailer = async ({ quoteId, retailerId, fileUrl, originalName, mimeType, amountReportedUsd, note }) => {
+const submitPaymentEvidenceByRetailer = async ({ quoteId, retailerId, filePath, fileUrl, originalName, mimeType, amountReportedUsd, note }) => {
   const connection = await pool.getConnection();
 
   try {
@@ -1110,18 +1403,47 @@ const submitPaymentEvidenceByRetailer = async ({ quoteId, retailerId, fileUrl, o
       throw new Error('Cotizacion no encontrada');
     }
 
-    if (!['PAYMENT_PENDING', 'PAYMENT_SUBMITTED'].includes(String(quote.status))) {
+    if (!['ACCEPTED', 'PAYMENT_PENDING', 'PAYMENT_SUBMITTED'].includes(String(quote.status))) {
       throw new Error('La cotizacion no permite cargar evidencia de pago');
     }
 
-    const safeFileUrl = normalizeText(fileUrl, 255);
+    const safeFilePath = normalizeText(filePath || fileUrl, 255);
 
-    if (!safeFileUrl) {
-      throw new Error('file_url es requerido');
+    if (!safeFilePath) {
+      throw new Error('Archivo de evidencia es requerido');
     }
 
-    const safeAmount = amountReportedUsd == null ? null : normalizeMoney(amountReportedUsd, 'amount_reported_usd');
+    const rawAmount = amountReportedUsd == null || amountReportedUsd === ''
+      ? null
+      : Number(amountReportedUsd);
+    let safeAmount = rawAmount == null ? null : normalizeMoney(rawAmount, 'amount_reported_usd');
 
+    const submittedTotalUsd = await getSubmittedEvidenceTotal(connection, safeQuoteId);
+    const remainingBalanceUsd = roundAmount(quote.total_usd - submittedTotalUsd);
+
+    if (remainingBalanceUsd <= 0) {
+      throw new Error('La cotizacion ya está completamente pagada');
+    }
+
+    if (String(quote.payment_mode).toUpperCase() === 'ONE_TIME') {
+      if (safeAmount == null) {
+        safeAmount = remainingBalanceUsd;
+      }
+
+      if (safeAmount !== remainingBalanceUsd) {
+        throw new Error(`Para pago único, el monto reportado debe ser USD ${remainingBalanceUsd.toFixed(2)}`);
+      }
+    } else {
+      if (safeAmount == null || safeAmount <= 0) {
+        throw new Error('amount_reported_usd invalido');
+      }
+
+      if (safeAmount > remainingBalanceUsd) {
+        throw new Error(`El monto reportado no puede exceder el saldo pendiente de USD ${remainingBalanceUsd.toFixed(2)}`);
+      }
+    }
+
+    const safeOriginalName = normalizeText(originalName || path.basename(safeFilePath), 255);
     const [result] = await connection.query(
       `INSERT INTO B2B_Quote_Payment_Evidence (
          id_b2b_quote_fk,
@@ -1136,8 +1458,8 @@ const submitPaymentEvidenceByRetailer = async ({ quoteId, retailerId, fileUrl, o
        VALUES (?, ?, ?, ?, ?, ?, 'PENDING', ?)`,
       [
         safeQuoteId,
-        safeFileUrl,
-        normalizeText(originalName, 255),
+        safeFilePath,
+        safeOriginalName,
         normalizeText(mimeType, 64),
         safeAmount,
         safeRetailerId,
@@ -1221,6 +1543,12 @@ const reviewPaymentEvidenceByWholesaler = async ({ quoteId, evidenceId, wholesal
       throw new Error('La evidencia ya fue revisada');
     }
 
+    const approvedTotalUsdBefore = await getApprovedEvidenceTotal(connection, safeQuoteId);
+    const evidenceAmountUsd = Number(evidence.amount_reported_usd || 0);
+    const approvedTotalUsdAfter = safeReviewStatus === 'APPROVED'
+      ? roundAmount(approvedTotalUsdBefore + evidenceAmountUsd)
+      : approvedTotalUsdBefore;
+
     await connection.query(
       `UPDATE B2B_Quote_Payment_Evidence
        SET review_status = ?,
@@ -1231,7 +1559,9 @@ const reviewPaymentEvidenceByWholesaler = async ({ quoteId, evidenceId, wholesal
       [safeReviewStatus, normalizeText(reviewNote, 1000), safeWholesalerId, safeEvidenceId]
     );
 
-    const nextStatus = safeReviewStatus === 'APPROVED' ? 'PAID' : 'PAYMENT_PENDING';
+    const nextStatus = approvedTotalUsdAfter >= roundAmount(quote.total_usd)
+      ? 'PAID'
+      : 'PAYMENT_PENDING';
 
     await connection.query(
       `UPDATE B2B_Quote
@@ -1265,6 +1595,7 @@ const reviewPaymentEvidenceByWholesaler = async ({ quoteId, evidenceId, wholesal
 module.exports = {
   COMPANY_ROLE,
   createDraft,
+  createQuotesFromRetailerCart,
   listRetailerDrafts,
   getRetailerDraftDetail,
   addDraftItem,

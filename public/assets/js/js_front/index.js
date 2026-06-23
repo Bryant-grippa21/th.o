@@ -601,6 +601,8 @@ const loadCatalog = async () => {
       query.set('category_id', String(state.filters.categoryId));
     }
 
+    query.set('view', 'home');
+
     const data = await requestJson(`${API_BASE_URL}/api/products/catalog?${query.toString()}`);
     state.catalog = Array.isArray(data.products) ? data.products : [];
     state.pagination = data.pagination || state.pagination;
@@ -635,7 +637,8 @@ const loadSearchSuggestions = async () => {
       q: state.filters.query,
       page: '1',
       limit: '6',
-      sort: state.filters.sort
+      sort: state.filters.sort,
+      view: 'home'
     });
     const data = await requestJson(`${API_BASE_URL}/api/products/catalog?${query.toString()}`);
     state.suggestions = Array.isArray(data.products) ? data.products : [];

@@ -15,38 +15,51 @@
 <p id="b2b-retailer-feedback"></p>
 
 <section>
-  <details open>
-    <summary><b>Crear borrador</b></summary>
-    <br>
-    <form id="b2b-create-draft-form">
-      <label>
-        ID mayorista
-        <input name="id_wholesaler_fk" type="number" min="1" required>
-      </label>
-      <br><br>
-      <label>
-        Moneda
-        <input name="currency_code" type="text" value="USD" maxlength="10">
-      </label>
-      <br><br>
-      <label>
-        Nota
-        <textarea name="notes" rows="3" placeholder="Nota opcional"></textarea>
-      </label>
-      <br><br>
-      <button type="submit">Crear borrador</button>
-    </form>
-  </details>
-</section>
-
-<section>
-  <h2>Mis borradores</h2>
-  <div id="b2b-retailer-drafts-list"><p>Cargando borradores...</p></div>
+  <h2>Mi carrito B2B</h2>
+  <p id="b2b-retailer-cart-summary">Cargando carrito...</p>
+  <p id="b2b-retailer-cart-feedback"></p>
+  <div id="b2b-retailer-cart-list"><p>Cargando carrito...</p></div>
+  <div style="display:flex; flex-wrap:wrap; gap:8px; margin-top:12px;">
+    <button id="b2b-retailer-cart-submit" type="button">Enviar cotización</button>
+    <button id="b2b-retailer-cart-clear" type="button">Vaciar carrito</button>
+    <a href="/modules/company/catalog-management.html">Volver al catálogo</a>
+  </div>
 </section>
 
 <section>
   <h2>Mis cotizaciones enviadas</h2>
+  <p>Si el mayorista acepta tu cotización, podrás subir aquí el comprobante o evidencia de pago. Coordina la forma de pago por fuera del sistema con el email y teléfono del mayorista.</p>
+  <div id="b2b-retailer-filters" style="border:1px solid #ced4da; padding:12px; border-radius:10px; margin-bottom:16px; display:grid; gap:12px; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); align-items:end;">
+    <label style="display:flex; flex-direction:column; gap:4px;">
+      Estado
+      <select id="b2b-retailer-filter-status">
+        <option value="">Todos</option>
+        <option value="REJECTED">Rechazadas</option>
+        <option value="PAYMENT_PENDING">Pendientes</option>
+        <option value="REVIEW">Pendiente por revisar</option>
+        <option value="OVERDUE">Mora</option>
+        <option value="PAID">Pagadas</option>
+      </select>
+    </label>
+    <label style="display:flex; flex-direction:column; gap:4px;">
+      Desde
+      <input id="b2b-retailer-filter-from" type="date">
+    </label>
+    <label style="display:flex; flex-direction:column; gap:4px;">
+      Hasta
+      <input id="b2b-retailer-filter-to" type="date">
+    </label>
+    <label style="display:flex; flex-direction:column; gap:4px;">
+      Mayorista
+      <input id="b2b-retailer-filter-wholesaler" type="text" placeholder="Nombre del mayorista">
+    </label>
+    <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+      <button id="b2b-retailer-filter-apply" type="button">Aplicar filtros</button>
+      <button id="b2b-retailer-filter-clear" type="button">Limpiar filtros</button>
+    </div>
+  </div>
   <div id="b2b-retailer-quotes-list"><p>Cargando cotizaciones...</p></div>
+  <div id="b2b-retailer-pagination" style="margin-top:16px;"></div>
 </section>
 
 <script src="/assets/js/js_front/utils/auth.js"></script>

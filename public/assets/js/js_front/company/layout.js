@@ -8,7 +8,7 @@ const COMPANY_MODULES = [
   { label: 'Cotizaciones B2B (Detallista)', path: '/modules/company/b2b-retailer.html', requiredRole: 3, requiresApprovedBuy: true },
   { label: 'Cotizaciones B2B (Mayorista)', path: '/modules/company/b2b-wholesaler.html', requiredRole: 2, requiresApprovedSell: true },
   { label: 'Productos', path: '/modules/company/products.html', hideForAdmin: true, requiresApprovedSell: true },
-  { label: 'Compras', path: '/modules/company/purchases.html', requiresApprovedSell: true, hideForRole: 2 },
+  { label: 'Compras', path: '/modules/company/purchases.html', requiresApprovedSell: true },
   { label: 'Catálogo', path: '/modules/company/catalog-management.html', requiredRole: 3, requiresApprovedBuy: true },
   { label: 'Admin', path: '/modules/admin/dashboard.html', adminOnly: true }
 ];

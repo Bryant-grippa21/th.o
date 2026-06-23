@@ -1,6 +1,7 @@
 const {
   COMPANY_ROLE,
   createDraft,
+  createQuotesFromRetailerCart,
   listRetailerDrafts,
   getRetailerDraftDetail,
   addDraftItem,
@@ -88,6 +89,26 @@ const createRetailerDraft = async (req, res) => {
     });
   } catch (error) {
     console.error('ERROR CREATE RETAILER DRAFT:', error);
+    return res.status(getErrorStatus(error)).json({ error: error.message });
+  }
+};
+
+const submitRetailerCart = async (req, res) => {
+  try {
+    if (!requireRetailer(req, res)) {
+      return;
+    }
+
+    const quotes = await createQuotesFromRetailerCart({
+      retailerId: req.user.id
+    });
+
+    return res.status(201).json({
+      message: 'Carrito B2B enviado correctamente',
+      quotes
+    });
+  } catch (error) {
+    console.error('ERROR SUBMIT RETAILER CART:', error);
     return res.status(getErrorStatus(error)).json({ error: error.message });
   }
 };
@@ -239,7 +260,8 @@ const respondWholesalerQuote = async (req, res) => {
       wholesalerId: req.user.id,
       items: req.body?.items,
       charges: req.body?.charges,
-      wholesalerNote: req.body?.wholesaler_note
+      wholesalerNote: req.body?.wholesaler_note,
+      decision: req.body?.decision
     });
 
     return res.status(200).json({
@@ -338,12 +360,17 @@ const submitRetailerPaymentEvidence = async (req, res) => {
       return;
     }
 
+    if (!req.file) {
+      return res.status(400).json({ error: 'Archivo de evidencia es requerido' });
+    }
+
+    const fileUrl = `/b2b-evidencias/${req.file.filename}`;
     const evidence = await submitPaymentEvidenceByRetailer({
       quoteId: req.params.quoteId,
       retailerId: req.user.id,
-      fileUrl: req.body?.file_url,
-      originalName: req.body?.original_name,
-      mimeType: req.body?.mime_type,
+      fileUrl,
+      originalName: req.file.originalname,
+      mimeType: req.file.mimetype,
       amountReportedUsd: req.body?.amount_reported_usd,
       note: req.body?.review_note
     });
@@ -385,6 +412,7 @@ const reviewWholesalerPaymentEvidence = async (req, res) => {
 module.exports = {
   createRetailerDraft,
   getRetailerDrafts,
+  submitRetailerCart,
   getRetailerDraft,
   addRetailerDraftItem,
   submitRetailerDraft,

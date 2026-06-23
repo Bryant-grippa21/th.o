@@ -2,9 +2,18 @@
 -- 🗄️ BASE DE DATOS
 -- =========================================
 
+SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci;
+SET collation_connection = 'utf8mb4_unicode_ci';
+
 DROP DATABASE IF EXISTS tuherramientaonline;
-CREATE DATABASE tuherramientaonline;
+CREATE DATABASE tuherramientaonline
+CHARACTER SET utf8mb4
+COLLATE utf8mb4_unicode_ci;
 USE tuherramientaonline;
+
+ALTER DATABASE tuherramientaonline
+CHARACTER SET utf8mb4
+COLLATE utf8mb4_unicode_ci;
 
 CREATE TABLE Customer (
 
@@ -231,12 +240,14 @@ CREATE TABLE B2B_Quote (
     payment_due_at TIMESTAMP NULL,
 
     currency_code VARCHAR(10) NOT NULL DEFAULT 'USD',
+    payment_mode ENUM('ONE_TIME', 'INSTALLMENTS') NOT NULL DEFAULT 'ONE_TIME',
     subtotal_usd DECIMAL(12,2) NOT NULL DEFAULT 0,
     additional_charges_usd DECIMAL(12,2) NOT NULL DEFAULT 0,
     total_usd DECIMAL(12,2) NOT NULL DEFAULT 0,
 
     retailer_note TEXT,
     wholesaler_note TEXT,
+    retailer_payload_json LONGTEXT NULL,
 
     created_by_company_id INT NULL,
     updated_by_company_id INT NULL,
@@ -971,6 +982,7 @@ CREATE TABLE Product (
 
 
     sku VARCHAR(50) UNIQUE, -- identificador público
+    sku_intern VARCHAR(50) DEFAULT NULL, -- identificador interno de la empresa
     name VARCHAR(100) NOT NULL,
 
     brand VARCHAR(100),
@@ -978,6 +990,8 @@ CREATE TABLE Product (
     description VARCHAR(255),
 
     price DECIMAL(10,2) NOT NULL,
+
+    cost_price DECIMAL(10,2) DEFAULT NULL,
 
     attributes JSON,
 

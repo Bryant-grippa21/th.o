@@ -55,6 +55,7 @@ app.use('/api/b2b-quotes', b2bQuoteRoutes);
 
 app.use(express.static(publicDir));
 app.use('/uploads', express.static(path.join(publicDir, 'uploads')));
+app.use('/b2b-evidencias', express.static(path.join(__dirname, 'storage/b2b/evidencias')));
 
 const PORT = process.env.PORT || 3000;
 

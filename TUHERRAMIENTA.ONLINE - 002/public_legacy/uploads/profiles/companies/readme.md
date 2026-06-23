@@ -1,0 +1,1 @@
+carpeta para subir imagenes de perfil de las empresas

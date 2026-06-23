@@ -1,0 +1,20 @@
+# Dependencias
+node_modules/
+.venv/
+
+# Variables de entorno
+.env
+
+# Archivos de carga local
+DB/productos/Master_THO_Global_Expandido_Completo (2).xlsx
+
+# Logs
+*.log
+npm-debug.log*
+
+# Sistema operativo
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/

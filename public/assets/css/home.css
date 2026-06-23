@@ -1075,8 +1075,9 @@ body {
 }
 
 #landing-cart-drawer {
-	position: relative;
-	z-index: var(--z-overlay);
+	position: fixed;
+	inset: 0;
+	z-index: 2500;
 }
 
 .landing-cart-overlay {
@@ -1086,7 +1087,7 @@ body {
 	overflow: auto;
 	background: rgba(2, 13, 27, 0.58);
 	backdrop-filter: blur(2px);
-	z-index: var(--z-overlay);
+	z-index: 2501;
 }
 
 .landing-cart-modal {

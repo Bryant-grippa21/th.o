@@ -1,0 +1,43 @@
+﻿<!DOCTYPE html>
+<html lang="es" xml:lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Recuperación de cuenta</title>
+  <link rel="stylesheet" href="/assets/css/base.css">
+  <link rel="stylesheet" href="/assets/css/auth.css">
+</head>
+<body>
+
+<h2>Recuperación de cuenta</h2>
+
+<p>Indica el correo y el número telefónico registrados. Un administrador revisará tu solicitud y podrá enviarte una nueva contraseña por correo.</p>
+
+<label for="account-recovery-email">Email</label><br>
+<input id="account-recovery-email" type="email" placeholder="Email"><br><br>
+
+<label for="account-recovery-phone">Número telefónico</label><br>
+<input id="account-recovery-phone" placeholder="Teléfono"><br><br>
+
+<button type="button" onclick="submitAccountRecoveryRequest()">Enviar solicitud</button>
+
+<p>Si no tienes un número telefónico registrado, esta validación no podrá completarse por ahora. En ese caso debes contactar soporte o un administrador.</p>
+
+<h3>Soporte</h3>
+<label for="support-public-email">Correo público de soporte: soporte@soporte.com</label><br>
+
+<label for="support-public-phone">Teléfono público de soporte: 1-800-soporte</label><br>
+
+<p id="account-recovery-feedback"></p>
+
+<a href="/auth/login.html">Volver a login</a>
+
+<script src="/assets/js/js_front/utils/auth.js"></script>
+<script src="/assets/js/js_front/utils/global-header.js"></script>
+<script src="/assets/js/js_front/auth/account-recovery.js"></script>
+
+</body>
+</html>
+
+
+
+

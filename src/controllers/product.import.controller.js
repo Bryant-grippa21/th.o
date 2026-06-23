@@ -353,7 +353,9 @@ const downloadProductImportTemplate = async (req, res) => {
     const templateSheet = xlsx.utils.aoa_to_sheet([[
       'Nombre del producto',
       'Marca del producto',
+      'SKU interno',
       'Precio en decimales',
+      'Precio de costo',
       'Cantidad disponible',
       'Stock mínimo',
       'Atributos',
@@ -372,9 +374,19 @@ const downloadProductImportTemplate = async (req, res) => {
         descripcion: 'Marca del producto.'
       },
       {
+        columna: 'SKU interno',
+        requerida: 'no',
+        descripcion: 'Código propio de la empresa. Solo se usa internamente y no se muestra al cliente.'
+      },
+      {
         columna: 'Precio en decimales',
         requerida: 'si',
         descripcion: 'Precio en USD usando punto decimal. Ejemplo: 19.99'
+      },
+      {
+        columna: 'Precio de costo',
+        requerida: 'no',
+        descripcion: 'Costo interno opcional en USD. Solo visible para empresa/admin.'
       },
       {
         columna: 'Cantidad disponible',
@@ -409,7 +421,7 @@ const downloadProductImportTemplate = async (req, res) => {
     xlsx.utils.book_append_sheet(workbook, instructionsSheet, 'Instrucciones');
 
     const fileBuffer = xlsx.write(workbook, { bookType: 'xlsx', type: 'buffer' });
-    const filename = `plantilla-importacion-productos-${new Date().toISOString().slice(0, 10)}.xlsx`;
+    const filename = 'plantilla automatizaciones de productos V1.xlsx';
 
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);

@@ -63,8 +63,8 @@ const adminCompanyModalRole = document.getElementById('admin-company-modal-role'
 const adminCompanyModalPassword = document.getElementById('admin-company-modal-password');
 const adminCompanyModalVerificationStatus = document.getElementById('admin-company-modal-verification-status');
 const adminCompanyModalVerificationNote = document.getElementById('admin-company-modal-verification-note');
-const adminCompanyModalCanBuy = document.getElementById('admin-company-modal-can-buy');
-const adminCompanyModalCanSell = document.getElementById('admin-company-modal-can-sell');
+const adminCompanyModalCombinedAccess = document.getElementById('admin-company-modal-combined-access');
+const adminCompanyModalCombinedAccessState = document.getElementById('admin-company-modal-combined-access-state');
 const adminCompanyModalDocumentsList = document.getElementById('admin-company-modal-documents-list');
 const adminCompanyModalHistoryList = document.getElementById('admin-company-modal-history-list');
 const adminCompanyModalMessage = document.getElementById('admin-company-modal-message');
@@ -149,7 +149,8 @@ const state = {
   },
   companyEditor: {
     companyId: null,
-    verificationSnapshot: null
+    verificationSnapshot: null,
+    commercialAccess: false
   },
   purchasesFilters: {
     search: '',
@@ -212,6 +213,27 @@ const COMPANY_DOCUMENT_LABELS = {
   LEGAL_REPRESENTATIVE_ID: 'Cédula del representante legal',
   LEGAL_REPRESENTATIVE_RIF: 'RIF del representante legal',
   ECONOMIC_ACTIVITY_LICENSE: 'Licencia de actividad económica'
+};
+
+const isCommercialAccessEnabled = (company) => Boolean(company?.can_buy) && Boolean(company?.can_sell);
+
+const renderCommercialAccessState = (enabled) => {
+  if (!adminCompanyModalCombinedAccess || !adminCompanyModalCombinedAccessState) {
+    return;
+  }
+
+  adminCompanyModalCombinedAccess.textContent = enabled
+    ? 'Puede comprar y vender'
+    : 'No puede comprar ni vender';
+  adminCompanyModalCombinedAccessState.textContent = enabled
+    ? 'Ambos permisos están activos.'
+    : 'Ambos permisos están desactivados.';
+  adminCompanyModalCombinedAccess.classList.toggle('admin-company-access-control__button--active', enabled);
+};
+
+const toggleCommercialAccess = () => {
+  state.companyEditor.commercialAccess = !state.companyEditor.commercialAccess;
+  renderCommercialAccessState(state.companyEditor.commercialAccess);
 };
 
 const requestJson = async (url, options = {}) => {
@@ -1027,15 +1049,14 @@ const openCompanyModal = async (companyId) => {
   adminCompanyModalPassword.value = '';
   adminCompanyModalVerificationStatus.value = company.verification_status || 'PENDING_REVIEW';
   adminCompanyModalVerificationNote.value = company.verification_note || '';
-  adminCompanyModalCanBuy.checked = Boolean(company.can_buy);
-  adminCompanyModalCanSell.checked = Boolean(company.can_sell);
+  state.companyEditor.commercialAccess = isCommercialAccessEnabled(company);
+  renderCommercialAccessState(state.companyEditor.commercialAccess);
   adminCompanyModalDocumentsList.innerHTML = '<p>Cargando recaudos...</p>';
   adminCompanyModalHistoryList.innerHTML = '<p>Cargando historial...</p>';
   state.companyEditor.verificationSnapshot = {
     status: company.verification_status || 'PENDING_REVIEW',
     note: company.verification_note || '',
-    can_buy: Boolean(company.can_buy),
-    can_sell: Boolean(company.can_sell)
+    commercialAccess: isCommercialAccessEnabled(company)
   };
   adminCompanyModalMessage.innerText = '';
   adminCompanyModal.hidden = false;
@@ -1046,15 +1067,14 @@ const openCompanyModal = async (companyId) => {
 
     adminCompanyModalVerificationStatus.value = summaryCompany.verification_status || 'PENDING_REVIEW';
     adminCompanyModalVerificationNote.value = summaryCompany.verification_note || '';
-    adminCompanyModalCanBuy.checked = Boolean(summaryCompany.can_buy);
-    adminCompanyModalCanSell.checked = Boolean(summaryCompany.can_sell);
+    state.companyEditor.commercialAccess = isCommercialAccessEnabled(summaryCompany);
+    renderCommercialAccessState(state.companyEditor.commercialAccess);
     renderAdminCompanyVerificationDocuments(data.documents || []);
     renderAdminCompanyVerificationHistory(data.history || []);
     state.companyEditor.verificationSnapshot = {
       status: summaryCompany.verification_status || 'PENDING_REVIEW',
       note: summaryCompany.verification_note || '',
-      can_buy: Boolean(summaryCompany.can_buy),
-      can_sell: Boolean(summaryCompany.can_sell)
+      commercialAccess: isCommercialAccessEnabled(summaryCompany)
     };
   } catch (error) {
     adminCompanyModalMessage.innerText = error.message;
@@ -2424,8 +2444,7 @@ async function handleCompanyModalSubmit(event) {
     const password = adminCompanyModalPassword.value.trim();
     const verificationStatus = adminCompanyModalVerificationStatus.value;
     const verificationNote = adminCompanyModalVerificationNote.value.trim();
-    const canBuy = adminCompanyModalCanBuy.checked;
-    const canSell = adminCompanyModalCanSell.checked;
+    const commercialAccess = Boolean(state.companyEditor.commercialAccess);
 
     if (!companyId || !roleId) {
       throw new Error('Empresa o rol inválido');
@@ -2465,8 +2484,7 @@ async function handleCompanyModalSubmit(event) {
     const previousVerification = state.companyEditor.verificationSnapshot || {};
     const shouldUpdateVerification = previousVerification.status !== verificationStatus
       || (previousVerification.note || '') !== verificationNote
-      || Boolean(previousVerification.can_buy) !== canBuy
-      || Boolean(previousVerification.can_sell) !== canSell;
+      || Boolean(previousVerification.commercialAccess) !== commercialAccess;
 
     if (shouldUpdateVerification) {
       await requestJson(`${API_BASE_URL}/api/company-auth/admin/companies/${companyId}/verification`, {
@@ -2477,8 +2495,8 @@ async function handleCompanyModalSubmit(event) {
         body: JSON.stringify({
           status: verificationStatus,
           note: verificationNote || null,
-          can_buy: canBuy,
-          can_sell: canSell
+          can_buy: commercialAccess,
+          can_sell: commercialAccess
         })
       });
     }
@@ -2565,6 +2583,7 @@ async function handleAdminExchangeSubmit(event) {
 adminExchangeForm.addEventListener('submit', handleAdminExchangeSubmit);
 adminCustomerModalForm.addEventListener('submit', handleCustomerModalSubmit);
 adminCompanyModalForm.addEventListener('submit', handleCompanyModalSubmit);
+adminCompanyModalCombinedAccess?.addEventListener('click', toggleCommercialAccess);
 adminProductEditorForm.addEventListener('submit', handleAdminProductEditorSubmit);
 adminCustomerModalClose.addEventListener('click', closeCustomerModal);
 adminCompanyModalClose.addEventListener('click', closeCompanyModal);
